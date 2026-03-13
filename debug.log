@@ -1,0 +1,54 @@
+[00:38:24.700]   Table: Rows set, count=7
+[00:38:24.700]   Edit: SetFocus(true)
+[00:38:25.620]   Edit.ProcessKey: VK=9 Char=0
+[00:38:25.620]     Edit: Key NOT handled
+[00:38:25.620] Dialog.ProcessKey: VK=9 Char=0 FocusIdx=1
+[00:38:25.621] Dialog.nextFocus: Starting from index 1
+[00:38:25.621]   Edit: SetFocus(false)
+[00:38:25.621]   Checking item index 2: CanFocus=false
+[00:38:25.621]   Checking item index 3: CanFocus=true
+[00:38:25.621] Dialog.nextFocus: Landed on index 3
+[00:38:25.622]   Edit: SetFocus(true)
+[00:38:25.622] Dialog: TAB pressed. Focus changed: 1 -> 3
+[00:38:26.085]   Edit.ProcessKey: VK=9 Char=0
+[00:38:26.085]     Edit: Key NOT handled
+[00:38:26.085] Dialog.ProcessKey: VK=9 Char=0 FocusIdx=3
+[00:38:26.085] Dialog.nextFocus: Starting from index 3
+[00:38:26.085]   Edit: SetFocus(false)
+[00:38:26.085]   Checking item index 4: CanFocus=true
+[00:38:26.086] Dialog.nextFocus: Landed on index 4
+[00:38:26.086]   Table: SetFocus(true)
+[00:38:26.086] Dialog: TAB pressed. Focus changed: 3 -> 4
+[00:38:27.039] Dialog.ProcessKey: VK=11 Char=0 FocusIdx=4
+[00:39:56.174]   Table: Rows set, count=7
+[00:39:56.174]   Edit: SetFocus(true)
+[00:39:56.618]   Edit.ProcessKey: VK=9 Char=0
+[00:39:56.618]     Edit: Key NOT handled
+[00:39:56.618] Dialog.ProcessKey: VK=9 Char=0 FocusIdx=1
+[00:39:56.618] Dialog.nextFocus: Starting from index 1
+[00:39:56.618]   Edit: SetFocus(false)
+[00:39:56.618]   Checking item index 2: CanFocus=true
+[00:39:56.618] Dialog.nextFocus: Landed on index 2
+[00:39:56.618]   Table: SetFocus(true)
+[00:39:56.618] Dialog: TAB pressed. Focus changed: 1 -> 2
+[00:39:57.230] Dialog.ProcessKey: VK=9 Char=0 FocusIdx=2
+[00:39:57.231] Dialog.nextFocus: Starting from index 2
+[00:39:57.231]   Table: SetFocus(false)
+[00:39:57.231]   Checking item index 3: CanFocus=true
+[00:39:57.231] Dialog.nextFocus: Landed on index 3
+[00:39:57.231]   VMenu( Operations ): SetFocus(true)
+[00:39:57.231] Dialog: TAB pressed. Focus changed: 2 -> 3
+[00:39:57.426] Dialog.ProcessKey: VK=9 Char=0 FocusIdx=3
+[00:39:57.426] Dialog.nextFocus: Starting from index 3
+[00:39:57.426]   VMenu( Operations ): SetFocus(false)
+[00:39:57.426]   Checking item index 4: CanFocus=true
+[00:39:57.426] Dialog.nextFocus: Landed on index 4
+[00:39:57.426]   Button([ Ok ]): SetFocus(true)
+[00:39:57.426] Dialog: TAB pressed. Focus changed: 3 -> 4
+[00:39:57.633] Dialog.ProcessKey: VK=9 Char=0 FocusIdx=4
+[00:39:57.633] Dialog.nextFocus: Starting from index 4
+[00:39:57.633]   Button([ Ok ]): SetFocus(false)
+[00:39:57.633]   Checking item index 5: CanFocus=true
+[00:39:57.633] Dialog.nextFocus: Landed on index 5
+[00:39:57.633]   Button([ Cancel ]): SetFocus(true)
+[00:39:57.633] Dialog: TAB pressed. Focus changed: 4 -> 5

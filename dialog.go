@@ -67,12 +67,17 @@ func (d *Dialog) ProcessKey(e *vtinput.InputEvent) bool {
 	// 2. Handle global dialog keys
 	if !e.KeyDown { return false }
 
+	DebugLog("Dialog.ProcessKey: VK=%X Char=%d FocusIdx=%d", e.VirtualKeyCode, e.Char, d.focusIdx)
+
 	switch e.VirtualKeyCode {
 	case vtinput.VK_ESCAPE, vtinput.VK_F10:
+		DebugLog("Dialog: Close signal")
 		d.SetExitCode(-1)
 		return true
 	case vtinput.VK_TAB:
+		oldIdx := d.focusIdx
 		d.nextFocus()
+		DebugLog("Dialog: TAB pressed. Focus changed: %d -> %d", oldIdx, d.focusIdx)
 		return true
 	}
 
@@ -99,20 +104,25 @@ func (d *Dialog) IsDone() bool {
 func (d *Dialog) nextFocus() {
 	if len(d.items) == 0 { return }
 
-	// Remove focus from the current element
+	DebugLog("Dialog.nextFocus: Starting from index %d", d.focusIdx)
+
+	// 1. Remove focus from current
 	if d.focusIdx != -1 {
 		d.items[d.focusIdx].SetFocus(false)
 	}
 
-	// Find the next suitable element
+	// 2. Find next focusable
 	startIdx := d.focusIdx
 	for {
 		d.focusIdx = (d.focusIdx + 1) % len(d.items)
-		if d.items[d.focusIdx].CanFocus() || d.focusIdx == startIdx {
+		can := d.items[d.focusIdx].CanFocus()
+		DebugLog("  Checking item index %d: CanFocus=%v", d.focusIdx, can)
+		if can || d.focusIdx == startIdx {
 			break
 		}
 	}
 
+	DebugLog("Dialog.nextFocus: Landed on index %d", d.focusIdx)
 	d.items[d.focusIdx].SetFocus(true)
 }
 

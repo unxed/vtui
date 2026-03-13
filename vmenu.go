@@ -243,6 +243,11 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	}
 }
 
+func (m *VMenu) SetFocus(f bool) {
+	DebugLog("  VMenu(%s): SetFocus(%v)", m.title, f)
+	m.focused = f
+}
+
 func runesToCharInfo(runes []rune, attr uint64) []CharInfo {
 	res := make([]CharInfo, len(runes))
 	for i, r := range runes {

@@ -77,10 +77,16 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 	}
 }
 
+func (e *Edit) SetFocus(f bool) {
+	DebugLog("  Edit: SetFocus(%v)", f)
+	e.focused = f
+}
+
 func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	if !event.KeyDown { return false }
 
 	// Navigation with selection reset or set
+	DebugLog("  Edit.ProcessKey: VK=%X Char=%d", event.VirtualKeyCode, event.Char)
 	shift := (event.ControlKeyState & vtinput.ShiftPressed) != 0
 	ctrl := (event.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed)) != 0
 
@@ -193,6 +199,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 			return false
 		}
 
+		DebugLog("    Edit: Typng char %d", event.Char)
 		if e.clearFlag {
 			e.text = []rune{}
 			e.curPos = 0
@@ -216,6 +223,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		return true
 	}
 
+	DebugLog("    Edit: Key NOT handled")
 	return false
 }
 
