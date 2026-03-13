@@ -1,8 +1,11 @@
 package vtui
 
 import (
-	"github.com/unxed/vtinput"
+	"encoding/base64"
+	"os"
 	"unicode"
+
+	"github.com/unxed/vtinput"
 )
 
 type Edit struct {
@@ -82,6 +85,23 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	// Навигация со сбросом или установкой выделения
 	shift := (event.ControlKeyState & vtinput.ShiftPressed) != 0
 	ctrl := (event.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed)) != 0
+
+	if ctrl && !shift {
+		switch event.VirtualKeyCode {
+		case vtinput.VK_C:
+			if e.selStart != -1 {
+				e.copySelection()
+				return true
+			}
+		case vtinput.VK_X:
+			if e.selStart != -1 {
+				e.copySelection()
+				e.DeleteBlock()
+				e.clearFlag = false
+				return true
+			}
+		}
+	}
 
 	switch event.VirtualKeyCode {
 	case vtinput.VK_LEFT:
@@ -215,4 +235,14 @@ func (e *Edit) DeleteBlock() {
 		e.selStart = -1
 		e.selAnchor = -1
 	}
+}
+
+func (e *Edit) copySelection() {
+	if e.selStart == -1 {
+		return
+	}
+	selectedText := string(e.text[e.selStart:e.selEnd])
+	b64 := base64.StdEncoding.EncodeToString([]byte(selectedText))
+	// ANSI OSC 52: \x1b]52;c;<base64>\x07
+	os.Stdout.WriteString("\x1b]52;c;" + b64 + "\x07")
 }
