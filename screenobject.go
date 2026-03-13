@@ -9,6 +9,7 @@ type ScreenObject struct {
 	owner          *ScreenObject
 	saveScr        *SaveScreen
 	visible        bool
+	focused        bool
 	lockCount      int
 }
 
@@ -54,6 +55,15 @@ func (so *ScreenObject) Hide(scr *ScreenBuf) {
 // IsVisible возвращает true, если объект видим.
 func (so *ScreenObject) IsVisible() bool {
 	return so.visible
+}
+// SetFocus устанавливает или снимает фокус с объекта.
+func (so *ScreenObject) SetFocus(f bool) {
+	so.focused = f
+}
+
+// IsFocused возвращает состояние фокуса объекта.
+func (so *ScreenObject) IsFocused() bool {
+	return so.focused
 }
 
 // Lock увеличивает счетчик блокировок. Заблокированный объект не перерисовывается.

@@ -52,7 +52,23 @@ func main() {
 	menu.SetSelectPos(0, 1)
 
 	// Устанавливаем фиксированную позицию меню для стабильности теста
-	menu.SetPosition(x1+5, y1+2, x1+30, y1+10)
+	menu.SetPosition(x1+5, y1+2, x1+30, y1+8)
+	menu.SetFocus(true) // Меню в фокусе по умолчанию
+
+	// Добавляем текст и кнопки
+	label := vtui.NewText(x1+5, y1+1, "Available actions:", vtui.SetRGBFore(0, 0xFFFFFF))
+	btnOk := vtui.NewButton(x1+5, y1+10, "Ok")
+	btnCancel := vtui.NewButton(x1+15, y1+10, "Cancel")
+
+	// Список элементов для управления фокусом
+	type focusable interface {
+		SetFocus(bool)
+		IsFocused() bool
+		ProcessKey(*vtinput.InputEvent) bool
+		Show(*vtui.ScreenBuf)
+	}
+	elements := []focusable{menu, btnOk, btnCancel}
+	focusIdx := 0
 
 	// Настраиваем канал для получения событий от vtinput
 	reader := vtinput.NewReader(os.Stdin)
@@ -78,19 +94,39 @@ func main() {
 	// --- Главный цикл приложения ---
 	for {
 		// 1. Отрисовка
-		drawUI(scr, frame, menu, width, height)
+		// Передаем все элементы для отрисовки
+		scr.FillRect(0, 0, width-1, height-1, ' ', vtui.SetRGBBack(0, 0x0000A0))
+		frame.Show(scr)
+		label.Show(scr)
+		for _, el := range elements {
+			el.Show(scr)
+		}
 
-		// 2. Ожидание события (клавиатура или ресайз)
+		// Статусбар
+		status := fmt.Sprintf(" Size: %dx%d | Tab: Switch Focus | Arrows/ESC ", width, height)
+		scr.Write(0, height-1, strToCharInfo(status, vtui.SetRGBBoth(0, 0, 0x007BA7)))
+		scr.Flush()
+
+		// 2. Ожидание события
 		select {
 		case e, ok := <-eventChan:
-			if !ok { // Канал закрыт, выходим
-				return
-			}
-			// Сначала даем обработать клавишу меню
-			if menu.ProcessKey(e) {
+			if !ok { return }
+			if e.Type != vtinput.KeyEventType || !e.KeyDown { continue }
+
+			// Переключение фокуса по TAB
+			if e.VirtualKeyCode == vtinput.VK_TAB {
+				elements[focusIdx].SetFocus(false)
+				focusIdx = (focusIdx + 1) % len(elements)
+				elements[focusIdx].SetFocus(true)
 				continue
 			}
-			if handleKeyEvent(e, frame) { // handleKeyEvent вернет true, если надо выйти
+
+			// Передаем событие активному элементу
+			if elements[focusIdx].ProcessKey(e) {
+				continue
+			}
+
+			if handleKeyEvent(e, frame) {
 				return
 			}
 
@@ -106,26 +142,6 @@ func main() {
 	}
 }
 
-// drawUI отвечает за отрисовку всего интерфейса на ScreenBuf и вызов Flush.
-func drawUI(scr *vtui.ScreenBuf, frame *vtui.Frame, menu *vtui.VMenu, width, height int) {
-	// Очищаем буфер синим цветом (Far-style: 0x000080 или чуть светлее)
-	farBlue := vtui.SetRGBBack(0, 0x0000A0)
-	scr.FillRect(0, 0, width-1, height-1, ' ', farBlue)
-
-	// Показываем наш Frame
-	frame.Show(scr)
-
-	// Показываем меню
-	menu.Show(scr)
-
-	// Рисуем строку состояния внизу
-	status := fmt.Sprintf(" Size: %dx%d | Use Arrows to move, ESC to quit ", width, height)
-	statusInfo := strToCharInfo(status, vtui.SetRGBBoth(0, 0, 0x007BA7)) // Белый на синем
-	scr.Write(0, height-1, statusInfo)
-
-	// Отправляем все изменения в терминал
-	scr.Flush()
-}
 
 // handleKeyEvent обрабатывает события клавиатуры. Возвращает true для выхода.
 func handleKeyEvent(e *vtinput.InputEvent, frame *vtui.Frame) bool {

@@ -15,6 +15,8 @@ var boxSymbols = []rune{
 	'║', '═', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬',
 	// Special connectors for VMenu (22-23): Double Vertical + Single Horizontal
 	'╟', '╢',
+	// Button brackets (24-25)
+	'[', ']',
 }
 
 const (
