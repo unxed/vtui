@@ -32,7 +32,11 @@ func main() {
 	scr := vtui.NewScreenBuf()
 	scr.AllocBuf(width, height)
 
-	frame := vtui.NewFrame(10, 5, 50, 15, vtui.DoubleBox, "Test Frame")
+	// Вычисляем координаты для центрирования на старте
+	fWidth, fHeight := 40, 10
+	x1 := (width - fWidth) / 2
+	y1 := (height - fHeight) / 2
+	frame := vtui.NewFrame(x1, y1, x1+fWidth-1, y1+fHeight-1, vtui.DoubleBox, "Test Frame")
 
 	// Настраиваем канал для получения событий от vtinput
 	reader := vtinput.NewReader(os.Stdin)
@@ -84,8 +88,9 @@ func main() {
 
 // drawUI отвечает за отрисовку всего интерфейса на ScreenBuf и вызов Flush.
 func drawUI(scr *vtui.ScreenBuf, frame *vtui.Frame, width, height int) {
-	// Очищаем буфер (в реальном приложении это будет делаться умнее)
-	scr.FillRect(0, 0, width-1, height-1, ' ', 0)
+	// Очищаем буфер синим цветом (Far-style: 0x000080 или чуть светлее)
+	farBlue := vtui.SetRGBBack(0, 0x0000A0)
+	scr.FillRect(0, 0, width-1, height-1, ' ', farBlue)
 
 	// Показываем наш Frame (он сохранит под собой фон и отрисует себя)
 	frame.Show(scr)
