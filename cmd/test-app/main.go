@@ -36,7 +36,8 @@ func main() {
 	fWidth, fHeight := 40, 10
 	x1 := (width - fWidth) / 2
 	y1 := (height - fHeight) / 2
-	frame := vtui.NewFrame(x1, y1, x1+fWidth-1, y1+fHeight-1, vtui.DoubleBox, "Background Frame")
+	// Создаем диалог
+	dlg := vtui.NewDialog(x1, y1, x1+fWidth-1, y1+fHeight-1, " Action Dialog ")
 
 	// Создаем меню
 	menu := vtui.NewVMenu(" Select Action ")
@@ -47,28 +48,18 @@ func main() {
 	menu.AddItem("Attributes")
 	menu.AddSeparator()
 	menu.AddItem("Exit")
-
-	// Явно устанавливаем выбор на первый пункт
-	menu.SetSelectPos(0, 1)
-
-	// Устанавливаем фиксированную позицию меню для стабильности теста
 	menu.SetPosition(x1+5, y1+2, x1+30, y1+8)
-	menu.SetFocus(true) // Меню в фокусе по умолчанию
 
-	// Добавляем текст и кнопки
+	// Создаем текст и кнопки
 	label := vtui.NewText(x1+5, y1+1, "Available actions:", vtui.SetRGBFore(0, 0xFFFFFF))
 	btnOk := vtui.NewButton(x1+5, y1+10, "Ok")
 	btnCancel := vtui.NewButton(x1+15, y1+10, "Cancel")
 
-	// Список элементов для управления фокусом
-	type focusable interface {
-		SetFocus(bool)
-		IsFocused() bool
-		ProcessKey(*vtinput.InputEvent) bool
-		Show(*vtui.ScreenBuf)
-	}
-	elements := []focusable{menu, btnOk, btnCancel}
-	focusIdx := 0
+	// Собираем всё в диалог
+	dlg.AddItem(label)
+	dlg.AddItem(menu)
+	dlg.AddItem(btnOk)
+	dlg.AddItem(btnCancel)
 
 	// Настраиваем канал для получения событий от vtinput
 	reader := vtinput.NewReader(os.Stdin)
@@ -94,13 +85,8 @@ func main() {
 	// --- Главный цикл приложения ---
 	for {
 		// 1. Отрисовка
-		// Передаем все элементы для отрисовки
 		scr.FillRect(0, 0, width-1, height-1, ' ', vtui.SetRGBBack(0, 0x0000A0))
-		frame.Show(scr)
-		label.Show(scr)
-		for _, el := range elements {
-			el.Show(scr)
-		}
+		dlg.Show(scr)
 
 		// Статусбар
 		status := fmt.Sprintf(" Size: %dx%d | Tab: Switch Focus | Arrows/ESC ", width, height)
@@ -111,45 +97,41 @@ func main() {
 		select {
 		case e, ok := <-eventChan:
 			if !ok { return }
-			if e.Type != vtinput.KeyEventType || !e.KeyDown { continue }
 
-			// Переключение фокуса по TAB
-			if e.VirtualKeyCode == vtinput.VK_TAB {
-				elements[focusIdx].SetFocus(false)
-				focusIdx = (focusIdx + 1) % len(elements)
-				elements[focusIdx].SetFocus(true)
+			// Отдаем событие диалогу. Он сам решит, что с ним делать.
+			if dlg.ProcessKey(e) {
 				continue
 			}
 
-			// Передаем событие активному элементу
-			if elements[focusIdx].ProcessKey(e) {
-				continue
-			}
-
-			if handleKeyEvent(e, frame) {
+			// Глобальные клавиши (Esc / Ресайз)
+			if handleKeyEvent(e, dlg) {
 				return
 			}
 
 		case <-sigChan:
 			width, height, _ = term.GetSize(int(os.Stdin.Fd()))
 			scr.AllocBuf(width, height)
-			// Просто перецентрируем рамку для наглядности
-			frameWidth, frameHeight := 40, 10
-			newX1 := (width - frameWidth) / 2
-			newY1 := (height - frameHeight) / 2
-			frame.SetPosition(newX1, newY1, newX1+frameWidth-1, newY1+frameHeight-1)
+			// Перецентрируем диалог
+			dlgWidth, dlgHeight := 40, 10
+			newX1 := (width - dlgWidth) / 2
+			newY1 := (height - dlgHeight) / 2
+			dlg.SetPosition(newX1, newY1, newX1+dlgWidth-1, newY1+dlgHeight-1)
 		}
 	}
 }
 
 
 // handleKeyEvent обрабатывает события клавиатуры. Возвращает true для выхода.
-func handleKeyEvent(e *vtinput.InputEvent, frame *vtui.Frame) bool {
+func handleKeyEvent(e *vtinput.InputEvent, dlg *vtui.Dialog) bool {
 	if e.Type != vtinput.KeyEventType || !e.KeyDown {
 		return false
 	}
 
-	x1, y1, x2, y2 := frame.GetPosition()
+	if dlg == nil {
+		return false
+	}
+
+	x1, y1, x2, y2 := dlg.GetPosition()
 
 	switch e.VirtualKeyCode {
 	case vtinput.VK_ESCAPE:
@@ -168,7 +150,7 @@ func handleKeyEvent(e *vtinput.InputEvent, frame *vtui.Frame) bool {
 		x1, x2 = x1+1, x2+1
 	}
 
-	frame.SetPosition(x1, y1, x2, y2)
+	dlg.SetPosition(x1, y1, x2, y2)
 	return false
 }
 

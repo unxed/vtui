@@ -10,6 +10,7 @@ type ScreenObject struct {
 	saveScr        *SaveScreen
 	visible        bool
 	focused        bool
+	canFocus       bool
 	lockCount      int
 }
 
@@ -66,6 +67,16 @@ func (so *ScreenObject) IsFocused() bool {
 	return so.focused
 }
 
+// SetCanFocus устанавливает, может ли объект принимать фокус.
+func (so *ScreenObject) SetCanFocus(c bool) {
+	so.canFocus = c
+}
+
+// CanFocus возвращает true, если объект может быть сфокусирован.
+func (so *ScreenObject) CanFocus() bool {
+	return so.canFocus
+}
+
 // Lock увеличивает счетчик блокировок. Заблокированный объект не перерисовывается.
 func (so *ScreenObject) Lock() {
 	so.lockCount++
@@ -94,7 +105,7 @@ func (so *ScreenObject) ProcessKey(key *vtinput.InputEvent) bool {
 	return false
 }
 
-// ProcessMouse (заглушка) будет переопределяться в дочерних классах.
+// ProcessMouse — пустая реализация по умолчанию.
 func (so *ScreenObject) ProcessMouse(mouse *vtinput.InputEvent) bool {
 	return false
 }

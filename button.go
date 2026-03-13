@@ -19,6 +19,7 @@ func NewButton(x, y int, text string) *Button {
 		colorNormal:  SetRGBBoth(0, 0xCCCCCC, 0x0000A0), // Серый на синем
 		colorFocused: SetRGBBoth(0, 0x000000, 0x00AAAA), // Черный на бирюзовом
 	}
+	b.canFocus = true
 	b.SetPosition(x, y, x+len([]rune(fullText))-1, y)
 	return b
 }

@@ -27,7 +27,7 @@ type VMenu struct {
 
 // NewVMenu создает новый экземпляр вертикального меню.
 func NewVMenu(title string) *VMenu {
-	return &VMenu{
+	m := &VMenu{
 		title:         title,
 		items:         []MenuItem{},
 		selectPos:     0,
@@ -35,6 +35,8 @@ func NewVMenu(title string) *VMenu {
 		ColorSelected: SetRGBBoth(0, 0x000000, 0x00AAAA), // Черный на бирюзовом
 		ColorBorder:   SetRGBBoth(0, 0xCCCCCC, 0x0000A0),
 	}
+	m.canFocus = true
+	return m
 }
 
 // AddItem добавляет новый пункт в меню.
