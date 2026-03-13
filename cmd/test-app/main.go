@@ -50,13 +50,19 @@ func main() {
 	menu.AddItem("Exit")
 	menu.SetPosition(x1+5, y1+2, x1+30, y1+8)
 
-	// Создаем текст и кнопки
-	label := vtui.NewText(x1+5, y1+1, "Available actions:", vtui.SetRGBFore(0, 0xFFFFFF))
+	// Создаем текст, поле ввода и кнопки
+	label := vtui.NewText(x1+5, y1+1, "Enter task name:", vtui.SetRGBFore(0, 0xFFFFFF))
+	edit := vtui.NewEdit(x1+5, y1+2, 20, "Far2Go implementation")
+	
+	// Сдвигаем меню чуть ниже
+	menu.SetPosition(x1+5, y1+4, x1+30, y1+9)
+
 	btnOk := vtui.NewButton(x1+5, y1+10, "Ok")
 	btnCancel := vtui.NewButton(x1+15, y1+10, "Cancel")
 
 	// Собираем всё в диалог
 	dlg.AddItem(label)
+	dlg.AddItem(edit)
 	dlg.AddItem(menu)
 	dlg.AddItem(btnOk)
 	dlg.AddItem(btnCancel)

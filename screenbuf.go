@@ -125,29 +125,30 @@ func (s *ScreenBuf) ApplyColor(x1, y1, x2, y2 int, attributes uint64) {
 func (s *ScreenBuf) FillRect(x1, y1, x2, y2 int, char rune, attributes uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if s.buf == nil {
-		return
-	}
-
-	// Отсечение по границам экрана
+	if s.buf == nil { return }
 	if x1 < 0 { x1 = 0 }
 	if y1 < 0 { y1 = 0 }
 	if x2 >= s.width { x2 = s.width - 1 }
 	if y2 >= s.height { y2 = s.height - 1 }
-
-	cell := CharInfo{
-		// Прямое присваивание. Позже нужно будет обрабатывать композитные символы.
-		Char:       uint64(char),
-		Attributes: attributes,
-	}
-
+	cell := CharInfo{Char: uint64(char), Attributes: attributes}
 	for y := y1; y <= y2; y++ {
 		offset := y*s.width + x1
 		for x := 0; x <= x2-x1; x++ {
 			s.buf[offset+x] = cell
 		}
 	}
+}
+
+func (s *ScreenBuf) SetCursorPos(x, y int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cursorX, s.cursorY = x, y
+}
+
+func (s *ScreenBuf) SetCursorVisible(visible bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cursorVisible = visible
 }
 
 
