@@ -121,23 +121,31 @@ func (m *VMenu) Show(scr *ScreenBuf) {
 
 // DisplayObject отрисовывает рамку и пункты меню.
 func (m *VMenu) DisplayObject(scr *ScreenBuf) {
+	if !m.IsVisible() {
+		return
+	}
+
+	// 1. Отрисовка рамки
 	frame := NewFrame(m.X1, m.Y1, m.X2, m.Y2, DoubleBox, m.title)
 	frame.borderColor = m.ColorBorder
 	frame.DisplayObject(scr)
 
-	// Очищаем внутреннюю область меню
+	// 2. Очистка фона
 	scr.FillRect(m.X1+1, m.Y1+1, m.X2-1, m.Y2-1, ' ', m.ColorText)
 
-	menuWidth := m.X2 - m.X1 - 1
+	fullWidth := m.X2 - m.X1 + 1
+	interiorWidth := fullWidth - 2
 	height := m.Y2 - m.Y1 - 1
 
+	// 3. Отрисовка пунктов
 	for i := 0; i < height; i++ {
 		itemIdx := i + m.topPos
 		currY := m.Y1 + 1 + i
-		if currY >= m.Y2 { break }
+		if currY >= m.Y2 {
+			break
+		}
 
 		if itemIdx >= len(m.items) {
-			scr.FillRect(m.X1+1, currY, m.X2-1, currY, ' ', m.ColorText)
 			continue
 		}
 
@@ -148,22 +156,28 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 		}
 
 		if item.Separator {
-			sym := getBoxSymbols(SingleBox)
-			sep := string(sym[6]) // ├
-			for j := 0; j < menuWidth-1; j++ { sep += string(sym[1]) }
-			sep += string(sym[7]) // ┤
-			scr.Write(m.X1, currY, stringToCharInfo(sep, m.ColorBorder))
+			// Разделитель: ╟──────╢
+			sepRunes := make([]rune, fullWidth)
+			sepRunes[0] = boxSymbols[22] // ╟
+			for j := 1; j < fullWidth-1; j++ {
+				sepRunes[j] = boxSymbols[1] // ─
+			}
+			sepRunes[fullWidth-1] = boxSymbols[23] // ╢
+			scr.Write(m.X1, currY, runesToCharInfo(sepRunes, m.ColorBorder))
 		} else {
-			text := " " + item.Text
-			runes := []rune(text)
-			// Дополняем пробелами
-			for len(runes) < menuWidth {
-				runes = append(runes, ' ')
+			// Пункт меню с отступами
+			textRunes := make([]rune, interiorWidth)
+			for j := range textRunes {
+				textRunes[j] = ' '
 			}
-			if len(runes) > menuWidth {
-				runes = runes[:menuWidth]
+
+			contentRunes := []rune(item.Text)
+			if len(contentRunes) > interiorWidth-2 {
+				contentRunes = contentRunes[:interiorWidth-2]
 			}
-			scr.Write(m.X1+1, currY, runesToCharInfo(runes, attr))
+			copy(textRunes[1:], contentRunes)
+
+			scr.Write(m.X1+1, currY, runesToCharInfo(textRunes, attr))
 		}
 	}
 }

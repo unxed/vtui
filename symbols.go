@@ -8,12 +8,13 @@ const (
 )
 
 // boxSymbols содержит символы для отрисовки рамок.
-// Индексация соответствует SINGLE_BOX (0-8) и DOUBLE_BOX (9-17).
 var boxSymbols = []rune{
-	// Single Box
+	// Single Box (0-10)
 	'│', '─', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼',
-	// Double Box
+	// Double Box (11-21)
 	'║', '═', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬',
+	// Special connectors for VMenu (22-23): Double Vertical + Single Horizontal
+	'╟', '╢',
 }
 
 const (
