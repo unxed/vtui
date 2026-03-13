@@ -20,8 +20,8 @@ var boxSymbols = []rune{
 }
 
 const (
-	bsV = 0 // Вертикальная линия
-	bsH = 1 // Горизонтальная
+	bsV = 0 // Vertical line
+	bsH = 1 // Horizontal line
 	bsTL = 2 // Top-Left
 	bsTR = 3 // Top-Right
 	bsBL = 4 // Bottom-Left

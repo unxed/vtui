@@ -7,5 +7,5 @@ require (
 	golang.org/x/term v0.40.0
 )
 
-// Эта строка указывает Go использовать локальную копию vtinput
+// This line tells Go to use a local copy of vtinput
 replace github.com/unxed/vtinput => ../vtinput

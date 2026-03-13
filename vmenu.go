@@ -39,7 +39,7 @@ func NewVMenu(title string) *VMenu {
 	return m
 }
 
-// AddItem добавляет новый пункт в меню.
+// AddItem adds a new item to the menu.
 func (m *VMenu) AddItem(text string) {
 	m.items = append(m.items, MenuItem{Text: text})
 	if len(m.items) == 1 {
@@ -47,7 +47,7 @@ func (m *VMenu) AddItem(text string) {
 	}
 }
 
-// AddSeparator добавляет разделительную линию.
+// AddSeparator adds a separator line.
 func (m *VMenu) AddSeparator() {
 	m.items = append(m.items, MenuItem{Separator: true})
 }
@@ -82,7 +82,7 @@ func (m *VMenu) SetSelectPos(pos int, direct int) {
 	}
 	m.selectPos = newPos
 
-	// Скроллинг
+	// Scrolling
 	h := m.Y2 - m.Y1 - 1
 	if h <= 0 { return }
 	if m.selectPos < m.topPos {
@@ -92,7 +92,7 @@ func (m *VMenu) SetSelectPos(pos int, direct int) {
 	}
 }
 
-// ProcessKey обрабатывает клавиши навигации.
+// ProcessKey processes navigation keys.
 func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 	if e.Type != vtinput.KeyEventType || !e.KeyDown {
 		return false
@@ -114,13 +114,14 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 	return false
 }
-// ProcessMouse обрабатывает прокрутку колесиком и клики по пунктам меню.
+
+// ProcessMouse handles mouse wheel scrolling and menu item clicks.
 func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 	if e.Type != vtinput.MouseEventType {
 		return false
 	}
 
-	// Прокрутка колесиком
+	// Wheel scrolling
 	if e.WheelDirection > 0 {
 		m.SetSelectPos(m.selectPos-1, -1)
 		return true
@@ -129,16 +130,20 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 		return true
 	}
 
-	// Клик левой кнопкой мыши
+	// Left button click
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
 
-		// Проверяем попадание внутрь рамки меню
-		if mx > m.X1 && mx < m.X2 && my > m.Y1 && my < m.Y2 {
-			clickedIdx := m.topPos + (my - m.Y1 - 1)
+		// Checking whether we fit inside menu frame
+		if mx >= m.X1 && mx <= m.X2 && my >= m.Y1 && my <= m.Y2 {
+			// Calculation of the index taking into account the presence/absence of a frame
+			offset := 1
+			// if m.BoxType == NoBox { offset = 0 }
+
+			clickedIdx := m.topPos + (my - m.Y1 - offset)
 			if clickedIdx >= 0 && clickedIdx < len(m.items) && !m.items[clickedIdx].Separator {
 				m.SetSelectPos(clickedIdx, 1)
-				// Здесь в будущем будет вызов OnSelect
+				// Here in the future there will be a call to OnSelect
 				return true
 			}
 		}

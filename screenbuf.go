@@ -52,9 +52,9 @@ func (s *ScreenBuf) AllocBuf(width, height int) {
 	newShadow := make([]CharInfo, size)
 
 	if newBuf == nil || newShadow == nil {
-		// В Go принято возвращать ошибку, но для критической ошибки, как
-		// нехватка памяти для экрана, паника оправдана и соответствует
-		// поведению far2l (abort).
+		// In Go it is customary to return an error, but for a critical error such as
+		// running out of memory for the screen, a panic is justified and matches
+		// the behavior of far2l (abort).
 		panic(fmt.Sprintf("FATAL: Failed to allocate screen buffer (%d x %d)", width, height))
 	}
 
@@ -152,13 +152,13 @@ func (s *ScreenBuf) SetCursorVisible(visible bool) {
 }
 
 
-// Таблицы для быстрого преобразования палитры в ANSI-коды.
+// Tables for quickly converting palettes to ANSI codes.
 var (
 	ansiFg = []string{"30", "34", "32", "36", "31", "35", "33", "37"}
 	ansiBg = []string{"40", "44", "42", "46", "41", "45", "43", "47"}
 )
 
-// rgb извлекает R, G, B компоненты из 24-битного цвета (формат 0xRRGGBB).
+// rgb extracts R, G, B components from 24-bit color (format 0xRRGGBB).
 func rgb(c uint32) (r, g, b byte) {
 	return byte((c >> 16) & 0xFF), byte((c >> 8) & 0xFF), byte(c & 0xFF)
 }
@@ -171,7 +171,7 @@ func attributesToANSI(attr, lastAttr uint64) string {
 
 	var params []string
 
-	// 1. Проверка изменения флагов (подчеркивание, инверсия)
+	// 1. Checking for flag changes (underscore, inversion)
 	const simpleFlags = CommonLvbUnderscore | CommonLvbReverse
 	if (attr & simpleFlags) != (lastAttr & simpleFlags) {
 		params = append(params, "0")
@@ -179,7 +179,7 @@ func attributesToANSI(attr, lastAttr uint64) string {
 		if attr&CommonLvbReverse != 0 { params = append(params, "7") }
 	}
 
-	// 2. Цвет текста (Foreground)
+	// 2. Text color (Foreground)
 	fgChanged := false
 	if (attr & ForegroundTrueColor) != (lastAttr & ForegroundTrueColor) {
 		fgChanged = true
@@ -203,7 +203,7 @@ func attributesToANSI(attr, lastAttr uint64) string {
 		}
 	}
 
-	// 3. Цвет фона (Background)
+	// 3. Background
 	bgChanged := false
 	if (attr & BackgroundTrueColor) != (lastAttr & BackgroundTrueColor) {
 		bgChanged = true

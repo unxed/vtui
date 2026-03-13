@@ -89,28 +89,38 @@ func (d *Dialog) nextFocus() {
 	}
 
 	d.items[d.focusIdx].SetFocus(true)
-}// ProcessMouse обрабатывает события мыши, передавая их соответствующему элементу.
+}
+
+// ProcessMouse handles mouse events, passing them to the appropriate element.
 func (d *Dialog) ProcessMouse(e *vtinput.InputEvent) bool {
 	mx, my := int(e.MouseX), int(e.MouseY)
 
-	// Проверяем, попал ли клик в какой-либо элемент диалога
-	for i, item := range d.items {
+	// We check whether the click hit any element of the dialog.
+	// We iterate over the elements in reverse order (Z-order: top first)
+	for i := len(d.items) - 1; i >= 0; i-- {
+		item := d.items[i]
 		x1, y1, x2, y2 := item.GetPosition()
 		if mx >= x1 && mx <= x2 && my >= y1 && my <= y2 {
 
-			// Если элемент может принимать фокус и был клик левой кнопкой — передаем фокус
-			if item.CanFocus() && d.focusIdx != i && e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-				if d.focusIdx != -1 {
-					d.items[d.focusIdx].SetFocus(false)
+			// If it's a left button click, change focus.
+			if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+				if item.CanFocus() && d.focusIdx != i {
+					if d.focusIdx != -1 {
+						d.items[d.focusIdx].SetFocus(false)
+					}
+					d.focusIdx = i
+					item.SetFocus(true)
 				}
-				d.focusIdx = i
-				item.SetFocus(true)
 			}
 
-			// Пробрасываем событие элементу
+			// Always propagate an event to the element under the mouse
 			if item.ProcessMouse(e) {
 				return true
 			}
+
+			// If an element absorbs a click (even if it returns false),
+			// prevent clicks through it (important for overlapping elements)
+			return true
 		}
 	}
 

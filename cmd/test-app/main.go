@@ -85,7 +85,7 @@ func main() {
 			e, err := reader.ReadEvent()
 			if err != nil {
 				if err != io.EOF {
-					// Можно добавить логирование ошибки
+					// Log error
 				}
 				close(eventChan)
 				return
