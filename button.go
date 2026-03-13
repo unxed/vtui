@@ -6,9 +6,10 @@ import (
 // Button represents an interactive button.
 type Button struct {
 	ScreenObject
-	text       string
+	text          string
 	colorNormal   uint64
 	colorFocused  uint64
+	OnClick       func()
 }
 
 func NewButton(x, y int, text string) *Button {
@@ -38,7 +39,25 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 	scr.Write(b.X1, b.Y1, stringToCharInfo(b.text, attr))
 }
 
-// Simple stub for focusable interface implementation
 func (b *Button) ProcessKey(e *vtinput.InputEvent) bool {
+	if !e.KeyDown {
+		return false
+	}
+	if e.VirtualKeyCode == vtinput.VK_RETURN || e.VirtualKeyCode == vtinput.VK_SPACE {
+		if b.OnClick != nil {
+			b.OnClick()
+		}
+		return true
+	}
+	return false
+}
+
+func (b *Button) ProcessMouse(e *vtinput.InputEvent) bool {
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+		if b.OnClick != nil {
+			b.OnClick()
+		}
+		return true
+	}
 	return false
 }

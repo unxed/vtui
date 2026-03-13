@@ -114,6 +114,37 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 	return false
 }
+// ProcessMouse обрабатывает прокрутку колесиком и клики по пунктам меню.
+func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
+	if e.Type != vtinput.MouseEventType {
+		return false
+	}
+
+	// Прокрутка колесиком
+	if e.WheelDirection > 0 {
+		m.SetSelectPos(m.selectPos-1, -1)
+		return true
+	} else if e.WheelDirection < 0 {
+		m.SetSelectPos(m.selectPos+1, 1)
+		return true
+	}
+
+	// Клик левой кнопкой мыши
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+		mx, my := int(e.MouseX), int(e.MouseY)
+
+		// Проверяем попадание внутрь рамки меню
+		if mx > m.X1 && mx < m.X2 && my > m.Y1 && my < m.Y2 {
+			clickedIdx := m.topPos + (my - m.Y1 - 1)
+			if clickedIdx >= 0 && clickedIdx < len(m.items) && !m.items[clickedIdx].Separator {
+				m.SetSelectPos(clickedIdx, 1)
+				// Здесь в будущем будет вызов OnSelect
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // Show prepares the background and calls the render method.
 func (m *VMenu) Show(scr *ScreenBuf) {

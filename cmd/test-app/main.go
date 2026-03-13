@@ -61,6 +61,15 @@ func main() {
 	btnOk := vtui.NewButton(x1+5, y1+12, "Ok")
 	btnCancel := vtui.NewButton(x1+15, y1+12, "Cancel")
 
+	// Setup Button Actions
+	shouldExit := false
+	btnCancel.OnClick = func() {
+		shouldExit = true
+	}
+	btnOk.OnClick = func() {
+		edit.SetFocus(true) // Just moving focus to show it works
+	}
+
 	// Assemble everything into the dialog
 	dlg.AddItem(label)
 	dlg.AddItem(edit)
@@ -105,14 +114,21 @@ func main() {
 		case e, ok := <-eventChan:
 			if !ok { return }
 
-			// Pass the event to the dialog. It will decide what to do with it.
-			if dlg.ProcessKey(e) {
-				continue
-			}
-
-			// Global keys (Esc / Resize)
-			if handleKeyEvent(e, dlg) {
-				return
+			if e.Type == vtinput.KeyEventType {
+				if dlg.ProcessKey(e) {
+					// Check if a button action triggered exit
+					if shouldExit { return }
+					continue
+				}
+				// Global keys (Esc / Resize)
+				if handleKeyEvent(e, dlg) {
+					return
+				}
+			} else if e.Type == vtinput.MouseEventType {
+				if dlg.ProcessMouse(e) {
+					if shouldExit { return }
+					continue
+				}
 			}
 
 		case <-sigChan:

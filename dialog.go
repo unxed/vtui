@@ -4,6 +4,7 @@ import "github.com/unxed/vtinput"
 
 // UIElement is the interface that all dialog elements must implement.
 type UIElement interface {
+	GetPosition() (int, int, int, int)
 	Show(scr *ScreenBuf)
 	Hide(scr *ScreenBuf)
 	SetFocus(bool)
@@ -88,4 +89,30 @@ func (d *Dialog) nextFocus() {
 	}
 
 	d.items[d.focusIdx].SetFocus(true)
+}// ProcessMouse обрабатывает события мыши, передавая их соответствующему элементу.
+func (d *Dialog) ProcessMouse(e *vtinput.InputEvent) bool {
+	mx, my := int(e.MouseX), int(e.MouseY)
+
+	// Проверяем, попал ли клик в какой-либо элемент диалога
+	for i, item := range d.items {
+		x1, y1, x2, y2 := item.GetPosition()
+		if mx >= x1 && mx <= x2 && my >= y1 && my <= y2 {
+
+			// Если элемент может принимать фокус и был клик левой кнопкой — передаем фокус
+			if item.CanFocus() && d.focusIdx != i && e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+				if d.focusIdx != -1 {
+					d.items[d.focusIdx].SetFocus(false)
+				}
+				d.focusIdx = i
+				item.SetFocus(true)
+			}
+
+			// Пробрасываем событие элементу
+			if item.ProcessMouse(e) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
