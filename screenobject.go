@@ -58,6 +58,10 @@ func (so *ScreenObject) Hide(scr *ScreenBuf) {
 func (so *ScreenObject) IsVisible() bool {
 	return so.visible
 }
+// SetVisible manually sets the visibility flag.
+func (so *ScreenObject) SetVisible(v bool) {
+	so.visible = v
+}
 
 // SetFocus sets or removes focus from the object.
 func (so *ScreenObject) SetFocus(f bool) {
