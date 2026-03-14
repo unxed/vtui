@@ -51,6 +51,15 @@ func (mb *MenuBar) DisplayObject(scr *ScreenBuf) {
 	}
 }
 
+// GetItemX returns the X coordinate of the item at the given index.
+func (mb *MenuBar) GetItemX(index int) int {
+	x := mb.X1 + 2
+	for i := 0; i < index; i++ {
+		x += runewidth.StringWidth("  " + mb.Items[i].Label + "  ")
+	}
+	return x
+}
+
 func (mb *MenuBar) ProcessKey(e *vtinput.InputEvent) bool {
 	if !mb.Active || !e.KeyDown { return false }
 

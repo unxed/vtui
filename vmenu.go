@@ -20,6 +20,8 @@ type VMenu struct {
 	items     []MenuItem
 	done      bool
 	exitCode  int
+	OnSelect  func(int)
+	OnClose   func()
 	selectPos int // Selected item index
 	topPos    int // Index of the first visible item (for scrolling)
 
@@ -103,6 +105,9 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		m.SetExitCode(-1)
 		return true
 	case vtinput.VK_RETURN:
+		if m.OnSelect != nil {
+			m.OnSelect(m.selectPos)
+		}
 		m.SetExitCode(m.selectPos)
 		return true
 	case vtinput.VK_UP:
@@ -132,6 +137,9 @@ func (m *VMenu) GetType() FrameType {
 func (m *VMenu) SetExitCode(code int) {
 	m.done = true
 	m.exitCode = code
+	if code == -1 && m.OnClose != nil {
+		m.OnClose()
+	}
 }
 
 func (m *VMenu) IsDone() bool {
@@ -165,7 +173,10 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 			clickedIdx := m.topPos + (my - m.Y1 - offset)
 			if clickedIdx >= 0 && clickedIdx < len(m.items) && !m.items[clickedIdx].Separator {
 				m.SetSelectPos(clickedIdx, 1)
-				// Here in the future there will be a call to OnSelect
+				if m.OnSelect != nil {
+					m.OnSelect(clickedIdx)
+				}
+				m.SetExitCode(clickedIdx)
 				return true
 			}
 		}

@@ -60,6 +60,10 @@ func (fm *frameManager) Pop() {
 		fm.frames = fm.frames[:len(fm.frames)-1]
 	}
 }
+// Shutdown clears all frames, effectively stopping the application loop.
+func (fm *frameManager) Shutdown() {
+	fm.frames = nil
+}
 
 // Run starts the main application event loop.
 func (fm *frameManager) Run() {

@@ -119,7 +119,9 @@ func (so *ScreenObject) ProcessMouse(mouse *vtinput.InputEvent) bool {
 // ResizeConsole (stub) will be overridden to react to resizing.
 func (so *ScreenObject) ResizeConsole() {
 	// Default empty implementation.
-}// SetHelp sets the help topic for this object.
+}
+
+// SetHelp sets the help topic for this object.
 func (so *ScreenObject) SetHelp(topic string) {
 	so.helpTopic = topic
 }
