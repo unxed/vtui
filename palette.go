@@ -43,6 +43,8 @@ const (
 	ColKeyBarText
 	ColCommandLinePrompt
 	ColCommandLineText
+	ColMenuBarItem
+	ColMenuBarSelected
 
 	// Helper for array size
 	LastPaletteColor
@@ -102,4 +104,8 @@ func SetDefaultPalette() {
 	// CommandLine (White on Black)
 	Palette[ColCommandLinePrompt] = SetRGBBoth(0, 0x00FFFF, black)
 	Palette[ColCommandLineText] = SetRGBBoth(0, white, black)
+
+	// MenuBar (Black on LightGray, Green on LightGray for selection)
+	Palette[ColMenuBarItem] = SetRGBBoth(0, black, lightGray)
+	Palette[ColMenuBarSelected] = SetRGBBoth(0, black, 0x00FF00) // Green background
 }
