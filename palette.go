@@ -78,6 +78,7 @@ func SetDefaultPalette() {
 	Palette[ColPanelCursor] = SetRGBBoth(0, black, cyan)
 	Palette[ColPanelSelectedCursor] = SetRGBBoth(0, yellow, cyan)
 	Palette[ColPanelBox] = SetRGBBoth(0, 0x00FFFF, blue)
+	Palette[ColPanelTitle] = SetRGBBoth(0, 0x00FFFF, blue)
 	Palette[ColPanelColumnTitle] = SetRGBBoth(0, yellow, blue)
 
 	// Dialogs (Black on LightGray)
