@@ -122,8 +122,9 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 	return false
 }
-func (m *VMenu) ResizeConsole() {
-	// Future: Recalculate positions if the menu is centered or relative-sized
+
+func (m *VMenu) ResizeConsole(w, h int) {
+	// For standalone VMenus, we might want to keep them centered
 }
 
 func (m *VMenu) GetType() FrameType {

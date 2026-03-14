@@ -25,7 +25,7 @@ type Frame interface {
 	ProcessKey(e *vtinput.InputEvent) bool
 	ProcessMouse(e *vtinput.InputEvent) bool
 	Show(scr *ScreenBuf)
-	ResizeConsole()
+	ResizeConsole(w, h int)
 	GetType() FrameType
 	SetExitCode(code int)
 	IsDone() bool
@@ -124,7 +124,7 @@ func (fm *frameManager) Run() {
 			fm.scr.AllocBuf(width, height)
 			// Notify all frames about the resize
 			for _, frame := range fm.frames {
-				frame.ResizeConsole()
+				frame.ResizeConsole(width, height)
 			}
 		}
 	}
