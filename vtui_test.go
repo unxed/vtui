@@ -190,6 +190,61 @@ func TestKeyBar_Modifiers(t *testing.T) {
 	kb.Show(scr)
 	checkCell(t, scr, 1, 0, 'A', Palette[ColKeyBarText])
 }
+func TestMenuBar_Geometry(t *testing.T) {
+	mb := NewMenuBar([]string{"Left", "Files"})
+	mb.SetPosition(0, 0, 80, 0)
+
+	// "  Left  " -> 8 chars. Start is X1+2 = 2.
+	// Item 0 starts at 2.
+	// Item 1 should start after Item 0.
+	x0 := mb.GetItemX(0)
+	x1 := mb.GetItemX(1)
+
+	if x0 != 2 {
+		t.Errorf("Expected first item at X=2, got %d", x0)
+	}
+
+	expectedX1 := 2 + 8 // 2 + width of "  Left  "
+	if x1 != expectedX1 {
+		t.Errorf("Expected second item at X=%d, got %d", expectedX1, x1)
+	}
+}
+
+func TestVMenu_Callbacks(t *testing.T) {
+	m := NewVMenu("Test")
+	m.AddItem("Item")
+
+	leftTriggered := false
+	rightTriggered := false
+	closeTriggered := false
+
+	m.OnLeft = func() { leftTriggered = true }
+	m.OnRight = func() { rightTriggered = true }
+	m.OnClose = func() { closeTriggered = true }
+
+	// 1. Test Left Arrow
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT})
+	if !leftTriggered {
+		t.Error("OnLeft callback was not triggered")
+	}
+	if !m.IsDone() {
+		t.Error("Menu should be closed after switching via arrow")
+	}
+
+	// 2. Test Right Arrow
+	m.ClearDone()
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT})
+	if !rightTriggered {
+		t.Error("OnRight callback was not triggered")
+	}
+
+	// 3. Test Escape (Close)
+	m.ClearDone()
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_ESCAPE})
+	if !closeTriggered {
+		t.Error("OnClose callback was not triggered on Escape")
+	}
+}
 
 func TestEdit_Navigation(t *testing.T) {
 	e := NewEdit(0, 0, 20, "hello world")

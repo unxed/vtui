@@ -159,6 +159,11 @@ func (m *VMenu) SetExitCode(code int) {
 func (m *VMenu) IsDone() bool {
 	return m.done
 }
+// ClearDone resets the menu state, allowing it to be shown again.
+func (m *VMenu) ClearDone() {
+	m.done = false
+	m.exitCode = -1
+}
 
 // ProcessMouse handles mouse wheel scrolling and menu item clicks.
 func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
