@@ -104,6 +104,19 @@ func (e *Edit) SetText(text string) {
 	e.selStart = -1
 	e.selAnchor = -1
 }
+// InsertString inserts text at the current cursor position.
+func (e *Edit) InsertString(text string) {
+	if e.selStart != -1 {
+		e.DeleteBlock()
+	}
+	runes := []rune(text)
+	newText := make([]rune, 0, len(e.text)+len(runes))
+	newText = append(newText, e.text[:e.curPos]...)
+	newText = append(newText, runes...)
+	newText = append(newText, e.text[e.curPos:]...)
+	e.text = newText
+	e.curPos += len(runes)
+}
 
 func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	if !event.KeyDown { return false }
