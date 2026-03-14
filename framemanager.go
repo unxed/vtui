@@ -35,6 +35,7 @@ type Frame interface {
 type frameManager struct {
 	frames []Frame
 	scr    *ScreenBuf
+	RedrawChan chan struct{}
 }
 
 // FrameManager is the global instance of the frame manager.
@@ -44,6 +45,7 @@ var FrameManager = &frameManager{}
 func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.scr = scr
 	fm.frames = make([]Frame, 0, 10)
+	fm.RedrawChan = make(chan struct{}, 1)
 	SetDefaultPalette()
 	// Hide cursor globally at start
 	fm.scr.SetCursorVisible(false)
@@ -58,6 +60,13 @@ func (fm *frameManager) Push(f Frame) {
 func (fm *frameManager) Pop() {
 	if len(fm.frames) > 0 {
 		fm.frames = fm.frames[:len(fm.frames)-1]
+	}
+}
+// Redraw triggers an asynchronous redraw request.
+func (fm *frameManager) Redraw() {
+	select {
+	case fm.RedrawChan <- struct{}{}:
+	default:
 	}
 }
 // Shutdown clears all frames, effectively stopping the application loop.
@@ -107,6 +116,9 @@ func (fm *frameManager) Run() {
 
 		// 2. Event waiting
 		select {
+		case <-fm.RedrawChan:
+			// Loop around to redraw immediately
+			continue
 		case e, ok := <-eventChan:
 			if !ok {
 				return
