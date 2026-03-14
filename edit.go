@@ -16,20 +16,14 @@ type Edit struct {
 	selAnchor      int  // Position where selection started
 	overtype       bool
 	clearFlag      bool // If true, first input will clear the text
-	colorNormal    uint64
-	colorSelected  uint64
-	colorUnchanged uint64
 }
 
 func NewEdit(x, y, width int, defaultText string) *Edit {
 	e := &Edit{
-		text:           []rune(defaultText),
-		selStart:       -1,
-		selAnchor:      -1,
-		clearFlag:      false,
-		colorNormal:    SetRGBBoth(0, 0xFFFFFF, 0x000000), // White on black
-		colorSelected:  SetRGBBoth(0, 0x000000, 0x00AAAA), // Black on cyan
-		colorUnchanged: SetRGBBoth(0, 0xAAAAAA, 0x000000), // Gray on black
+		text:      []rune(defaultText),
+		selStart:  -1,
+		selAnchor: -1,
+		clearFlag: false,
 	}
 	e.canFocus = true
 	e.curPos = len(e.text)
@@ -60,17 +54,17 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 	for i := 0; i < width; i++ {
 		strIdx := i + e.leftPos
 		char := ' '
-		attr := e.colorNormal
+		attr := Palette[ColDialogEdit]
 
 		if e.clearFlag {
-			attr = e.colorUnchanged
+			attr = Palette[ColDialogEditUnchanged]
 		}
 
 		if strIdx < len(e.text) {
 			char = e.text[strIdx]
 			// Check selection
 			if e.selStart != -1 && strIdx >= e.selStart && strIdx < e.selEnd {
-				attr = e.colorSelected
+				attr = Palette[ColDialogEditSelected]
 			}
 		}
 		scr.Write(e.X1+i, e.Y1, []CharInfo{{Char: uint64(char), Attributes: attr}})

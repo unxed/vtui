@@ -21,21 +21,14 @@ type VMenu struct {
 	selectPos int // Selected item index
 	topPos    int // Index of the first visible item (for scrolling)
 
-	// Colors
-	ColorText       uint64
-	ColorSelected   uint64
-	ColorBorder     uint64
 }
 
 // NewVMenu creates a new vertical menu instance.
 func NewVMenu(title string) *VMenu {
 	m := &VMenu{
-		title:         title,
-		items:         []MenuItem{},
-		selectPos:     0,
-		ColorText:     SetRGBBoth(0, 0xCCCCCC, 0x0000A0), // Gray on blue
-		ColorSelected: SetRGBBoth(0, 0x000000, 0x00AAAA), // Black on cyan
-		ColorBorder:   SetRGBBoth(0, 0xCCCCCC, 0x0000A0),
+		title:     title,
+		items:     []MenuItem{},
+		selectPos: 0,
 	}
 	m.canFocus = true
 	return m
@@ -189,11 +182,17 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 
 	// 1. Rendering the frame
 	frame := NewBorderedFrame(m.X1, m.Y1, m.X2, m.Y2, DoubleBox, m.title)
-	frame.borderColor = m.ColorBorder
+	// VMenu maps to Menu colors (not dialog listbox) for now
+	colText := Palette[ColMenuText]
+	colSel := Palette[ColMenuSelectedText]
+	colBox := Palette[ColMenuBox]
+
+	frame.ColorBoxIdx = ColMenuBox
+	frame.ColorTitleIdx = ColMenuTitle
 	frame.DisplayObject(scr)
 
 	// 2. Clearing the background
-	scr.FillRect(m.X1+1, m.Y1+1, m.X2-1, m.Y2-1, ' ', m.ColorText)
+	scr.FillRect(m.X1+1, m.Y1+1, m.X2-1, m.Y2-1, ' ', colText)
 
 	fullWidth := m.X2 - m.X1 + 1
 	interiorWidth := fullWidth - 2
@@ -212,9 +211,9 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 		}
 
 		item := m.items[itemIdx]
-		attr := m.ColorText
+		attr := colText
 		if itemIdx == m.selectPos {
-			attr = m.ColorSelected
+			attr = colSel
 		}
 
 		if item.Separator {
@@ -225,7 +224,7 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 				sepRunes[j] = boxSymbols[1] // ─
 			}
 			sepRunes[fullWidth-1] = boxSymbols[23] // ╢
-			scr.Write(m.X1, currY, RunesToCharInfo(sepRunes, m.ColorBorder))
+			scr.Write(m.X1, currY, RunesToCharInfo(sepRunes, colBox))
 		} else {
 			// Padded menu item
 			textRunes := make([]rune, interiorWidth)

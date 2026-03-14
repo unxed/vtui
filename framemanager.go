@@ -44,6 +44,7 @@ var FrameManager = &frameManager{}
 func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.scr = scr
 	fm.frames = make([]Frame, 0, 10)
+	SetDefaultPalette()
 }
 
 // Push adds a new frame to the top of the stack.

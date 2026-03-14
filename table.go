@@ -36,10 +36,6 @@ type Table struct {
 	ShowHeader   bool
 	ShowSeparators bool
 
-	ColorText     uint64
-	ColorSelected uint64
-	ColorHeader   uint64
-	ColorSeparator uint64
 }
 
 func NewTable(x, y, w, h int, columns []TableColumn) *Table {
@@ -48,10 +44,6 @@ func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 		Rows:           []TableRow{},
 		ShowHeader:     true,
 		ShowSeparators: true,
-		ColorText:      SetRGBBoth(0, 0xCCCCCC, 0x0000A0), // Gray on blue
-		ColorSelected:  SetRGBBoth(0, 0x000000, 0x00AAAA), // Black on cyan
-		ColorHeader:    SetRGBBoth(0, 0xFFFFFF, 0x0000A0), // White on blue
-		ColorSeparator: SetRGBBoth(0, 0xCCCCCC, 0x0000A0),
 	}
 	t.canFocus = true
 	t.SetPosition(x, y, x+w-1, y+h-1)
@@ -82,7 +74,7 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 
 	// 1. Draw Header
 	if t.ShowHeader {
-		t.drawRow(scr, t.Y1, -1, t.ColorHeader)
+		t.drawRow(scr, t.Y1, -1, Palette[ColPanelColumnTitle])
 		yOffset++
 	}
 
@@ -93,14 +85,18 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 		currY := t.Y1 + yOffset + i
 
 		if rowIdx < len(t.Rows) {
-			attr := t.ColorText
-			if rowIdx == t.SelectPos && t.IsFocused() {
-				attr = t.ColorSelected
+			attr := Palette[ColPanelText]
+			if rowIdx == t.SelectPos {
+				if t.IsFocused() {
+					attr = Palette[ColPanelCursor]
+				} else {
+					attr = Palette[ColPanelText]
+				}
 			}
 			t.drawRow(scr, currY, rowIdx, attr)
 		} else {
 			// Fill empty space with background color
-			scr.FillRect(t.X1, currY, t.X2, currY, ' ', t.ColorText)
+			scr.FillRect(t.X1, currY, t.X2, currY, ' ', Palette[ColPanelText])
 		}
 	}
 
@@ -148,7 +144,7 @@ func (t *Table) drawSeparators(scr *ScreenBuf) {
 	sepChar := boxSymbols[bsV] // │
 	for i := 0; i < len(t.Columns)-1; i++ {
 		currX += t.Columns[i].Width
-		scr.FillRect(currX, t.Y1, currX, t.Y2, sepChar, t.ColorSeparator)
+		scr.FillRect(currX, t.Y1, currX, t.Y2, sepChar, Palette[ColPanelBox])
 		currX++
 	}
 }

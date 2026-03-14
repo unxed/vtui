@@ -9,19 +9,18 @@ import (
 type BorderedFrame struct {
 	ScreenObject
 	title      string
-	boxType    int
-	titleColor uint64
-	borderColor uint64
+	boxType       int
+	ColorBoxIdx   int
+	ColorTitleIdx int
 }
 
 // NewBorderedFrame creates a new BorderedFrame instance.
 func NewBorderedFrame(x1, y1, x2, y2 int, boxType int, title string) *BorderedFrame {
 	f := &BorderedFrame{
-		title:   title,
-		boxType: boxType,
-		// TODO: colors are hardcoded for now, will be taken from palette later
-		titleColor:  SetRGBFore(0, 0xFFFF00),
-		borderColor: SetRGBFore(0, 0x808080),
+		title:         title,
+		boxType:       boxType,
+		ColorBoxIdx:   ColDialogBox,
+		ColorTitleIdx: ColDialogBoxTitle,
 	}
 	f.SetPosition(x1, y1, x2, y2)
 	return f
@@ -68,6 +67,9 @@ func (f *BorderedFrame) DisplayObject(scr *ScreenBuf) {
 	topRunes := []rune(topBorder.String())
 	titleRunes := []rune(f.title)
 
+	colBox := Palette[f.ColorBoxIdx]
+	colTitle := Palette[f.ColorTitleIdx]
+
 	if len(titleRunes) > 0 {
 		if len(titleRunes) > w-4 {
 			titleRunes = titleRunes[:w-4]
@@ -79,16 +81,16 @@ func (f *BorderedFrame) DisplayObject(scr *ScreenBuf) {
 		copy(fullTopLine[start-1:], []rune(titleStr))
 
 		// Write the entire line with the border color
-		scr.Write(f.X1, f.Y1, RunesToCharInfo(fullTopLine, f.borderColor))
+		scr.Write(f.X1, f.Y1, RunesToCharInfo(fullTopLine, colBox))
 		// Overlay the color only on the title text
-		scr.Write(f.X1+start-1, f.Y1, RunesToCharInfo([]rune(titleStr), f.titleColor))
+		scr.Write(f.X1+start-1, f.Y1, RunesToCharInfo([]rune(titleStr), colTitle))
 	} else {
-		scr.Write(f.X1, f.Y1, RunesToCharInfo(topRunes, f.borderColor))
+		scr.Write(f.X1, f.Y1, RunesToCharInfo(topRunes, colBox))
 	}
-	scr.Write(f.X1, f.Y2, strToCharInfo(bottomBorder.String(), f.borderColor, 0, ""))
+	scr.Write(f.X1, f.Y2, strToCharInfo(bottomBorder.String(), colBox, 0, ""))
 
 	// Vertical lines
-	vertLine := []CharInfo{{Char: uint64(sym[bsV]), Attributes: f.borderColor}}
+	vertLine := []CharInfo{{Char: uint64(sym[bsV]), Attributes: colBox}}
 	for y := f.Y1 + 1; y < f.Y2; y++ {
 		scr.Write(f.X1, y, vertLine)
 		scr.Write(f.X2, y, vertLine)

@@ -74,8 +74,9 @@ func TestScreenBuf_FillRect(t *testing.T) {
 }
 
 func TestFrame_Rendering(t *testing.T) {
-	borderColor := SetRGBFore(0, 0x808080)
-	titleColor := SetRGBFore(0, 0xFFFF00)
+	SetDefaultPalette()
+	borderColor := Palette[ColDialogBox]
+	titleColor := Palette[ColDialogBoxTitle]
 
 	t.Run("SingleBox", func(t *testing.T) {
 		scr := NewScreenBuf()
@@ -272,14 +273,20 @@ func TestEdit_Rendering(t *testing.T) {
 	e.Show(scr)
 	e.DisplayObject(scr)
 
+	// Обязательно инициализируем дефолтную палитру
+	SetDefaultPalette()
+
+	colNorm := Palette[ColDialogEdit]
+	colSel := Palette[ColDialogEditSelected]
+
 	// 'a' - normal
-	checkCell(t, scr, 0, 0, 'a', e.colorNormal)
+	checkCell(t, scr, 0, 0, 'a', colNorm)
 	// 'b' - selected
-	checkCell(t, scr, 1, 0, 'b', e.colorSelected)
+	checkCell(t, scr, 1, 0, 'b', colSel)
 	// 'c' - normal
-	checkCell(t, scr, 2, 0, 'c', e.colorNormal)
+	checkCell(t, scr, 2, 0, 'c', colNorm)
 	// padding - normal
-	checkCell(t, scr, 5, 0, ' ', e.colorNormal)
+	checkCell(t, scr, 5, 0, ' ', colNorm)
 }
 
 func TestEdit_Overtype(t *testing.T) {
@@ -382,7 +389,9 @@ func TestVMenu_Rendering(t *testing.T) {
 	m.Show(scr)
 
 	// Check frame corners (DoubleBox)
-	borderColor := m.ColorBorder
+	SetDefaultPalette()
+
+	borderColor := Palette[ColMenuBox]
 	checkCell(t, scr, 2, 2, '╔', borderColor)
 	checkCell(t, scr, 12, 2, '╗', borderColor)
 	checkCell(t, scr, 2, 6, '╚', borderColor)
@@ -391,7 +400,7 @@ func TestVMenu_Rendering(t *testing.T) {
 	// Check first item (selected by default)
 	// Pos: X1 + 1 (3), Y1 + 1 (3)
 	// Characters in VMenu are padded. "Item1" with checkmark and padding.
-	checkCell(t, scr, 4, 3, 'I', m.ColorSelected)
+	checkCell(t, scr, 4, 3, 'I', Palette[ColMenuSelectedText])
 
 	// Check separator rendering
 	// Pos: Y1 + 2 (4)
