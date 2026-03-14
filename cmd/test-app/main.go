@@ -59,7 +59,7 @@ func main() {
 
 	// 1. Text and Edit
 	label := vtui.NewText(x1+2, y1+1, "Input field:", vtui.SetRGBFore(0, 0xFFFFFF))
-	edit := vtui.NewEdit(x1+15, y1+1, 40, "f4 project")
+	edit := vtui.NewEdit(x1+15, y1+1, 40, "vtui")
 
 	// 2. Table with mock files
 	tableCols := []vtui.TableColumn{
