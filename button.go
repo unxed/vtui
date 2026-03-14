@@ -13,7 +13,7 @@ type Button struct {
 
 func NewButton(x, y int, text string) *Button {
 	// Buttons in Far always look like "[ Text ]"
-	fullText := string(boxSymbols[24]) + " " + text + " " + string(boxSymbols[25])
+	fullText := string(UIStrings.ButtonBrackets[0]) + " " + text + " " + string(UIStrings.ButtonBrackets[1])
 	b := &Button{
 		text: fullText,
 	}

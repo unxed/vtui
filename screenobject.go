@@ -137,7 +137,7 @@ func (so *ScreenObject) GetHelp() string {
 func (so *ScreenObject) ShowHelp() {
 	topic := so.GetHelp()
 	if topic == "" {
-		topic = "Contents" // Default topic
+		topic = UIStrings.DefaultHelp
 	}
 	DebugLog("HELP SYSTEM: Requested topic '%s'", topic)
 	// In the future, this will push a HelpFrame to FrameManager.
