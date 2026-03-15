@@ -76,26 +76,26 @@ func TestTable_Rendering(t *testing.T) {
 	tbl := NewTable(0, 0, 9, 3, cols)
 	tbl.SetRows([]TableRow{mockRow{"A", "B"}})
 
-	// Focus table to trigger ColPanelCursor instead of ColPanelText
+	// Focus table to trigger ColTableSelectedText instead of ColTableText
 	tbl.SetFocus(true)
 	tbl.Show(scr)
 
 	// Check header (first column title)
-	checkCell(t, scr, 0, 0, 'C', Palette[ColPanelColumnTitle])
-	checkCell(t, scr, 1, 0, '1', Palette[ColPanelColumnTitle])
+	checkCell(t, scr, 0, 0, 'C', Palette[ColTableColumnTitle])
+	checkCell(t, scr, 1, 0, '1', Palette[ColTableColumnTitle])
 
 	// Check separator in header
-	checkCell(t, scr, 4, 0, uint64(boxSymbols[bsV]), Palette[ColPanelBox])
+	checkCell(t, scr, 4, 0, uint64(boxSymbols[bsV]), Palette[ColTableBox])
 
 	// Check first data row
 	// Column 1 (Left aligned): "A   "
-	checkCell(t, scr, 0, 1, 'A', Palette[ColPanelCursor]) // Selected by default
-	checkCell(t, scr, 1, 1, ' ', Palette[ColPanelCursor]) // Padding
+	checkCell(t, scr, 0, 1, 'A', Palette[ColTableSelectedText]) // Selected by default
+	checkCell(t, scr, 1, 1, ' ', Palette[ColTableSelectedText]) // Padding
 
 	// Separator in data
-	checkCell(t, scr, 4, 1, uint64(boxSymbols[bsV]), Palette[ColPanelBox])
+	checkCell(t, scr, 4, 1, uint64(boxSymbols[bsV]), Palette[ColTableBox])
 
 	// Column 2 (Right aligned): "   B"
-	checkCell(t, scr, 5, 1, ' ', Palette[ColPanelCursor]) // Padding
-	checkCell(t, scr, 8, 1, 'B', Palette[ColPanelCursor])
+	checkCell(t, scr, 5, 1, ' ', Palette[ColTableSelectedText]) // Padding
+	checkCell(t, scr, 8, 1, 'B', Palette[ColTableSelectedText])
 }

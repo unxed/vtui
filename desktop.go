@@ -17,7 +17,7 @@ func NewDesktop() *Desktop {
 
 func (d *Desktop) Show(scr *ScreenBuf) {
 	width, height := scr.width, scr.height
-	bgAttr := Palette[ColCommandLineUserScreen]
+	bgAttr := Palette[ColDesktopBackground]
 	scr.FillRect(0, 0, width-1, height-1, ' ', bgAttr)
 	// Add a little hint that the app is alive
 	msg := UIStrings.DesktopWelcome

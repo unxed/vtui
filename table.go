@@ -37,6 +37,10 @@ type Table struct {
 	ShowHeader   bool
 	ShowSeparators bool
 
+	ColorTextIdx         int
+	ColorSelectedTextIdx int
+	ColorTitleIdx        int
+	ColorBoxIdx          int
 }
 
 func NewTable(x, y, w, h int, columns []TableColumn) *Table {
@@ -45,6 +49,10 @@ func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 		Rows:           []TableRow{},
 		ShowHeader:     true,
 		ShowSeparators: true,
+		ColorTextIdx:         ColTableText,
+		ColorSelectedTextIdx: ColTableSelectedText,
+		ColorTitleIdx:        ColTableColumnTitle,
+		ColorBoxIdx:          ColTableBox,
 	}
 	t.canFocus = true
 	t.SetPosition(x, y, x+w-1, y+h-1)
@@ -75,7 +83,7 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 
 	// 1. Draw Header
 	if t.ShowHeader {
-		t.drawRow(scr, t.Y1, -1, Palette[ColPanelColumnTitle])
+		t.drawRow(scr, t.Y1, -1, Palette[t.ColorTitleIdx])
 		yOffset++
 	}
 
@@ -86,18 +94,18 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 		currY := t.Y1 + yOffset + i
 
 		if rowIdx < len(t.Rows) {
-			attr := Palette[ColPanelText]
+			attr := Palette[t.ColorTextIdx]
 			if rowIdx == t.SelectPos {
 				if t.IsFocused() {
-					attr = Palette[ColPanelCursor]
+					attr = Palette[t.ColorSelectedTextIdx]
 				} else {
-					attr = Palette[ColPanelText]
+					attr = Palette[t.ColorTextIdx]
 				}
 			}
 			t.drawRow(scr, currY, rowIdx, attr)
 		} else {
 			// Fill empty space with background color
-			scr.FillRect(t.X1, currY, t.X2, currY, ' ', Palette[ColPanelText])
+			scr.FillRect(t.X1, currY, t.X2, currY, ' ', Palette[t.ColorTextIdx])
 		}
 	}
 
@@ -145,7 +153,7 @@ func (t *Table) drawSeparators(scr *ScreenBuf) {
 	sepChar := boxSymbols[bsV] // │
 	for i := 0; i < len(t.Columns)-1; i++ {
 		currX += t.Columns[i].Width
-		scr.FillRect(currX, t.Y1, currX, t.Y2, sepChar, Palette[ColPanelBox])
+		scr.FillRect(currX, t.Y1, currX, t.Y2, sepChar, Palette[t.ColorBoxIdx])
 		currX++
 	}
 }

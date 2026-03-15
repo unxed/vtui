@@ -4,7 +4,7 @@ import "testing"
 
 func TestSetDefaultPalette(t *testing.T) {
 	// Reset palette to ensure the function fills it
-	Palette = [LastPaletteColor]uint64{}
+	Palette = make([]uint64, LastPaletteColor)
 
 	SetDefaultPalette()
 
@@ -20,10 +20,9 @@ func TestSetDefaultPalette(t *testing.T) {
 		t.Errorf("Expected MenuText color %X, got %X", expectedMenuText, Palette[ColMenuText])
 	}
 
-	// Check panel color (LightCyan on Blue)
-	// Blue = 0x0000A0, LightCyan = 0x00FFFF
-	expectedPanelText := SetRGBBoth(0, 0x00FFFF, 0x0000A0)
-	if Palette[ColPanelText] != expectedPanelText {
-		t.Errorf("Expected PanelText color %X, got %X", expectedPanelText, Palette[ColPanelText])
+	// Check table color (LightGray on Black)
+	expectedTableText := SetRGBBoth(0, 0xC0C0C0, 0x000000)
+	if Palette[ColTableText] != expectedTableText {
+		t.Errorf("Expected TableText color %X, got %X", expectedTableText, Palette[ColTableText])
 	}
 }

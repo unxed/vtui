@@ -9,17 +9,11 @@ const (
 	ColMenuBox
 	ColMenuTitle
 
-	ColPanelText
-	ColPanelSelectedText
-	ColPanelHighlightText
-	ColPanelInfoText
-	ColPanelCursor
-	ColPanelSelectedCursor
-	ColPanelTitle
-	ColPanelSelectedTitle
-	ColPanelColumnTitle
-	ColPanelTotalInfo
-	ColPanelSelectedInfo
+	ColTableText
+	ColTableSelectedText
+	ColTableTitle
+	ColTableBox
+	ColTableColumnTitle
 
 	ColDialogText
 	ColDialogHighlightText
@@ -32,17 +26,12 @@ const (
 	ColDialogHighlightButton
 	ColDialogHighlightSelectedButton
 
-	ColCommandLineUserScreen
+	ColDesktopBackground
 	ColDialogEditUnchanged
 	ColDialogEditSelected
 
-	ColPanelBox
-	ColPanelScrollbar
-
 	ColKeyBarNum
 	ColKeyBarText
-	ColCommandLinePrompt
-	ColCommandLineText
 	ColMenuBarItem
 	ColMenuBarSelected
 
@@ -51,15 +40,18 @@ const (
 )
 
 // Palette holds the current color attributes for all UI elements.
-var Palette [LastPaletteColor]uint64
+var Palette = make([]uint64, LastPaletteColor)
 
 // SetDefaultPalette initializes the palette with standard Far Manager colors.
 func SetDefaultPalette() {
+	if len(Palette) < LastPaletteColor {
+		Palette = make([]uint64, LastPaletteColor)
+	}
+
 	// Standard Far colors translated to 24-bit RGB for vtinput
 	black := uint32(0x000000)
 	white := uint32(0xFFFFFF)
 	cyan := uint32(0x00A0A0)
-	blue := uint32(0x0000A0)
 	yellow := uint32(0xFFFF00)
 	lightGray := uint32(0xC0C0C0)
 	darkGray := uint32(0x808080)
@@ -72,14 +64,12 @@ func SetDefaultPalette() {
 	Palette[ColMenuBox] = SetRGBBoth(0, white, cyan)
 	Palette[ColMenuTitle] = SetRGBBoth(0, white, cyan)
 
-	// Panels (LightCyan on Blue)
-	Palette[ColPanelText] = SetRGBBoth(0, 0x00FFFF, blue)
-	Palette[ColPanelSelectedText] = SetRGBBoth(0, yellow, blue)
-	Palette[ColPanelCursor] = SetRGBBoth(0, black, cyan)
-	Palette[ColPanelSelectedCursor] = SetRGBBoth(0, yellow, cyan)
-	Palette[ColPanelBox] = SetRGBBoth(0, 0x00FFFF, blue)
-	Palette[ColPanelTitle] = SetRGBBoth(0, 0x00FFFF, blue)
-	Palette[ColPanelColumnTitle] = SetRGBBoth(0, yellow, blue)
+	// Table (Neutral Defaults)
+	Palette[ColTableText] = SetRGBBoth(0, lightGray, black)
+	Palette[ColTableSelectedText] = SetRGBBoth(0, black, lightGray)
+	Palette[ColTableTitle] = SetRGBBoth(0, white, black)
+	Palette[ColTableBox] = SetRGBBoth(0, lightGray, black)
+	Palette[ColTableColumnTitle] = SetRGBBoth(0, white, black)
 
 	// Dialogs (Black on LightGray)
 	Palette[ColDialogText] = SetRGBBoth(0, black, lightGray)
@@ -95,16 +85,12 @@ func SetDefaultPalette() {
 	Palette[ColDialogButton] = SetRGBBoth(0, black, lightGray)
 	Palette[ColDialogSelectedButton] = SetRGBBoth(0, black, cyan)
 
-	// Background
-	Palette[ColCommandLineUserScreen] = SetRGBBoth(0, lightGray, black)
+	// Desktop
+	Palette[ColDesktopBackground] = SetRGBBoth(0, lightGray, black)
 
 	// KeyBar (Gray numbers on Black, Cyan text on Black)
 	Palette[ColKeyBarNum] = SetRGBBoth(0, darkGray, black)
 	Palette[ColKeyBarText] = SetRGBBoth(0, black, darkGray)
-
-	// CommandLine (White on Black)
-	Palette[ColCommandLinePrompt] = SetRGBBoth(0, 0x00FFFF, black)
-	Palette[ColCommandLineText] = SetRGBBoth(0, white, black)
 
 	// MenuBar (Black on LightGray, Green on LightGray for selection)
 	Palette[ColMenuBarItem] = SetRGBBoth(0, black, lightGray)

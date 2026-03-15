@@ -15,9 +15,9 @@ type FrameType int
 
 const (
 	TypeDesktop FrameType = iota
-	TypePanels
 	TypeDialog
 	TypeMenu
+	TypeUser
 )
 
 // Frame is the interface that all top-level screen objects (windows, dialogs, menus) must implement.
