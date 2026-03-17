@@ -58,3 +58,29 @@ func TestDialog_FocusCycle(t *testing.T) {
 		t.Errorf("Shift+Tab 2: expected index 2 (e1), got %d", d.focusIdx)
 	}
 }
+
+func TestDialog_RadioButtonIntegration(t *testing.T) {
+	d := NewDialog(0, 0, 40, 10, "Radio Test")
+	rb1 := NewRadioButton(1, 1, "R1")
+	rb2 := NewRadioButton(1, 2, "R2")
+	rb1.Selected = true
+	d.AddItem(rb1)
+	d.AddItem(rb2)
+
+	// Переходим на rb2 (Tab)
+	d.changeFocus(1)
+
+	// Нажимаем Space. Dialog должен перехватить это и обновить группу.
+	d.ProcessKey(&vtinput.InputEvent{
+		Type:           vtinput.KeyEventType,
+		KeyDown:        true,
+		VirtualKeyCode: vtinput.VK_SPACE,
+	})
+
+	if rb1.Selected {
+		t.Error("rb1 should be deselected via ProcessKey(Space)")
+	}
+	if !rb2.Selected {
+		t.Error("rb2 should be selected via ProcessKey(Space)")
+	}
+}

@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"testing"
+	"github.com/unxed/vtinput"
 )
 
 func TestComboBox_Selection(t *testing.T) {
@@ -18,5 +19,21 @@ func TestComboBox_Selection(t *testing.T) {
 
 	if cb.Edit.GetText() != "Two" {
 		t.Errorf("Expected 'Two', got %q", cb.Edit.GetText())
+	}
+}
+
+func TestComboBox_DropdownOnly(t *testing.T) {
+	cb := NewComboBox(0, 0, 20, []string{"A", "B"})
+	cb.DropdownOnly = true
+
+	// Пытаемся ввести текст 'X'
+	cb.ProcessKey(&vtinput.InputEvent{
+		Type:    vtinput.KeyEventType,
+		KeyDown: true,
+		Char:    'X',
+	})
+
+	if cb.Edit.GetText() == "X" {
+		t.Error("DropdownOnly ComboBox should not allow manual text entry")
 	}
 }

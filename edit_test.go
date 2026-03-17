@@ -1,6 +1,10 @@
 package vtui
 
-import "testing"
+import (
+	"testing"
+	"github.com/unxed/vtinput"
+)
+
 
 func TestEdit_PasswordMode(t *testing.T) {
 	SetDefaultPalette()
@@ -16,4 +20,20 @@ func TestEdit_PasswordMode(t *testing.T) {
 	checkCell(t, scr, 0, 0, '*', Palette[ColDialogEdit])
 	checkCell(t, scr, 1, 0, '*', Palette[ColDialogEdit])
 	checkCell(t, scr, 2, 0, '*', Palette[ColDialogEdit])
+}
+
+func TestEdit_IgnoreLockKeys(t *testing.T) {
+	e := NewEdit(0, 0, 10, "")
+
+	// Имитируем ввод 'x' с включенным NumLock и CapsLock
+	e.ProcessKey(&vtinput.InputEvent{
+		Type:            vtinput.KeyEventType,
+		KeyDown:         true,
+		Char:            'x',
+		ControlKeyState: vtinput.NumLockOn | vtinput.CapsLockOn,
+	})
+
+	if e.GetText() != "x" {
+		t.Errorf("Expected 'x', got %q. Lock keys probably blocked the input.", e.GetText())
+	}
 }
