@@ -56,11 +56,19 @@ func (d *Dialog) Show(scr *ScreenBuf) {
 // ProcessKey manages focus switching and passes events to elements.
 func (d *Dialog) ProcessKey(e *vtinput.InputEvent) bool {
 
-	// 1. Pass the event to the active element first (allows elements to override Tab/Esc if needed)
-	// We don't filter KeyDown here, as elements might want to handle KeyUp.
+	// 1. Pass the event to the active element first
 	if d.focusIdx != -1 {
 		if d.items[d.focusIdx].ProcessKey(e) {
 			return true
+		}
+
+		// Специальная обработка RadioButton: если элемент не поглотил нажатие Space/Enter,
+		// но это радиокнопка, мы активируем её и сбрасываем остальные.
+		if e.KeyDown && (e.VirtualKeyCode == vtinput.VK_SPACE || e.VirtualKeyCode == vtinput.VK_RETURN) {
+			if rb, ok := d.items[d.focusIdx].(*RadioButton); ok {
+				d.selectRadio(rb)
+				return true
+			}
 		}
 	}
 
@@ -134,6 +142,16 @@ func (d *Dialog) nextFocus() {
 	d.items[d.focusIdx].SetFocus(true)
 }
 
+func (d *Dialog) selectRadio(rb *RadioButton) {
+	if rb.Selected { return }
+	for _, item := range d.items {
+		if other, ok := item.(*RadioButton); ok {
+			other.Selected = false
+		}
+	}
+	rb.Selected = true
+}
+
 // ProcessMouse handles mouse events, passing them to the appropriate element.
 func (d *Dialog) ProcessMouse(e *vtinput.InputEvent) bool {
 	mx, my := int(e.MouseX), int(e.MouseY)
@@ -158,6 +176,11 @@ func (d *Dialog) ProcessMouse(e *vtinput.InputEvent) bool {
 
 			// Always propagate an event to the element under the mouse
 			if item.ProcessMouse(e) {
+				return true
+			}
+			// Специальная обработка клика по RadioButton
+			if rb, ok := item.(*RadioButton); ok && e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+				d.selectRadio(rb)
 				return true
 			}
 

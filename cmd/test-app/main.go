@@ -61,36 +61,46 @@ func main() {
 	label := vtui.NewText(x1+2, y1+1, "Input field:", vtui.SetRGBFore(0, 0xFFFFFF))
 	edit := vtui.NewEdit(x1+15, y1+1, 40, "vtui")
 
-	// 2. Table with mock files
+	// 2. Table with mock files (высота 6, чтобы не залезать на нижние контролы)
 	tableCols := []vtui.TableColumn{
 		{Title: "Name", Width: 25},
 		{Title: "Size", Width: 10, Alignment: vtui.AlignRight},
 		{Title: "Date", Width: 12},
 	}
-	table := vtui.NewTable(x1+2, y1+3, 56, 8, tableCols)
+	table := vtui.NewTable(x1+2, y1+3, 56, 6, tableCols)
 	table.SetRows([]vtui.TableRow{
 		fileRow{"kernel.go", "4 KB", "2024-03-10"},
 		fileRow{"🚀 rocket.exe", "12 KB", "2024-03-11"},
 		fileRow{"日本語ファイル.txt", "2 KB", "2024-03-12"},
-		fileRow{"ä_accent_test.txt", "1 KB", "2024-03-01"}, // 'ä' is often a combining char
 		fileRow{"main.go", "2 KB", "2024-03-12"},
 		fileRow{"README.md", "1 KB", "2024-03-01"},
 		fileRow{"LICENSE", "1 KB", "2024-01-01"},
-		fileRow{"very_long_filename_test.txt", "0 B", "2024-03-13"},
 	})
 
-	// 3. VMenu
+	// 3. Радиокнопки и Чекбоксы (на новых строках Y=10, 11)
+	dlg.AddItem(vtui.NewText(x1+2, y1+10, "Options:", vtui.Palette[vtui.ColDialogText]))
+	rb1 := vtui.NewRadioButton(x1+15, y1+10, "Option A")
+	rb1.Selected = true
+	dlg.AddItem(rb1)
+	dlg.AddItem(vtui.NewRadioButton(x1+30, y1+10, "Option B"))
+
+	dlg.AddItem(vtui.NewText(x1+2, y1+11, "Checks:", vtui.Palette[vtui.ColDialogText]))
+	dlg.AddItem(vtui.NewCheckbox(x1+15, y1+11, "Normal", false))
+	dlg.AddItem(vtui.NewCheckbox(x1+30, y1+11, "3-State", true))
+
+	// 4. VMenu
 	menu := vtui.NewVMenu(" Operations ")
 	menu.SetHelp("MenuOperationsTopic")
-	menu.SetPosition(x1+2, y1+12, x1+30, y1+17)
+	menu.SetPosition(x1+2, y1+13, x1+30, y1+18)
 	menu.AddItem("Copy File")
 	menu.AddItem("Move File")
 	menu.AddSeparator()
 	menu.AddItem("Delete File")
-	btnOk := vtui.NewButton(x1+10, y1+19, "Ok")
-	btnCancel := vtui.NewButton(x1+30, y1+19, "Cancel")
 
-	// Set button actions to close the dialog
+	// 5. Кнопки
+	btnOk := vtui.NewButton(x1+10, y1+20, "Ok")
+	btnCancel := vtui.NewButton(x1+30, y1+20, "Cancel")
+
 	btnCancel.OnClick = func() {
 		dlg.SetExitCode(-1)
 		desktop.SetExitCode(-1)
@@ -100,6 +110,7 @@ func main() {
 		desktop.SetExitCode(0)
 	}
 
+	// Добавляем всё в правильном порядке (Z-order)
 	dlg.AddItem(label)
 	dlg.AddItem(edit)
 	dlg.AddItem(table)

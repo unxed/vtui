@@ -81,6 +81,11 @@ func (fm *frameManager) Shutdown() {
 	fm.frames = nil
 }
 
+func (fm *frameManager) GetScreenSize() int {
+	if fm.scr == nil { return 80 }
+	return fm.scr.width
+}
+
 // Run starts the main application event loop.
 func (fm *frameManager) Run() {
 	// Restore cursor visibility on exit
