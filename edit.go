@@ -57,8 +57,6 @@ func (e *Edit) Show(scr *ScreenBuf) {
 		headText := string(e.text[e.leftPos:e.curPos])
 		vOffset := runewidth.StringWidth(headText)
 		scr.SetCursorPos(e.X1+vOffset, e.Y1)
-	} else {
-		scr.SetCursorVisible(false)
 	}
 }
 

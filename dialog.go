@@ -86,9 +86,12 @@ func (d *Dialog) ProcessKey(e *vtinput.InputEvent) bool {
 		d.SetExitCode(-1)
 		return true
 	case vtinput.VK_TAB:
-		oldIdx := d.focusIdx
-		d.nextFocus()
-		DebugLog("Dialog: TAB pressed. Focus changed: %d -> %d", oldIdx, d.focusIdx)
+		shift := (e.ControlKeyState & vtinput.ShiftPressed) != 0
+		if shift {
+			d.changeFocus(-1) // Назад
+		} else {
+			d.changeFocus(1) // Вперед
+		}
 		return true
 	}
 
@@ -117,28 +120,30 @@ func (d *Dialog) IsDone() bool {
 	return d.done
 }
 
-func (d *Dialog) nextFocus() {
+func (d *Dialog) changeFocus(direction int) {
 	if len(d.items) == 0 { return }
 
-	DebugLog("Dialog.nextFocus: Starting from index %d", d.focusIdx)
-
-	// 1. Remove focus from current
+	// 1. Снимаем фокус с текущего элемента
 	if d.focusIdx != -1 {
 		d.items[d.focusIdx].SetFocus(false)
 	}
 
-	// 2. Find next focusable
+	// 2. Ищем следующий/предыдущий фокусируемый элемент
 	startIdx := d.focusIdx
 	for {
-		d.focusIdx = (d.focusIdx + 1) % len(d.items)
-		can := d.items[d.focusIdx].CanFocus()
-		DebugLog("  Checking item index %d: CanFocus=%v", d.focusIdx, can)
-		if can || d.focusIdx == startIdx {
+		d.focusIdx += direction
+		if d.focusIdx < 0 {
+			d.focusIdx = len(d.items) - 1
+		}
+		if d.focusIdx >= len(d.items) {
+			d.focusIdx = 0
+		}
+
+		if d.items[d.focusIdx].CanFocus() || d.focusIdx == startIdx {
 			break
 		}
 	}
 
-	DebugLog("Dialog.nextFocus: Landed on index %d", d.focusIdx)
 	d.items[d.focusIdx].SetFocus(true)
 }
 
