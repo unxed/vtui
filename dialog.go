@@ -134,6 +134,7 @@ func (d *Dialog) SetExitCode(code int) {
 func (d *Dialog) IsDone() bool {
 	return d.done
 }
+func (d *Dialog) IsBusy() bool { return false }
 
 func (d *Dialog) changeFocus(direction int) {
 	if len(d.items) == 0 { return }

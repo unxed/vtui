@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/unxed/vtinput"
 	"golang.org/x/term"
@@ -29,6 +30,7 @@ type Frame interface {
 	GetType() FrameType
 	SetExitCode(code int)
 	IsDone() bool
+	IsBusy() bool // Если true, FrameManager может пропустить фазу отрисовки
 }
 
 // frameManager manages the stack of frames and the main application loop.
@@ -120,14 +122,38 @@ func (fm *frameManager) Run() {
 			return // No more frames, exit application.
 		}
 
-		// 1. Rendering: draw all frames from bottom to top
-		fm.scr.SetCursorVisible(false) // Сбрасываем курсор перед отрисовкой кадра
-		for _, frame := range fm.frames {
-			frame.Show(fm.scr)
-		}
-		fm.scr.Flush()
+		// 1. Rendering
+		topFrame := fm.frames[len(fm.frames)-1]
 
-		// 2. Event waiting
+		// Если фрейм "занят" (например, идёт массовая вставка), пропускаем отрисовку
+		// и Flush, чтобы не мерцать и не тратить CPU.
+		if !topFrame.IsBusy() {
+			fm.scr.SetCursorVisible(false)
+			for _, frame := range fm.frames {
+				frame.Show(fm.scr)
+			}
+			fm.scr.Flush()
+		}
+
+		// 2. Dispatch helper
+		dispatch := func(ev *vtinput.InputEvent, is_injected bool) {
+			if len(fm.frames) == 0 { return }
+			if !is_injected && fm.EventFilter != nil && fm.EventFilter(ev) { return }
+
+			topFrame := fm.frames[len(fm.frames)-1]
+			if ev.Type == vtinput.KeyEventType {
+				if ev.VirtualKeyCode == vtinput.VK_Q && (ev.ControlKeyState&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed)) != 0 {
+					fm.frames = nil
+					return
+				}
+				topFrame.ProcessKey(ev)
+			} else if ev.Type == vtinput.MouseEventType {
+				topFrame.ProcessMouse(ev)
+			}
+			if topFrame.IsDone() { fm.Pop() }
+		}
+
+		// 3. Event waiting (Blocking)
 		var e *vtinput.InputEvent
 		injected := false
 
@@ -137,47 +163,35 @@ func (fm *frameManager) Run() {
 			injected = true
 		} else {
 			select {
-			case <-fm.RedrawChan:
-				// Loop around to redraw immediately
-				continue
-			case ev, ok := <-eventChan:
-				if !ok {
-					return
-				}
-				e = ev
+			case <-fm.RedrawChan: continue
 			case <-sigChan:
 				width, height, _ := term.GetSize(int(os.Stdin.Fd()))
 				fm.scr.AllocBuf(width, height)
-				// Notify all frames about the resize
-				for _, frame := range fm.frames {
-					frame.ResizeConsole(width, height)
-				}
+				for _, f := range fm.frames { f.ResizeConsole(width, height) }
 				continue
+			case ev, ok := <-eventChan:
+				if !ok { return }
+				e = ev
 			}
 		}
 
-		// Allow filtering only for real user inputs (prevent infinite macro loops)
-		if !injected && fm.EventFilter != nil && fm.EventFilter(e) {
-			continue
-		}
+		// Обрабатываем первое полученное событие
+		dispatch(e, injected)
 
-		topFrame := fm.frames[len(fm.frames)-1]
-
-		// Dispatch event to the top-most frame
-		if e.Type == vtinput.KeyEventType {
-			// Global Hotkey: Ctrl+Q always exits the application
-			if e.VirtualKeyCode == vtinput.VK_Q && (e.ControlKeyState&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed)) != 0 {
-				fm.frames = nil // Clear all frames to exit
-				return
+		// 4. "Осушение" очереди (Drain)
+		// Если события приходят плотным потоком (вставка), обрабатываем их пачкой.
+		for {
+			select {
+			case ev, ok := <-eventChan:
+				if !ok { return }
+				dispatch(ev, false)
+				continue
+			case <-time.After(2 * time.Millisecond):
+				// Если за 2мс ничего не пришло, считаем burst оконченным.
+				// Это критично для "мгновенности" Bracketed Paste, так как терминал
+				// шлет данные кусками, и обычный drain может прерваться слишком рано.
 			}
-			topFrame.ProcessKey(e)
-		} else if e.Type == vtinput.MouseEventType {
-			topFrame.ProcessMouse(e)
-		}
-
-		// Check if the frame wants to close
-		if topFrame.IsDone() {
-			fm.Pop()
+			break
 		}
 	}
 }

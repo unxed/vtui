@@ -51,6 +51,5 @@ func (d *Desktop) SetExitCode(code int) {
 	d.exitCode = code
 }
 
-func (d *Desktop) IsDone() bool {
-	return d.done
-}
+func (d *Desktop) IsDone() bool { return d.done }
+func (d *Desktop) IsBusy() bool { return false }
