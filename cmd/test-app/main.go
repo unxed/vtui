@@ -82,6 +82,8 @@ func main() {
 		fileRow{"main.go", "2 KB", "2024-03-12"},
 	})
 	dlg.AddItem(table)
+	// Добавляем VText справа от таблицы для красоты
+	dlg.AddItem(vtui.NewVText(x1+58, y1+3, "FILES", vtui.Palette[vtui.ColDialogText]))
 
 	// 3. Радиокнопки (одна группа)
 	dlg.AddItem(vtui.NewText(x1+2, y1+10, "Options:", vtui.Palette[vtui.ColDialogText]))
