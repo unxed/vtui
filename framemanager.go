@@ -121,6 +121,7 @@ func (fm *frameManager) Run() {
 		}
 
 		// 1. Rendering: draw all frames from bottom to top
+		fm.scr.SetCursorVisible(false) // Сбрасываем курсор перед отрисовкой кадра
 		for _, frame := range fm.frames {
 			frame.Show(fm.scr)
 		}

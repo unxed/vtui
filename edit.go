@@ -17,6 +17,7 @@ type Edit struct {
 	selAnchor      int  // Position where selection started
 	overtype       bool
 	clearFlag      bool // If true, first input will clear the text
+	PasswordMode   bool // Mask text with '*'
 	ColorTextIdx      int
 	ColorUnchangedIdx int
 	ColorSelectedIdx  int
@@ -74,6 +75,9 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 	currX := 0
 	for i := e.leftPos; i < len(e.text); i++ {
 		r := e.text[i]
+		if e.PasswordMode {
+			r = '*'
+		}
 		w := runewidth.RuneWidth(r)
 
 		// Stop if next character doesn't fit visually
@@ -232,10 +236,10 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 
 	// Text input
 	if event.Char != 0 && (unicode.IsGraphic(event.Char) || event.Char == ' ') {
-		// Do not process text input if Ctrl or Alt are pressed.
-		// We return false here to let other handlers (like global hotkeys)
-		// or the navigation switch above deal with it.
-		if (event.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0 {
+		// При проверке модификаторов игнорируем Lock-клавиши (Num, Caps, Scroll),
+		// так как они не должны блокировать ввод текста.
+		mods := event.ControlKeyState & ^uint32(vtinput.NumLockOn|vtinput.CapsLockOn|vtinput.ScrollLockOn|vtinput.EnhancedKey)
+		if (mods & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0 {
 			return false
 		}
 
