@@ -224,10 +224,8 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 
 	frame.ColorBoxIdx = ColMenuBox
 	frame.ColorTitleIdx = ColMenuTitle
+	frame.ColorBackgroundIdx = ColMenuText
 	frame.DisplayObject(scr)
-
-	// 2. Clearing the background
-	scr.FillRect(m.X1+1, m.Y1+1, m.X2-1, m.Y2-1, ' ', colText)
 
 	fullWidth := m.X2 - m.X1 + 1
 	interiorWidth := fullWidth - 2

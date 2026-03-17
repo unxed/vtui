@@ -10,19 +10,21 @@ import (
 // It embeds ScreenObject for position and visibility management.
 type BorderedFrame struct {
 	ScreenObject
-	title         string
-	boxType       int
-	ColorBoxIdx   int
-	ColorTitleIdx int
+	title              string
+	boxType            int
+	ColorBoxIdx        int
+	ColorTitleIdx      int
+	ColorBackgroundIdx int
 }
 
 // NewBorderedFrame creates a new BorderedFrame instance.
 func NewBorderedFrame(x1, y1, x2, y2 int, boxType int, title string) *BorderedFrame {
 	f := &BorderedFrame{
-		title:         title,
-		boxType:       boxType,
-		ColorBoxIdx:   ColDialogBox,
-		ColorTitleIdx: ColDialogBoxTitle,
+		title:              title,
+		boxType:            boxType,
+		ColorBoxIdx:        ColDialogBox,
+		ColorTitleIdx:      ColDialogBoxTitle,
+		ColorBackgroundIdx: ColDialogText,
 	}
 	f.SetPosition(x1, y1, x2, y2)
 	return f
@@ -47,6 +49,9 @@ func (f *BorderedFrame) DisplayObject(scr *ScreenBuf) {
 	if f.boxType == NoBox {
 		return
 	}
+
+	// Сначала закрашиваем всю область фона
+	scr.FillRect(f.X1, f.Y1, f.X2, f.Y2, ' ', Palette[f.ColorBackgroundIdx])
 
 	sym := getBoxSymbols(f.boxType)
 	w := f.X2 - f.X1 + 1
