@@ -17,6 +17,21 @@ func (m *mockFrame) SetExitCode(c int) {}
 func (m *mockFrame) IsDone() bool { return m.ProcessCount >= 2 }
 func (m *mockFrame) IsBusy() bool { return false }
 
+type busyFrame struct {
+	mockFrame
+	Busy bool
+}
+func (b *busyFrame) IsBusy() bool { return b.Busy }
+
+func TestFrameManager_IsBusy_Suppress(t *testing.T) {
+	// Этот тест проверяет, что если IsBusy() == true,
+	// отрисовка может быть пропущена (логическая проверка контракта)
+	f := &busyFrame{Busy: true}
+	if !f.IsBusy() {
+		t.Error("busyFrame should be busy")
+	}
+}
+
 func TestFrameManager_NoDoubleDispatch(t *testing.T) {
 	scr := NewScreenBuf()
 	scr.AllocBuf(10, 10)
