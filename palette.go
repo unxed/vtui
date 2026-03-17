@@ -34,6 +34,7 @@ const (
 	ColKeyBarText
 	ColMenuBarItem
 	ColMenuBarSelected
+	ColShadow
 
 	// Helper for array size
 	LastPaletteColor
@@ -95,6 +96,9 @@ func SetDefaultPalette() {
 	// MenuBar (Black on LightGray, Green on LightGray for selection)
 	Palette[ColMenuBarItem] = SetRGBBoth(0, black, lightGray)
 	Palette[ColMenuBarSelected] = SetRGBBoth(0, black, 0x00FF00) // Green background
+
+	// Shadow (Solid black background)
+	Palette[ColShadow] = SetRGBBoth(0, black, black)
 }
 var rgbToXTerm = make(map[uint32]uint8)
 

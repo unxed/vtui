@@ -47,10 +47,25 @@ func (d *Dialog) AddItem(item UIElement) {
 // Show renders the dialog and all its elements.
 func (d *Dialog) Show(scr *ScreenBuf) {
 	d.ScreenObject.Show(scr)
+	d.drawShadow(scr)
 	d.frame.DisplayObject(scr)
 	for _, item := range d.items {
 		item.Show(scr)
 	}
+}
+
+func (d *Dialog) drawShadow(scr *ScreenBuf) {
+	// Тень в Far — это смещение +2 по X и +1 по Y.
+	// Рисуем только если тень влезает в границы буфера.
+	shAttr := Palette[ColShadow]
+
+	// Вертикальная часть тени (справа)
+	// От Y1+1 до Y2+1, в колонках X2+1 и X2+2
+	scr.FillRect(d.X2+1, d.Y1+1, d.X2+2, d.Y2+1, ' ', shAttr)
+
+	// Горизонтальная часть тени (снизу)
+	// От X1+2 до X2, в строке Y2+1
+	scr.FillRect(d.X1+2, d.Y2+1, d.X2, d.Y2+1, ' ', shAttr)
 }
 
 // ProcessKey manages focus switching and passes events to elements.

@@ -84,3 +84,19 @@ func TestDialog_RadioButtonIntegration(t *testing.T) {
 		t.Error("rb2 should be selected via ProcessKey(Space)")
 	}
 }
+func TestDialog_Shadow(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewScreenBuf()
+	scr.AllocBuf(20, 20)
+
+	// Диалог 5x5
+	d := NewDialog(2, 2, 7, 7, "Title")
+	d.Show(scr)
+
+	// Проверяем ячейку тени.
+	// Правый нижний угол диалога - (7, 7).
+	// Тень должна быть в (8, 8) и (9, 8).
+	shAttr := Palette[ColShadow]
+	checkCell(t, scr, 9, 8, ' ', shAttr)
+	checkCell(t, scr, 8, 3, ' ', shAttr) // Вертикальная часть тени
+}
