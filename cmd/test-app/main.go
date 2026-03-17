@@ -87,6 +87,10 @@ func main() {
 	dlg.AddItem(vtui.NewText(x1+2, y1+11, "Checks:", vtui.Palette[vtui.ColDialogText]))
 	dlg.AddItem(vtui.NewCheckbox(x1+15, y1+11, "Normal", false))
 	dlg.AddItem(vtui.NewCheckbox(x1+30, y1+11, "3-State", true))
+	// Add ComboBox to test-app
+	dlg.AddItem(vtui.NewText(x1+2, y1+12, "Combo:", vtui.Palette[vtui.ColDialogText]))
+	comboItems := []string{"Red", "Green", "Blue", "Alpha"}
+	dlg.AddItem(vtui.NewComboBox(x1+15, y1+12, 20, comboItems))
 
 	// 4. VMenu
 	menu := vtui.NewVMenu(" Operations ")
