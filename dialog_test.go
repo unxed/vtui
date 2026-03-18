@@ -490,3 +490,38 @@ func TestDialog_FocusLinkChain(t *testing.T) {
 		t.Errorf("Focus chain failed. Expected focus on edit (index 2), got index %d", d.focusIdx)
 	}
 }
+func TestDialog_Center(t *testing.T) {
+	d := NewDialog(0, 0, 9, 9, "Test") // 10x10 dialog
+
+	// Center it within a 100x100 screen area
+	// x1 = (100 - 10) / 2 = 45
+	d.Center(100, 100)
+
+	if d.X1 != 45 || d.Y1 != 45 {
+		t.Errorf("Dialog.Center failed. Expected (45, 45), got (%d, %d)", d.X1, d.Y1)
+	}
+	if d.X2 != 54 || d.Y2 != 54 {
+		t.Errorf("Dialog.Center warped size. Expected X2, Y2 (54, 54), got (%d, %d)", d.X2, d.Y2)
+	}
+}
+
+func TestDialog_GetFocusedItem(t *testing.T) {
+	d := NewDialog(0, 0, 20, 10, "Focus Test")
+	b1 := NewButton(1, 1, "Btn1")
+	b2 := NewButton(1, 2, "Btn2")
+	d.AddItem(b1)
+	d.AddItem(b2)
+
+	// By default, the first focusable item should be focused
+	focused := d.GetFocusedItem()
+	if focused != b1 {
+		t.Errorf("GetFocusedItem() expected b1, got %v", focused)
+	}
+
+	// Change focus
+	d.changeFocus(1)
+	focused = d.GetFocusedItem()
+	if focused != b2 {
+		t.Errorf("GetFocusedItem() expected b2 after focus change, got %v", focused)
+	}
+}

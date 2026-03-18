@@ -74,3 +74,25 @@ func TestFrameManager_NoDoubleDispatch(t *testing.T) {
 	// Simply ensure that ProcessKey is called exactly once for 1 event.
 	// (This test is more for documenting the problem; the real fm.Run is too monolithic to test without changes)
 }
+
+func TestFrameManager_GetTopFrameType(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+
+	// Empty stack
+	if fm.GetTopFrameType() != -1 {
+		t.Errorf("Expected GetTopFrameType to return -1 on empty stack, got %d", fm.GetTopFrameType())
+	}
+
+	// Push Desktop (TypeDesktop = 0)
+	fm.Push(NewDesktop())
+	if fm.GetTopFrameType() != TypeDesktop {
+		t.Errorf("Expected TopFrameType to be TypeDesktop, got %d", fm.GetTopFrameType())
+	}
+
+	// Push User Frame
+	fm.Push(&mockFrame{})
+	if fm.GetTopFrameType() != TypeUser {
+		t.Errorf("Expected TopFrameType to be TypeUser, got %d", fm.GetTopFrameType())
+	}
+}

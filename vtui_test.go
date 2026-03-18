@@ -695,3 +695,58 @@ func TestVMenu_SeparatorNavigation(t *testing.T) {
 		t.Errorf("Separator not skipped during Up: got pos %d, want 0", m.selectPos)
 	}
 }
+func TestMenuBar_SubMenuActivation(t *testing.T) {
+	mb := NewMenuBar(nil)
+	mb.Items = []MenuBarItem{
+		{Label: "File", SubItems: []MenuItem{{Text: "Open"}, {Text: "Save"}}},
+		{Label: "Edit", SubItems: []MenuItem{{Text: "Undo"}}},
+	}
+
+	commandFired := false
+	mb.OnCommand = func(menuIdx, itemIdx int) {
+		if menuIdx == 0 && itemIdx == 1 { // File -> Save
+			commandFired = true
+		}
+	}
+
+	// Setup a local FrameManager to catch the pushed VMenu
+	oldFm := FrameManager
+	localFm := &frameManager{}
+	localFm.Init(NewScreenBuf())
+	FrameManager = localFm
+	defer func() { FrameManager = oldFm }()
+
+	// 1. Activate SubMenu 0
+	mb.ActivateSubMenu(0)
+	if FrameManager.GetTopFrameType() != TypeMenu {
+		t.Fatal("ActivateSubMenu did not push a VMenu to FrameManager")
+	}
+
+	subMenu := FrameManager.frames[len(FrameManager.frames)-1].(*VMenu)
+
+	// 2. Select the second item ("Save") in the submenu
+	subMenu.SetSelectPos(1, 1)
+	subMenu.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+
+	if !commandFired {
+		t.Error("SubMenu selection did not trigger MenuBar.OnCommand")
+	}
+	if mb.Active {
+		t.Error("MenuBar should deactivate after a command is executed")
+	}
+}
+
+func TestVMenu_GetItemCount(t *testing.T) {
+	m := NewVMenu("Test")
+	if m.GetItemCount() != 0 {
+		t.Errorf("Expected 0 items, got %d", m.GetItemCount())
+	}
+
+	m.AddItem("One")
+	m.AddSeparator()
+	m.AddItem("Two")
+
+	if m.GetItemCount() != 3 {
+		t.Errorf("Expected 3 items (including separator), got %d", m.GetItemCount())
+	}
+}
