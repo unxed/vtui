@@ -1,10 +1,8 @@
 package vtui
 
 import (
-	"os"
-)
-import (
 	"testing"
+	"github.com/unxed/vtinput"
 )
 
 func TestSelectDirDialog_Navigation(t *testing.T) {

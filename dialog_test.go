@@ -556,6 +556,34 @@ func TestDialog_GrowModeManualResize(t *testing.T) {
 		t.Errorf("Button anchored resize failed: x1=%d, y1=%d", bx1, by1)
 	}
 }
+func TestDialog_MinBoundsEnforcement(t *testing.T) {
+	// Create small dialog 10x5
+	d := NewDialog(0, 0, 9, 4, "Small")
+	if d.MinW != 10 || d.MinH != 5 {
+		t.Errorf("Initial MinBounds error: %dx%d", d.MinW, d.MinH)
+	}
+
+	// Add button that extends to X=15, Y=7
+	btn := NewButton(10, 7, "Extender")
+	d.AddItem(btn)
+
+	// MinW should have increased (btn ends at 10 + len("[ Extender ]") - 1)
+	// "[ Extender ]" is 12 chars. 10 + 12 - 1 = 21. ReqW = 21 - 0 + 1 = 22.
+	if d.MinW < 22 {
+		t.Errorf("MinW should have expanded, got %d", d.MinW)
+	}
+	if d.MinH < 8 {
+		t.Errorf("MinH should have expanded, got %d", d.MinH)
+	}
+
+	// Try to force-shrink dialog below MinW via ChangeSize
+	d.ChangeSize(5, 5)
+
+	curW := d.X2 - d.X1 + 1
+	if curW != d.MinW {
+		t.Errorf("Dialog allowed shrinking below MinW! curW=%d, minW=%d", curW, d.MinW)
+	}
+}
 
 func TestDialog_GetFocusedItem(t *testing.T) {
 	d := NewDialog(0, 0, 20, 10, "Focus Test")

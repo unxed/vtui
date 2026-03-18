@@ -46,8 +46,8 @@ func NewDialog(x1, y1, x2, y2 int, title string) *Dialog {
 		items:    []UIElement{},
 		focusIdx: -1,
 		frame:    NewBorderedFrame(x1, y1, x2, y2, DoubleBox, title),
-		MinW:     10,
-		MinH:     3,
+		MinW:     x2 - x1 + 1,
+		MinH:     y2 - y1 + 1,
 	}
 	d.SetPosition(x1, y1, x2, y2)
 	d.lastW = x2 - x1 + 1
@@ -58,6 +58,14 @@ func NewDialog(x1, y1, x2, y2 int, title string) *Dialog {
 // AddItem adds an element to the dialog.
 func (d *Dialog) AddItem(item UIElement) {
 	d.items = append(d.items, item)
+
+	// Ensure dialog's minimum size covers this item
+	_, _, ix2, iy2 := item.GetPosition()
+	reqW := ix2 - d.X1 + 1
+	reqH := iy2 - d.Y1 + 1
+	if reqW > d.MinW { d.MinW = reqW }
+	if reqH > d.MinH { d.MinH = reqH }
+
 	// If this is the first focusable element, give it focus
 	if d.focusIdx == -1 && item.CanFocus() {
 		d.focusIdx = len(d.items) - 1
@@ -215,6 +223,9 @@ func (d *Dialog) Center(scrW, scrH int) {
 
 // ChangeSize changes dialog size and adapts child positions via GrowMode.
 func (d *Dialog) ChangeSize(nw, nh int) {
+	if nw < d.MinW { nw = d.MinW }
+	if nh < d.MinH { nh = d.MinH }
+
 	dx := nw - d.lastW
 	dy := nh - d.lastH
 	if dx == 0 && dy == 0 { return }
