@@ -33,18 +33,46 @@ func SelectDirDialog(title string, initialPath string, vfs VFS) *Dialog {
 	lb.OnChange = func(idx int) {
 		if idx < 0 || idx >= len(items) { return }
 		selected := items[idx]
-		var newPath string
+		var previewPath string
 		if selected == ".." {
-			newPath = vfs.Dir(vfs.GetPath())
+			previewPath = vfs.Dir(vfs.GetPath())
 		} else {
-			newPath = vfs.Join(vfs.GetPath(), selected)
+			previewPath = vfs.Join(vfs.GetPath(), selected)
+		}
+		pathEdit.SetText(previewPath)
+	}
+
+	lb.OnAction = func(idx int) {
+		if idx < 0 || idx >= len(items) { return }
+		selected := items[idx]
+		oldPath := vfs.GetPath()
+		var newPath string
+		isGoingUp := selected == ".."
+
+		if isGoingUp {
+			newPath = vfs.Dir(oldPath)
+		} else {
+			newPath = vfs.Join(oldPath, selected)
 		}
 
 		if err := vfs.SetPath(newPath); err == nil {
 			updateList(vfs.GetPath())
 			lb.Items = items
 			lb.SelectPos = 0
+
+			if isGoingUp {
+				// Find where we came from
+				prevDirName := vfs.Base(oldPath)
+				for i, name := range items {
+					if name == prevDirName {
+						lb.SelectPos = i
+						break
+					}
+				}
+			}
+
 			lb.TopPos = 0
+			lb.EnsureVisible()
 			pathEdit.SetText(vfs.GetPath())
 		}
 	}

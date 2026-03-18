@@ -12,6 +12,7 @@ type ListBox struct {
 	SelectPos  int
 	TopPos     int
 	OnChange   func(int)
+	OnAction   func(int)
 
 	ColorTextIdx         int
 	ColorSelectedTextIdx int
@@ -84,6 +85,11 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 	switch e.VirtualKeyCode {
 	case vtinput.VK_UP:
 		if lb.SelectPos > 0 { lb.SelectPos-- }
+	case vtinput.VK_RETURN:
+		if lb.OnAction != nil {
+			lb.OnAction(lb.SelectPos)
+		}
+		return true
 	case vtinput.VK_DOWN:
 		if lb.SelectPos < len(lb.Items)-1 { lb.SelectPos++ }
 	case vtinput.VK_PRIOR: // PgUp
