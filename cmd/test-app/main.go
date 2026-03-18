@@ -87,7 +87,13 @@ func main() {
 
 	cmdEdit := vtui.NewEdit(x1+13, y1+8, 16, "ls -la")
 	cmdEdit.History = []string{"git status", "go build", "rm -rf /", "ls -la"}
+	cmdEdit.ShowHistoryButton = true
 	cmdEdit.SetHelp("edit")
+	cmdEdit.OnAction = func() {
+		text := cmdEdit.GetText()
+		cmdEdit.AddHistory(text)
+		vtui.ShowMessage(" Execute ", "Command added to history:\n"+text, []string{"&Ok"})
+	}
 	dlg.AddItem(vtui.NewLabel(x1+2, y1+8, "&Command:", cmdEdit))
 	dlg.AddItem(cmdEdit)
 

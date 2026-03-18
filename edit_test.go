@@ -143,3 +143,65 @@ func TestEdit_HistoryTrigger(t *testing.T) {
 		t.Error("Edit should handle Alt+Down when history is available")
 	}
 }
+func TestEdit_HistoryManagement(t *testing.T) {
+	e := NewEdit(0, 0, 10, "")
+
+	// 1. Add unique items
+	e.AddHistory("one")
+	e.AddHistory("two")
+
+	if e.History[0] != "two" || e.History[1] != "one" {
+		t.Errorf("AddHistory order error: %v", e.History)
+	}
+
+	// 2. Add duplicate - should move to top
+	e.AddHistory("one")
+	if len(e.History) != 2 {
+		t.Errorf("History should not have duplicates, size: %d", len(e.History))
+	}
+	if e.History[0] != "one" {
+		t.Error("Duplicate item should be moved to the top")
+	}
+
+	// 3. Size limit
+	for i := 0; i < 50; i++ {
+		e.AddHistory(string(rune('A' + i)))
+	}
+	if len(e.History) > 32 {
+		t.Errorf("History limit exceeded: %d", len(e.History))
+	}
+}
+
+func TestEdit_HistoryButtonClick(t *testing.T) {
+	e := NewEdit(0, 0, 10, "")
+	e.ShowHistoryButton = true
+	e.History = []string{"item"}
+
+	// Click on the button at (9, 0)
+	handled := e.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType,
+		KeyDown: true,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		MouseX: 9, MouseY: 0,
+	})
+
+	if !handled {
+		t.Error("Edit should handle click on history button")
+	}
+}
+func TestEdit_OnAction(t *testing.T) {
+	e := NewEdit(0, 0, 10, "test")
+	called := false
+	e.OnAction = func() { called = true }
+
+	// Simulate Enter
+	handled := e.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType,
+		KeyDown: true,
+		VirtualKeyCode: vtinput.VK_RETURN,
+	})
+
+	if !handled || !called {
+		t.Error("OnAction callback was not triggered on Enter")
+	}
+}

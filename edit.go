@@ -16,9 +16,11 @@ type Edit struct {
 	selEnd         int
 	selAnchor      int  // Position where selection started
 	overtype       bool
-	clearFlag      bool // If true, first input will clear the text
-	PasswordMode   bool // Mask text with '*'
-	History        []string
+	clearFlag         bool // If true, first input will clear the text
+	PasswordMode      bool // Mask text with '*'
+	ShowHistoryButton bool // Show a clickable [v] button
+	History           []string
+	OnAction          func()
 	ColorTextIdx      int
 	ColorUnchangedIdx int
 	ColorSelectedIdx  int
@@ -64,7 +66,12 @@ func (e *Edit) Show(scr *ScreenBuf) {
 
 func (e *Edit) DisplayObject(scr *ScreenBuf) {
 	if !e.IsVisible() { return }
-	visibleWidth := e.X2 - e.X1 + 1
+	fullWidth := e.X2 - e.X1 + 1
+	visibleWidth := fullWidth
+
+	if e.ShowHistoryButton {
+		visibleWidth--
+	}
 
 	// Pre-fill the entire line with background to avoid artifacts
 	defaultAttr := Palette[e.ColorTextIdx]
@@ -95,6 +102,14 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 		cells := StringToCharInfo(string(r), attr)
 		scr.Write(e.X1 + currX, e.Y1, cells)
 		currX += w
+	}
+	// Draw history button if needed
+	if e.ShowHistoryButton {
+		btnAttr := Palette[ColDialogText]
+		if e.focused {
+			btnAttr = Palette[ColDialogSelectedButton]
+		}
+		scr.Write(e.X2, e.Y1, StringToCharInfo("↓", btnAttr))
 	}
 }
 
@@ -171,6 +186,14 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	}
 
 	switch event.VirtualKeyCode {
+
+	case vtinput.VK_RETURN:
+		if e.OnAction != nil {
+			e.OnAction()
+			return true
+		}
+		return false
+
 	case vtinput.VK_LEFT:
 		if shift { e.beginSelection() } else { e.selStart = -1; e.selAnchor = -1 }
 		if ctrl {
@@ -323,7 +346,7 @@ func (e *Edit) OpenHistory() {
 	if len(e.History) == 0 {
 		return
 	}
-	menu := NewVMenu("")
+	menu := NewVMenu("History")
 	for _, h := range e.History {
 		menu.AddItem(h)
 	}
@@ -331,15 +354,56 @@ func (e *Edit) OpenHistory() {
 	h := len(e.History) + 2
 	if h > 10 { h = 10 }
 
-	menu.SetPosition(e.X1, e.Y1+1, e.X2, e.Y1+h)
+	// Calculate width: at least the width of the input field, but max 50
+	w := e.X2 - e.X1 + 1
+	if w < 20 { w = 20 }
+	if w > 50 { w = 50 }
+
+	// Positioning logic
+	scrH := 25
+	if FrameManager.scr != nil { scrH = FrameManager.scr.height }
+
+	y := e.Y1 + 1
+	if y + h > scrH {
+		y = e.Y1 - h // Flip upwards if no space below
+	}
+
+	menu.SetPosition(e.X1, y, e.X1+w-1, y+h-1)
 
 	menu.OnSelect = func(idx int) {
 		e.SetText(e.History[idx])
 		e.SetFocus(true)
+		e.clearFlag = false
 	}
 	menu.OnClose = func() {
 		e.SetFocus(true)
 	}
 
 	FrameManager.Push(menu)
+}
+
+// AddHistory adds a string to the beginning of the history, removing duplicates.
+func (e *Edit) AddHistory(text string) {
+	if text == "" { return }
+	newHist := make([]string, 0, len(e.History)+1)
+	newHist = append(newHist, text)
+	for _, h := range e.History {
+		if h != text {
+			newHist = append(newHist, h)
+		}
+	}
+	if len(newHist) > 32 {
+		newHist = newHist[:32]
+	}
+	e.History = newHist
+}
+
+func (e *Edit) ProcessMouse(ev *vtinput.InputEvent) bool {
+	if ev.ButtonState == vtinput.FromLeft1stButtonPressed && ev.KeyDown {
+		if e.ShowHistoryButton && int(ev.MouseX) == e.X2 && int(ev.MouseY) == e.Y1 {
+			e.OpenHistory()
+			return true
+		}
+	}
+	return false
 }
