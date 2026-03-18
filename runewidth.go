@@ -1,8 +1,9 @@
 package vtui
 
 import (
-	"unicode"
 	"strings"
+	"unicode"
+
 	"github.com/mattn/go-runewidth"
 )
 

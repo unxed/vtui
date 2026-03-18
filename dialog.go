@@ -1,8 +1,9 @@
 package vtui
 
 import (
-	"github.com/unxed/vtinput"
 	"unicode"
+
+	"github.com/unxed/vtinput"
 )
 
 // UIElement is the interface that all dialog elements must implement.

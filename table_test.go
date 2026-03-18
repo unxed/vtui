@@ -124,6 +124,20 @@ func TestTable_MouseWheel(t *testing.T) {
 		t.Errorf("Mouse wheel up failed, TopPos: %d", tbl.TopPos)
 	}
 }
+func TestTable_NoHeaderGeometry(t *testing.T) {
+	SetDefaultPalette()
+	cols := []TableColumn{{Title: "C1", Width: 10}}
+	tbl := NewTable(0, 0, 10, 5, cols)
+	tbl.ShowHeader = false
+	tbl.SetRows([]TableRow{mockRow{"R1", "B"}, mockRow{"R2", "B"}})
+
+	scr := NewScreenBuf()
+	scr.AllocBuf(10, 5)
+	tbl.Show(scr)
+
+	// Без заголовка первая строка данных должна быть в Y=0
+	checkCell(t, scr, 0, 0, 'R', Palette[ColTableText])
+}
 func TestTable_OptionalScrollBar(t *testing.T) {
 	cols := []TableColumn{{Title: "Col", Width: 10}}
 	rows := make([]TableRow, 20)

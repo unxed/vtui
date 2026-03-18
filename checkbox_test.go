@@ -22,3 +22,18 @@ func TestCheckbox_Toggle(t *testing.T) {
 	cb3.Toggle() // 2 -> 0
 	if cb3.State != 0 { t.Error("3-state: expected 0") }
 }
+
+func TestCheckbox_HotkeyRendering(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewScreenBuf()
+	scr.AllocBuf(20, 1)
+
+	cb := NewCheckbox(0, 0, "Enable &AI", false)
+	cb.Show(scr)
+
+	// "[ ] Enable AI". Буква 'A' должна быть подсвечена.
+	// Индексы: 0:'[', 1:' ', 2:']', 3:' ', 4:'E', 5:'n', 6:'a', 7:'b', 8:'l', 9:'e', 10:' ', 11:'A'
+	checkCell(t, scr, 11, 0, 'A', Palette[ColDialogHighlightText])
+	// Проверяем соседнюю букву, она должна быть обычной
+	checkCell(t, scr, 12, 0, 'I', Palette[ColDialogText])
+}

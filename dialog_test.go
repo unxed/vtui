@@ -212,3 +212,19 @@ func TestDialog_LabelFocusLink(t *testing.T) {
 		t.Errorf("Focus should move to edit via label hotkey. focusIdx=%d", d.focusIdx)
 	}
 }
+func TestDialog_HotkeyCaseInsensitivity(t *testing.T) {
+	d := NewDialog(0, 0, 40, 10, "Case Test")
+	btn := NewButton(1, 1, "&File")
+	d.AddItem(btn)
+
+	// Нажимаем заглавную 'F', хотя в строке она может быть любой.
+	// Парсер сохраняет 'f', поэтому сравнение должно быть успешным.
+	handled := d.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, Char: 'F',
+		ControlKeyState: vtinput.LeftAltPressed,
+	})
+
+	if !handled {
+		t.Error("Hotkey should be case-insensitive")
+	}
+}

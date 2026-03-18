@@ -1,10 +1,11 @@
 package vtui
 
 import (
-	"unicode"
 	"strings"
-	"github.com/unxed/vtinput"
+	"unicode"
+
 	"github.com/mattn/go-runewidth"
+	"github.com/unxed/vtinput"
 )
 
 // MenuItem represents a single menu item.
