@@ -487,6 +487,7 @@ func TestVMenu_Navigation(t *testing.T) {
 func TestVMenu_Rendering(t *testing.T) {
 	scr := NewScreenBuf()
 	scr.AllocBuf(15, 10)
+	SetDefaultPalette()
 	m := NewVMenu("Title")
 	m.AddItem("Item1")
 	m.AddSeparator()

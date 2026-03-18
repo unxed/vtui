@@ -124,6 +124,52 @@ func TestTable_MouseWheel(t *testing.T) {
 		t.Errorf("Mouse wheel up failed, TopPos: %d", tbl.TopPos)
 	}
 }
+func TestTable_OptionalScrollBar(t *testing.T) {
+	cols := []TableColumn{{Title: "Col", Width: 10}}
+	rows := make([]TableRow, 20)
+	for i := range rows {
+		rows[i] = mockRow{"a", "b"}
+	}
+
+	t.Run("ScrollBar Off (Default)", func(t *testing.T) {
+		scr := NewScreenBuf()
+		scr.AllocBuf(12, 5)
+		tbl := NewTable(0, 0, 11, 5, cols)
+		tbl.SetRows(rows)
+		tbl.Show(scr)
+
+		// X=10 (last column) should be part of the table content, not a scrollbar
+		checkCell(t, scr, 10, 2, ' ', Palette[ColTableText]) // Check a data row
+	})
+
+	t.Run("ScrollBar On", func(t *testing.T) {
+		scr := NewScreenBuf()
+		scr.AllocBuf(12, 5)
+		tbl := NewTable(0, 0, 11, 5, cols)
+		tbl.SetRows(rows)
+		tbl.ShowScrollBar = true
+		tbl.Show(scr)
+
+		// X=10 (last column) should be a scrollbar arrow or track
+		checkCell(t, scr, 10, 1, ScrollUpArrow, Palette[ColTableBox])
+		checkCell(t, scr, 10, 2, ScrollBlockDark, Palette[ColTableBox])
+	})
+
+	t.Run("Mouse on ScrollBar without ShowScrollBar", func(t *testing.T) {
+		tbl := NewTable(0, 0, 10, 5, cols)
+		tbl.SetRows(rows)
+		tbl.ShowScrollBar = false
+		tbl.TopPos = 5
+
+		tbl.ProcessMouse(&vtinput.InputEvent{
+			Type: vtinput.MouseEventType, KeyDown: true, MouseX: 9, MouseY: 4, ButtonState: vtinput.FromLeft1stButtonPressed,
+		})
+
+		if tbl.SelectPos == 6 { // A click on the 'down arrow' area
+			t.Error("Scrollbar click should be ignored when ShowScrollBar is false")
+		}
+	})
+}
 
 func TestParseAmpersandString_Unicode(t *testing.T) {
 	// "Ф" - одна руна, но два байта в UTF-8

@@ -83,6 +83,7 @@ func main() {
 	}
 	// Добавляем еще файлов, чтобы показать скроллбар (высота таблицы 6)
 	for i := 1; i <= 20; i++ {
+	table.ShowScrollBar = true
 		rows = append(rows, fileRow{fmt.Sprintf("file_%02d.txt", i), "1 KB", "2024-03-13"})
 	}
 	table.SetRows(rows)
