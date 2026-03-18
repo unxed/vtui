@@ -21,4 +21,6 @@ func DebugLog(format string, a ...any) {
 	msg := fmt.Sprintf(format, a...)
 	timestamp := time.Now().Format("15:04:05.000")
 	fmt.Fprintf(f, "[%s] %s\n", timestamp, msg)
+	// Ensure log is written to disk immediately
+	f.Sync()
 }
