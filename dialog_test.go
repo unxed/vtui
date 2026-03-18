@@ -400,6 +400,32 @@ func TestDialog_ResizingLogic(t *testing.T) {
 		t.Error("Dialog should stop resizing on mouse release")
 	}
 }
+func TestDialog_ResizingConstraints(t *testing.T) {
+	// Verify that MinW and MinH are respected even with large mouse deltas
+	d := NewDialog(10, 10, 20, 20, "Constrain")
+	d.MinW = 15
+	d.MinH = 15
+
+	d.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: true,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		MouseX: 20, MouseY: 20,
+	})
+
+	// Drag mouse far to the top-left (e.g., coordinate 0,0)
+	d.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: false,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		MouseX: 0, MouseY: 0,
+	})
+
+	width := d.X2 - d.X1 + 1
+	height := d.Y2 - d.Y1 + 1
+
+	if width < d.MinW || height < d.MinH {
+		t.Errorf("Resizing broke constraints: got %dx%d, want min %dx%d", width, height, d.MinW, d.MinH)
+	}
+}
 func TestDialog_ResizeGrowMode(t *testing.T) {
 	// 10x10 Dialog
 	d := NewDialog(0, 0, 9, 9, "Grow Test")

@@ -34,6 +34,8 @@ const (
 	ColKeyBarText
 	ColMenuBarItem
 	ColMenuBarSelected
+	ColMenuBarHighlight
+	ColMenuBarSelectedHighlight
 	ColShadow
 
 	// Helper for array size
@@ -53,6 +55,7 @@ func SetDefaultPalette() {
 	black := uint32(0x000000)
 	white := uint32(0xFFFFFF)
 	cyan := uint32(0x00A0A0)
+	blue := uint32(0x0000A0)
 	yellow := uint32(0xFFFF00)
 	lightGray := uint32(0xC0C0C0)
 	darkGray := uint32(0x808080)
@@ -65,12 +68,12 @@ func SetDefaultPalette() {
 	Palette[ColMenuBox] = SetRGBBoth(0, white, cyan)
 	Palette[ColMenuTitle] = SetRGBBoth(0, white, cyan)
 
-	// Table (Neutral Defaults)
-	Palette[ColTableText] = SetRGBBoth(0, lightGray, black)
-	Palette[ColTableSelectedText] = SetRGBBoth(0, black, lightGray)
-	Palette[ColTableTitle] = SetRGBBoth(0, white, black)
-	Palette[ColTableBox] = SetRGBBoth(0, lightGray, black)
-	Palette[ColTableColumnTitle] = SetRGBBoth(0, white, black)
+	// Table (White on Blue)
+	Palette[ColTableText] = SetRGBBoth(0, lightGray, blue)
+	Palette[ColTableSelectedText] = SetRGBBoth(0, black, cyan)
+	Palette[ColTableTitle] = SetRGBBoth(0, white, blue)
+	Palette[ColTableBox] = SetRGBBoth(0, lightGray, blue)
+	Palette[ColTableColumnTitle] = SetRGBBoth(0, yellow, blue)
 
 	// Dialogs (Black on LightGray)
 	Palette[ColDialogText] = SetRGBBoth(0, black, lightGray)
@@ -90,8 +93,8 @@ func SetDefaultPalette() {
 	Palette[ColDialogSelectedButton] = SetRGBBoth(0, black, cyan)
 	Palette[ColDialogHighlightSelectedButton] = SetRGBBoth(0, yellow, cyan)
 
-	// Desktop
-	Palette[ColDesktopBackground] = SetRGBBoth(0, lightGray, black)
+	// Desktop (Classic Blue)
+	Palette[ColDesktopBackground] = SetRGBBoth(0, lightGray, blue)
 
 	// KeyBar (Gray numbers on Black, Cyan text on Black)
 	Palette[ColKeyBarNum] = SetRGBBoth(0, darkGray, black)
@@ -100,6 +103,8 @@ func SetDefaultPalette() {
 	// MenuBar (Black on LightGray, Green on LightGray for selection)
 	Palette[ColMenuBarItem] = SetRGBBoth(0, black, lightGray)
 	Palette[ColMenuBarSelected] = SetRGBBoth(0, black, 0x00FF00) // Green background
+	Palette[ColMenuBarHighlight] = SetRGBBoth(0, yellow, lightGray)
+	Palette[ColMenuBarSelectedHighlight] = SetRGBBoth(0, yellow, 0x00FF00)
 
 	// Shadow (Solid black background)
 	Palette[ColShadow] = SetRGBBoth(0, black, black)

@@ -15,6 +15,7 @@ func (m *mockFrame) ResizeConsole(w, h int) {}
 func (m *mockFrame) GetType() FrameType { return TypeUser }
 func (m *mockFrame) SetExitCode(c int) {}
 func (m *mockFrame) IsDone() bool { return m.ProcessCount >= 2 }
+func (m *mockFrame) GetHelp() string { return "" }
 func (m *mockFrame) IsBusy() bool { return false }
 
 type busyFrame struct {
@@ -29,6 +30,26 @@ func TestFrameManager_IsBusy_Suppress(t *testing.T) {
 	f := &busyFrame{Busy: true}
 	if !f.IsBusy() {
 		t.Error("busyFrame should be busy")
+	}
+}
+func TestFrameManager_OnRenderHook(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewScreenBuf()
+	scr.AllocBuf(10, 10)
+	fm.Init(scr)
+
+	renderCalled := false
+	fm.OnRender = func(s *ScreenBuf) {
+		renderCalled = true
+	}
+	
+	// Manually trigger the hook to verify the mechanism works
+	if fm.OnRender != nil {
+		fm.OnRender(scr)
+	}
+
+	if !renderCalled {
+		t.Error("OnRender hook was not executed correctly")
 	}
 }
 

@@ -241,8 +241,8 @@ func TestVMenu_Callbacks(t *testing.T) {
 	rightTriggered := false
 	closeTriggered := false
 
-	m.OnLeft = func() { leftTriggered = true }
-	m.OnRight = func() { rightTriggered = true }
+	m.OnLeft = func() { leftTriggered = true; m.SetExitCode(-1) }
+	m.OnRight = func() { rightTriggered = true; m.SetExitCode(-1) }
 	m.OnClose = func() { closeTriggered = true }
 
 	// 1. Test Left Arrow
@@ -538,4 +538,160 @@ func TestVMenu_Rendering(t *testing.T) {
 	checkCell(t, scr, 2, 4, '╟', borderColor)
 	checkCell(t, scr, 12, 4, '╢', borderColor)
 	checkCell(t, scr, 7, 4, '─', borderColor)
+}
+func TestVMenu_TitleCleaning(t *testing.T) {
+	// Constructor should automatically strip ampersands from the title
+	m := NewVMenu("&Options")
+	if m.title != "Options" {
+		t.Errorf("VMenu title not cleaned: expected 'Options', got %q", m.title)
+	}
+}
+
+func TestMenuBar_KeyInterception(t *testing.T) {
+	mb := NewMenuBar([]string{"&Files", "&Edit"})
+	mb.Active = false
+
+	// 1. Naked hotkey 'F' should NOT be handled when inactive
+	if mb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, Char: 'f'}) {
+		t.Error("MenuBar should NOT handle naked hotkeys when inactive")
+	}
+
+	// 2. Alt+F should be handled always
+	if !mb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, Char: 'f', ControlKeyState: vtinput.LeftAltPressed}) {
+		t.Error("MenuBar should handle Alt+Hotkey even when inactive")
+	}
+
+	// 3. Naked hotkey 'E' SHOULD be handled when active
+	mb.Active = true
+	if !mb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, Char: 'e'}) {
+		t.Error("MenuBar should handle naked hotkeys when active")
+	}
+}
+
+func TestMenuBar_SubMenuLifecycle(t *testing.T) {
+	// This test ensures MenuBar correctly manages its activeSubMenu reference
+	mb := NewMenuBar([]string{"&Left", "&Right"})
+	mb.Active = true
+
+	mockMenu := NewVMenu("Sub")
+	mb.SetSubMenu(mockMenu)
+
+	if mb.activeSubMenu != mockMenu {
+		t.Error("SetSubMenu failed to register the menu")
+	}
+
+	// Simulating Left key - should trigger closeSub internally
+	// (We can't easily check FrameManager.Pop here without refactoring,
+	// but we check that the bar continues handling the key)
+	handled := mb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT})
+	if !handled {
+		t.Error("MenuBar failed to handle navigation key with active submenu")
+	}
+}
+func TestMenuBar_GetItemX_Ampersands(t *testing.T) {
+	// Submenus must align with visible text, ignoring '&'
+	mb := NewMenuBar([]string{"&File", "E&xit"})
+	mb.X1 = 0
+
+	// Item 0: "  File  " (start at 2, length 8)
+	// Item 1: should start at 2 + 8 = 10
+	x1 := mb.GetItemX(1)
+	if x1 != 10 {
+		t.Errorf("GetItemX failed to ignore ampersands: got %d, want 10", x1)
+	}
+}
+
+func TestMenuBar_AltRejection(t *testing.T) {
+	mb := NewMenuBar([]string{"&Files"})
+	mb.Active = false
+
+	// Alt+Z does not match '&Files'. ProcessKey MUST return false.
+	event := &vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, Char: 'z',
+		ControlKeyState: vtinput.LeftAltPressed,
+	}
+
+	if mb.ProcessKey(event) {
+		t.Error("MenuBar consumed Alt-key that didn't match any item")
+	}
+}
+func TestIntegration_HotkeyPriority(t *testing.T) {
+	// Replicating the priority logic from the demo app's EventFilter
+	SetDefaultPalette()
+
+	// 1. Setup: Menu with '&Files', Dialog with '&Ok' button
+	mb := NewMenuBar([]string{"&Files"})
+	mb.Active = false
+
+	dlg := NewDialog(0, 0, 10, 10, "Test")
+	btnOk := NewButton(1, 1, "&Ok")
+	dlg.AddItem(btnOk)
+
+	// Priority Filter Logic helper
+	process := func(e *vtinput.InputEvent) string {
+		// If menu active -> priority
+		if mb.Active {
+			if mb.ProcessKey(e) { return "menu" }
+		}
+		// If inactive -> Dialog first
+		if dlg.ProcessKey(e) { return "dialog" }
+		// Fallback to menu activation
+		if !mb.Active && (e.ControlKeyState & vtinput.LeftAltPressed) != 0 {
+			if mb.ProcessKey(e) { return "menu_activated" }
+		}
+		return "none"
+	}
+
+	// SCENARIO 1: Press Alt+O (matches Dialog's &Ok)
+	// Menu is inactive. Dialog should win.
+	evAltO := &vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, Char: 'o',
+		ControlKeyState: vtinput.LeftAltPressed,
+	}
+	res := process(evAltO)
+	if res != "dialog" || mb.Active {
+		t.Errorf("Alt+O should go to Dialog. Got %s, Menu Active: %v", res, mb.Active)
+	}
+
+	// SCENARIO 2: Press Alt+F (matches Menu's &Files)
+	// Dialog doesn't have 'f'. Menu should activate.
+	evAltF := &vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, Char: 'f',
+		ControlKeyState: vtinput.LeftAltPressed,
+	}
+	res = process(evAltF)
+	if res != "menu_activated" || !mb.Active {
+		t.Errorf("Alt+F should activate Menu. Got %s, Menu Active: %v", res, mb.Active)
+	}
+
+	// SCENARIO 3: Menu is now Active. Press Alt+O again.
+	// Menu is active, so it takes precedence in the filter.
+	// Note: MenuBar.ProcessKey only returns true for Alt+Letter if it matches an item.
+	// Since Alt+O doesn't match 'Files', it should fall through to the Dialog.
+	res = process(evAltO)
+	if res != "dialog" {
+		t.Errorf("Active Menu should pass non-matching Alt-keys to Dialog. Got %s", res)
+	}
+}
+
+func TestVMenu_SeparatorNavigation(t *testing.T) {
+	m := NewVMenu("Test")
+	m.AddItem("One")
+	m.AddSeparator()
+	m.AddItem("Two")
+
+	// 1. Initial pos is 0
+	if m.selectPos != 0 { t.Fatal("Start pos should be 0") }
+
+	// 2. Down from 0 should land on 2 (skipping separator at 1)
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
+	if m.selectPos != 2 {
+		t.Errorf("Separator not skipped during Down: got pos %d, want 2", m.selectPos)
+	}
+
+	// 3. Up from 2 should land on 0
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
+	if m.selectPos != 0 {
+		t.Errorf("Separator not skipped during Up: got pos %d, want 0", m.selectPos)
+	}
 }

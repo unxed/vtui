@@ -17,6 +17,7 @@ type UIElement interface {
 	IsFocused() bool
 	CanFocus() bool
 	GetHotkey() rune
+	GetHelp() string
 	ProcessKey(e *vtinput.InputEvent) bool
 	ProcessMouse(e *vtinput.InputEvent) bool
 }
@@ -202,6 +203,13 @@ func (d *Dialog) ResizeConsole(w, h int) {
 	offX, offY := nx1-d.X1, ny1-d.Y1
 	d.MoveRelative(offX, offY)
 }
+// Center positions the dialog in the middle of the given area (usually screen size).
+func (d *Dialog) Center(scrW, scrH int) {
+	dw, dh := d.X2-d.X1+1, d.Y2-d.Y1+1
+	nx1 := (scrW - dw) / 2
+	ny1 := (scrH - dh) / 2
+	d.MoveRelative(nx1-d.X1, ny1-d.Y1)
+}
 
 // ChangeSize changes dialog size and adapts child positions via GrowMode.
 func (d *Dialog) ChangeSize(nw, nh int) {
@@ -240,6 +248,13 @@ func (d *Dialog) SetExitCode(code int) {
 
 func (d *Dialog) IsDone() bool {
 	return d.done
+}
+// GetFocusedItem returns the currently focused element in the dialog.
+func (d *Dialog) GetFocusedItem() UIElement {
+	if d.focusIdx >= 0 && d.focusIdx < len(d.items) {
+		return d.items[d.focusIdx]
+	}
+	return nil
 }
 func (d *Dialog) IsBusy() bool { return false }
 

@@ -33,8 +33,9 @@ type VMenu struct {
 
 // NewVMenu creates a new vertical menu instance.
 func NewVMenu(title string) *VMenu {
+	clean, _, _ := ParseAmpersandString(title)
 	m := &VMenu{
-		title:     title,
+		title:     clean,
 		items:     []MenuItem{},
 		selectPos: 0,
 	}
@@ -53,6 +54,10 @@ func (m *VMenu) AddItem(text string) {
 // AddSeparator adds a separator line.
 func (m *VMenu) AddSeparator() {
 	m.items = append(m.items, MenuItem{Separator: true})
+}
+// GetItemCount returns the number of items (including separators) in the menu.
+func (m *VMenu) GetItemCount() int {
+	return len(m.items)
 }
 
 // SetSelectPos sets the currently selected item and manages scrolling.
@@ -107,14 +112,12 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		return true
 	case vtinput.VK_LEFT:
 		if m.OnLeft != nil {
-			m.OnLeft()
-			m.SetExitCode(-1)
+			m.OnLeft() // Swapping logic is handled by the callback
 			return true
 		}
 	case vtinput.VK_RIGHT:
 		if m.OnRight != nil {
 			m.OnRight()
-			m.SetExitCode(-1)
 			return true
 		}
 	case vtinput.VK_ESCAPE:

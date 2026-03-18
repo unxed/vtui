@@ -28,8 +28,9 @@ func TestSetDefaultPalette(t *testing.T) {
 		t.Error("ColDialogHighlightButton was not initialized")
 	}
 
-	// Check table color (LightGray on Black)
-	expectedTableText := SetRGBBoth(0, 0xC0C0C0, 0x000000)
+	// Check table color (LightGray on Blue)
+	// Blue = 0x0000A0, LightGray = 0xC0C0C0
+	expectedTableText := SetRGBBoth(0, 0xC0C0C0, 0x0000A0)
 	if Palette[ColTableText] != expectedTableText {
 		t.Errorf("Expected TableText color %X, got %X", expectedTableText, Palette[ColTableText])
 	}

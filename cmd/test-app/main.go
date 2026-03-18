@@ -9,109 +9,143 @@ import (
 	"golang.org/x/term"
 )
 
+type fileRow struct {
+	name string
+	size string
+}
+
+func (f fileRow) GetCellText(col int) string {
+	if col == 0 { return f.name }
+	return f.size
+}
+
 func main() {
-	// 1. Enable extended terminal mode
 	restore, err := vtinput.Enable()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error enabling raw mode: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return
 	}
 	defer restore()
 
-	// Hide cursor and restore it on exit
-	fmt.Print("\x1b[?25l")
-	defer fmt.Print("\x1b[?25h")
-
-	// 2. Get terminal size and create screen buffer
 	width, height, _ := term.GetSize(int(os.Stdin.Fd()))
 	scr := vtui.NewScreenBuf()
 	scr.AllocBuf(width, height)
-
-	// 3. Initialize FrameManager
 	vtui.FrameManager.Init(scr)
 
-	// Create Desktop background layer
+	// --- Layers ---
 	desktop := vtui.NewDesktop()
 	vtui.FrameManager.Push(desktop)
 
-	// 4. Create the unified, comprehensive demonstration dialog
-	dlgWidth, dlgHeight := 64, 20
-	x1 := (width - dlgWidth) / 2
-	y1 := (height - dlgHeight) / 2
-	dlg := vtui.NewDialog(x1, y1, x1+dlgWidth-1, y1+dlgHeight-1, " vtui Comprehensive Demo ")
-	dlg.SetHelp("MainDialogTopic")
+	// --- Menu Bar ---
+	topMenu := vtui.NewMenuBar(nil)
+	topMenu.Items = []vtui.MenuBarItem{
+		{Label: "&Left", SubItems: []vtui.MenuItem{{Text: "Command &1"}, {Separator: true}, {Text: "E&xit"}}},
+		{Label: "&Files", SubItems: []vtui.MenuItem{{Text: "&Open"}, {Text: "&Save"}}},
+		{Label: "&Commands", SubItems: []vtui.MenuItem{{Text: "&Search"}}},
+		{Label: "&Options", SubItems: []vtui.MenuItem{{Text: "&Colors"}}},
+		{Label: "&Right", SubItems: []vtui.MenuItem{{Text: "Command &2"}}},
+	}
+	topMenu.SetPosition(0, 0, width-1, 0)
+	topMenu.OnCommand = func(menuIdx, itemIdx int) {
+		if menuIdx == 0 && itemIdx == 2 {
+			vtui.FrameManager.Shutdown()
+		}
+	}
 
-	// --- Left Column ---
+	// --- Status Line ---
+	sl := vtui.NewStatusLine()
+	sl.SetPosition(0, height-1, width-1, height-1)
+	sl.Default = []vtui.StatusItem{
+		{Key: "F1", Label: "Help"},
+		{Key: "F9", Label: "Menu"},
+		{Key: "F10", Label: "Quit"},
+		{Key: "Drag ↘", Label: "Resize"},
+	}
+	sl.Items["edit"] = []vtui.StatusItem{
+		{Key: "F1", Label: "Help"},
+		{Key: "F9", Label: "Menu"},
+		{Key: "Alt-Down", Label: "History"},
+		{Key: "Ctrl-C", Label: "Copy"},
+	}
 
-	// Radio buttons
+	// --- Comprehensive Dialog ---
+	dlg := vtui.NewDialog(0, 0, 63, 25, " vtui 3.0 Kitchen Sink ")
+	dlg.Center(width, height)
+	x1, y1 := dlg.X1, dlg.Y1
+
+	// LEFT: Input & Options
 	dlg.AddItem(vtui.NewLabel(x1+2, y1+2, "Select &mode:", nil))
 	rb1 := vtui.NewRadioButton(x1+4, y1+3, "&Fast and Dangerous")
 	rb1.Selected = true
 	dlg.AddItem(rb1)
 	dlg.AddItem(vtui.NewRadioButton(x1+4, y1+4, "Slow and &Stable"))
-	dlg.AddItem(vtui.NewRadioButton(x1+4, y1+5, "Mental &Health Mode"))
 
-	// ComboBox
-	combo := vtui.NewComboBox(x1+13, y1+8, 16, []string{"UTF-8", "CP866 (OEM)", "Windows-1251", "KOI8-R"})
-	combo.Edit.SetText("UTF-8")
-	dlg.AddItem(vtui.NewLabel(x1+2, y1+8, "&Encoding:", combo))
+	combo := vtui.NewComboBox(x1+13, y1+6, 16, []string{"UTF-8", "CP866", "Win-1251"})
+	dlg.AddItem(vtui.NewLabel(x1+2, y1+6, "&Encoding:", combo))
 	dlg.AddItem(combo)
 
-	// Password
-	pass := vtui.NewEdit(x1+13, y1+10, 16, "")
-	pass.PasswordMode = true
-	dlg.AddItem(vtui.NewLabel(x1+2, y1+10, "&Password:", pass))
-	dlg.AddItem(pass)
+	cmdEdit := vtui.NewEdit(x1+13, y1+8, 16, "ls -la")
+	cmdEdit.History = []string{"git status", "go build", "rm -rf /", "ls -la"}
+	cmdEdit.SetHelp("edit")
+	dlg.AddItem(vtui.NewLabel(x1+2, y1+8, "&Command:", cmdEdit))
+	dlg.AddItem(cmdEdit)
 
-
-	// --- Right Column ---
-
-	// VText separator
+	// RIGHT: Operations & List
 	dlg.AddItem(vtui.NewVText(x1+30, y1+2, "│CORE│", vtui.Palette[vtui.ColDialogText]))
-
-	// Checkboxes
 	dlg.AddItem(vtui.NewLabel(x1+34, y1+2, "S&ettings:", nil))
 	dlg.AddItem(vtui.NewCheckbox(x1+36, y1+3, "Enable &AI", false))
 	dlg.AddItem(vtui.NewCheckbox(x1+36, y1+4, "A&uto-update", true))
-	dlg.AddItem(vtui.NewCheckbox(x1+36, y1+5, "F&orce Legacy (3-state)", true))
 
-	// VMenu
-	menu := vtui.NewVMenu(" Operations ")
-	menu.SetHelp("MenuOperationsTopic")
-	menu.SetPosition(x1+34, y1+8, x1+58, y1+10) // Height of 3 lines
-	menu.AddItem("&Copy File")
-	menu.AddItem("&Move File")
-	menu.AddSeparator()
-	menu.AddItem("&Delete File")
-	dlg.AddItem(menu)
+	opMenu := vtui.NewVMenu(" Operations ")
+	opMenu.SetPosition(x1+34, y1+6, x1+58, y1+11) // Height of 5 lines
+	opMenu.AddItem("&Copy File")
+	opMenu.AddItem("&Move File")
+	opMenu.AddSeparator()
+	opMenu.AddItem("&Delete")
+	opMenu.AddItem("&Attributes")
+	dlg.AddItem(opMenu)
 
-	// ListBox (from f4 demo)
-	recentFiles := []string{"config.go", "main.go", "utils.go", "README.md", "LICENSE", "go.mod"}
-	lb := vtui.NewListBox(x1+34, y1+12, 24, 2, recentFiles) // Height of 2 lines
-	lb.ColorTextIdx = vtui.ColDialogEdit
-	lb.ColorSelectedTextIdx = vtui.ColDialogEditSelected
-	dlg.AddItem(vtui.NewLabel(x1+34, y1+11, "&Recently used:", lb))
+	recentFiles := []string{"main.go", "edit.go", "dialog.go", "table.go", "pty.go", "vfs.go", "sum.go"}
+	lb := vtui.NewListBox(x1+34, y1+13, 24, 3, recentFiles)
+	dlg.AddItem(vtui.NewLabel(x1+34, y1+12, "&Recent:", lb))
 	dlg.AddItem(lb)
 
-
-	// --- Bottom Buttons ---
-
-	btnOk := vtui.NewButton(x1+dlgWidth/2-18, y1+17, "&Ok")
-	btnOk.OnClick = func() { dlg.SetExitCode(0); desktop.SetExitCode(0) }
-
-	btnCancel := vtui.NewButton(x1+dlgWidth/2-4, y1+17, "&Cancel")
-	btnCancel.OnClick = func() { dlg.SetExitCode(-1); desktop.SetExitCode(-1) }
-
-	btnMsg := vtui.NewButton(x1+dlgWidth/2+10, y1+17, "Show &Msg")
-	btnMsg.OnClick = func() {
-		vtui.ShowMessage(" MessageBox Demo ", "This is a dynamic message box.\nIt supports Unicode: Привет! 🚀", []string{"&Nice!", "&Whatever"})
+	// CENTER: Table
+	tableCols := []vtui.TableColumn{
+		{Title: "Filename", Width: 35},
+		{Title: "Size", Width: 12, Alignment: vtui.AlignRight},
 	}
+	table := vtui.NewTable(x1+2, y1+17, 58, 5, tableCols)
+	table.SetRows([]vtui.TableRow{
+		fileRow{"README.md", "2 KB"},
+		fileRow{"LICENSE", "1 KB"},
+		fileRow{"rocket_launcher.sh", "128 KB"},
+		fileRow{"data.json", "10 MB"},
+	})
+	table.ShowScrollBar = true
+	table.SetGrowMode(vtui.GrowHiX | vtui.GrowHiY)
+	dlg.AddItem(table)
+
+	// BOTTOM: Buttons
+	btnOk := vtui.NewButton(x1+12, y1+23, "&Ok")
+	btnOk.OnClick = func() { dlg.SetExitCode(0); desktop.SetExitCode(0) }
+	btnOk.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
+
+	btnMsg := vtui.NewButton(x1+28, y1+23, "Show &Msg")
+	btnMsg.OnClick = func() {
+		vtui.ShowMessage(" MessageBox ", "Resizing is enabled!\nGrab the bottom-right corner.", []string{"&Got it"})
+	}
+	btnMsg.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	dlg.AddItem(btnOk)
-	dlg.AddItem(btnCancel)
 	dlg.AddItem(btnMsg)
 
-	// 5. Add dialog to FrameManager stack and start event loop
+	// Assign components to the Framework to enable standard behaviors
+	vtui.FrameManager.MenuBar = topMenu
+	vtui.FrameManager.StatusLine = sl
+
 	vtui.FrameManager.Push(dlg)
+
+
 	vtui.FrameManager.Run()
 }
