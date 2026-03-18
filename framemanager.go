@@ -39,6 +39,7 @@ type frameManager struct {
 	frames         []Frame
 	scr            *ScreenBuf
 	RedrawChan     chan struct{}
+	TaskChan       chan func()
 	EventFilter    func(*vtinput.InputEvent) bool
 	injectedEvents []*vtinput.InputEvent
 	OnRender       func(scr *ScreenBuf)
@@ -57,6 +58,7 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.scr = scr
 	fm.frames = make([]Frame, 0, 10)
 	fm.RedrawChan = make(chan struct{}, 1)
+	fm.TaskChan = make(chan func(), 64)
 	fm.injectedEvents = make([]*vtinput.InputEvent, 0)
 	SetDefaultPalette()
 	// Hide cursor globally at start
@@ -79,6 +81,12 @@ func (fm *frameManager) Redraw() {
 	select {
 	case fm.RedrawChan <- struct{}{}:
 	default:
+	}
+}
+// PostTask schedules a function to be executed safely on the main UI thread.
+func (fm *frameManager) PostTask(task func()) {
+	if fm.TaskChan != nil {
+		fm.TaskChan <- task
 	}
 }
 // InjectEvents adds simulated input events to the front of the queue.
@@ -259,6 +267,10 @@ func (fm *frameManager) Run() {
 		} else {
 			select {
 			case <-fm.RedrawChan: continue
+			case task := <-fm.TaskChan:
+				task()
+				fm.Redraw()
+				continue
 			case <-sigChan:
 				width, height, _ := term.GetSize(int(os.Stdin.Fd()))
 				fm.scr.AllocBuf(width, height)
