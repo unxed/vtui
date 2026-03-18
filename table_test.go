@@ -99,3 +99,49 @@ func TestTable_Rendering(t *testing.T) {
 	checkCell(t, scr, 5, 1, ' ', Palette[ColTableSelectedText]) // Padding
 	checkCell(t, scr, 8, 1, 'B', Palette[ColTableSelectedText])
 }
+
+func TestTable_ScrollbarMouseClick(t *testing.T) {
+	cols := []TableColumn{{Title: "Col", Width: 10}}
+	tbl := NewTable(0, 0, 10, 5, cols) // Высота 5, хидер 1, данные 4
+
+	var rows []TableRow
+	for i := 0; i < 20; i++ {
+		rows = append(rows, mockRow{"A", "B"})
+	}
+	tbl.SetRows(rows)
+
+	// Изначально TopPos = 0, SelectPos = 0
+
+	// 1. Клик по нижней стрелке скроллбара (Y = Y1 + HeaderOffset + DataHeight - 1)
+	// X = 9 (X2), Y = 0 + 1 + 4 - 1 = 4
+	tbl.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 9, MouseY: 4, ButtonState: vtinput.FromLeft1stButtonPressed,
+	})
+	if tbl.SelectPos != 1 {
+		t.Errorf("Click down arrow failed, SelectPos: %d", tbl.SelectPos)
+	}
+
+	// 2. Клик по верхней стрелке скроллбара (Y = 1)
+	tbl.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 9, MouseY: 1, ButtonState: vtinput.FromLeft1stButtonPressed,
+	})
+	if tbl.SelectPos != 0 {
+		t.Errorf("Click up arrow failed, SelectPos: %d", tbl.SelectPos)
+	}
+
+	// 3. Клик ниже середины трека (Page Down) -> Y = 3
+	tbl.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 9, MouseY: 3, ButtonState: vtinput.FromLeft1stButtonPressed,
+	})
+	if tbl.TopPos != 4 { // TopPos должен сдвинуться на DataHeight (4)
+		t.Errorf("PageDown click failed, TopPos: %d", tbl.TopPos)
+	}
+
+	// 4. Клик выше середины трека (Page Up) -> Y = 2
+	tbl.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 9, MouseY: 2, ButtonState: vtinput.FromLeft1stButtonPressed,
+	})
+	if tbl.TopPos != 0 { // TopPos должен сдвинуться обратно
+		t.Errorf("PageUp click failed, TopPos: %d", tbl.TopPos)
+	}
+}

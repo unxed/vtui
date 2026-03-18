@@ -75,12 +75,17 @@ func main() {
 		{Title: "Date", Width: 12},
 	}
 	table := vtui.NewTable(x1+2, y1+3, 56, 6, tableCols)
-	table.SetRows([]vtui.TableRow{
+	rows := []vtui.TableRow{
 		fileRow{"kernel.go", "4 KB", "2024-03-10"},
 		fileRow{"🚀 rocket.exe", "12 KB", "2024-03-11"},
 		fileRow{"日本語.txt", "2 KB", "2024-03-12"},
 		fileRow{"main.go", "2 KB", "2024-03-12"},
-	})
+	}
+	// Добавляем еще файлов, чтобы показать скроллбар (высота таблицы 6)
+	for i := 1; i <= 20; i++ {
+		rows = append(rows, fileRow{fmt.Sprintf("file_%02d.txt", i), "1 KB", "2024-03-13"})
+	}
+	table.SetRows(rows)
 	dlg.AddItem(table)
 	// Добавляем VText справа от таблицы для красоты
 	dlg.AddItem(vtui.NewVText(x1+58, y1+3, "FILES", vtui.Palette[vtui.ColDialogText]))
@@ -106,6 +111,10 @@ func main() {
 	// 6. ComboBox (Выпадающий список)
 	dlg.AddItem(vtui.NewText(x1+2, y1+13, "Combo:", vtui.Palette[vtui.ColDialogText]))
 	comboItems := []string{"Red", "Green", "Blue", "Alpha", "Cyan", "Magenta"}
+	// Добавляем элементы для активации скроллбара
+	for i := 1; i <= 15; i++ {
+		comboItems = append(comboItems, fmt.Sprintf("Color #%02d", i))
+	}
 	dlg.AddItem(vtui.NewComboBox(x1+15, y1+13, 20, comboItems))
 
 	// 7. Вертикальное меню (VMenu)

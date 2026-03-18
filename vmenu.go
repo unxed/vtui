@@ -187,6 +187,28 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 
 		// Checking whether we fit inside menu frame
 		if mx >= m.X1 && mx <= m.X2 && my >= m.Y1 && my <= m.Y2 {
+			height := m.Y2 - m.Y1 - 1
+
+			// Отрабатываем клик по скроллбару
+			if len(m.items) > height && mx == m.X2 {
+				startY := m.Y1 + 1
+				if my == startY {
+					m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
+					return true
+				} else if my == startY+height-1 {
+					m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
+					return true
+				} else if my > startY && my < startY+height-1 {
+					// PageUp / PageDown
+					if my < startY+height/2 {
+						m.SetSelectPos(m.selectPos-height, -1)
+					} else {
+						m.SetSelectPos(m.selectPos+height, 1)
+					}
+					return true
+				}
+			}
+
 			// Calculation of the index taking into account the presence/absence of a frame
 			offset := 1
 			// TODO: detect NoBox mode properly
@@ -279,6 +301,11 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 			finalStr := " " + contentStr + strings.Repeat(" ", padding)
 			scr.Write(m.X1+1, currY, StringToCharInfo(finalStr, attr))
 		}
+	}
+
+	// 4. Scrollbar
+	if len(m.items) > height {
+		DrawScrollBar(scr, m.X2, m.Y1+1, height, m.topPos, len(m.items), colBox)
 	}
 }
 
