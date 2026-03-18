@@ -9,6 +9,8 @@ import (
 // UIElement is the interface that all dialog elements must implement.
 type UIElement interface {
 	GetPosition() (int, int, int, int)
+	SetPosition(int, int, int, int)
+	GetGrowMode() GrowMode
 	Show(scr *ScreenBuf)
 	Hide(scr *ScreenBuf)
 	SetFocus(bool)
@@ -30,6 +32,8 @@ type Dialog struct {
 	isDragging bool
 	dragOffX   int
 	dragOffY   int
+	lastW      int
+	lastH      int
 }
 
 func NewDialog(x1, y1, x2, y2 int, title string) *Dialog {
@@ -39,6 +43,8 @@ func NewDialog(x1, y1, x2, y2 int, title string) *Dialog {
 		frame:    NewBorderedFrame(x1, y1, x2, y2, DoubleBox, title),
 	}
 	d.SetPosition(x1, y1, x2, y2)
+	d.lastW = x2 - x1 + 1
+	d.lastH = y2 - y1 + 1
 	return d
 }
 
@@ -182,12 +188,40 @@ func (d *Dialog) ProcessKey(e *vtinput.InputEvent) bool {
 }
 
 func (d *Dialog) ResizeConsole(w, h int) {
-	// Center the dialog on the new screen size
+	// 1. Центрируем сам диалог на новом экране
 	dw, dh := d.X2-d.X1+1, d.Y2-d.Y1+1
-	x1 := (w - dw) / 2
-	y1 := (h - dh) / 2
-	d.SetPosition(x1, y1, x1+dw-1, y1+dh-1)
-	// Important: We'd need to reposition all internal items here too.
+	nx1 := (w - dw) / 2
+	ny1 := (h - dh) / 2
+
+	// Если диалог переместился целиком, просто вызываем MoveRelative
+	offX, offY := nx1-d.X1, ny1-d.Y1
+	d.MoveRelative(offX, offY)
+}
+
+// ChangeSize изменяет размер самого диалога и адаптирует положение детей через GrowMode.
+func (d *Dialog) ChangeSize(nw, nh int) {
+	dx := nw - d.lastW
+	dy := nh - d.lastH
+	if dx == 0 && dy == 0 { return }
+
+	d.X2 += dx
+	d.Y2 += dy
+	d.frame.SetPosition(d.X1, d.Y1, d.X2, d.Y2)
+
+	for _, item := range d.items {
+		gm := item.GetGrowMode()
+		ix1, iy1, ix2, iy2 := item.GetPosition()
+
+		if (gm & GrowLoX) != 0 { ix1 += dx }
+		if (gm & GrowHiX) != 0 { ix2 += dx }
+		if (gm & GrowLoY) != 0 { iy1 += dy }
+		if (gm & GrowHiY) != 0 { iy2 += dy }
+
+		item.SetPosition(ix1, iy1, ix2, iy2)
+	}
+
+	d.lastW = nw
+	d.lastH = nh
 }
 
 func (d *Dialog) GetType() FrameType {

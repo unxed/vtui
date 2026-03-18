@@ -13,12 +13,20 @@ type ScreenObject struct {
 	canFocus       bool
 	lockCount      int
 	helpTopic      string
+	growMode       GrowMode
 	hotkey         rune
 }
 
 // GetHotkey returns the assigned hotkey rune for the object.
 func (so *ScreenObject) GetHotkey() rune {
 	return so.hotkey
+}
+func (so *ScreenObject) SetGrowMode(gm GrowMode) {
+	so.growMode = gm
+}
+
+func (so *ScreenObject) GetGrowMode() GrowMode {
+	return so.growMode
 }
 
 // SetPosition sets the object's coordinates.
