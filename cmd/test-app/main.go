@@ -69,7 +69,7 @@ func main() {
 	}
 
 	// --- Comprehensive Dialog ---
-	dlg := vtui.NewDialog(0, 0, 63, 25, " vtui 3.0 Kitchen Sink ")
+	dlg := vtui.NewDialog(0, 0, 63, 25, " vtui demo ")
 	dlg.ShowClose = true
 	dlg.Center(width, height)
 	x1, y1 := dlg.X1, dlg.Y1
