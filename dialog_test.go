@@ -155,3 +155,60 @@ func TestDialog_HotkeyColor(t *testing.T) {
 	// Hotkey 'T' should have SELECTED highlight color
 	checkCell(t, scr, 1+2, 1, 'T', Palette[ColDialogHighlightSelectedButton])
 }
+
+func TestDialog_HotkeyActivation(t *testing.T) {
+	d := NewDialog(0, 0, 40, 10, "Hotkey Test")
+
+	clicked := false
+	btn := NewButton(1, 1, "&Click")
+	btn.OnClick = func() { clicked = true }
+
+	e1 := NewEdit(1, 2, 10, "")
+
+	d.AddItem(btn)
+	d.AddItem(e1)
+
+	// Переводим фокус на Edit, чтобы кнопка была не в фокусе
+	d.focusIdx = 1
+	btn.SetFocus(false)
+	e1.SetFocus(true)
+
+	// 1. Нажимаем Alt+C (хоткей кнопки)
+	d.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, Char: 'c',
+		ControlKeyState: vtinput.LeftAltPressed,
+	})
+
+	if !clicked {
+		t.Error("Button should be clicked via Alt+C")
+	}
+	if d.focusIdx != 0 || !btn.IsFocused() {
+		t.Error("Focus should move to the button after hotkey activation")
+	}
+}
+
+func TestDialog_LabelFocusLink(t *testing.T) {
+	d := NewDialog(0, 0, 40, 10, "FocusLink Test")
+
+	edit := NewEdit(1, 2, 10, "")
+	label := NewText(1, 1, "&Name:", 0)
+	label.FocusLink = edit // Привязываем метку к полю ввода
+
+	d.AddItem(label)
+	d.AddItem(edit)
+
+	// Изначально фокус на первом элементе (label), но он не canFocus,
+	// поэтому Dialog сам выберет edit при добавлении. Сбросим это вручную для теста.
+	d.focusIdx = -1
+	edit.SetFocus(false)
+
+	// 1. Нажимаем Alt+N (хоткей метки)
+	d.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, Char: 'n',
+		ControlKeyState: vtinput.LeftAltPressed,
+	})
+
+	if d.focusIdx != 1 || !edit.IsFocused() {
+		t.Errorf("Focus should move to edit via label hotkey. focusIdx=%d", d.focusIdx)
+	}
+}

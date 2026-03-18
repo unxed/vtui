@@ -39,6 +39,7 @@ func TestEdit_IgnoreLockKeys(t *testing.T) {
 }
 
 func TestVMenu_ScrollbarMouseClick(t *testing.T) {
+	SetDefaultPalette()
 	m := NewVMenu("Title")
 	// Добавляем 20 элементов, чтобы меню скроллилось
 	for i := 0; i < 20; i++ {
@@ -78,5 +79,21 @@ func TestVMenu_ScrollbarMouseClick(t *testing.T) {
 	})
 	if m.selectPos != 0 { // 5 - height (5) = 0
 		t.Errorf("VMenu PageUp click failed, pos %d", m.selectPos)
+	}
+}
+func TestVMenu_Hotkeys(t *testing.T) {
+	m := NewVMenu("Menu")
+	m.AddItem("Open &File")
+	m.AddItem("&Save")
+	m.AddItem("E&xit")
+
+	// 1. Нажимаем 's' (хоткей второго пункта)
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, Char: 's'})
+
+	if m.selectPos != 1 {
+		t.Errorf("Expected selectPos 1 for 'Save', got %d", m.selectPos)
+	}
+	if !m.IsDone() || m.exitCode != 1 {
+		t.Error("Menu should be finished with exitCode 1")
 	}
 }

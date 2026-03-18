@@ -31,3 +31,11 @@ func TestButton_OnClick(t *testing.T) {
 		t.Error("Button should be clicked on Left Mouse Button")
 	}
 }
+
+func TestButton_HotkeyParsing(t *testing.T) {
+	b := NewButton(0, 0, "Sa&ve")
+	// Проверяем, что конструктор правильно выцепил 'v' (в нижнем регистре)
+	if b.GetHotkey() != 'v' {
+		t.Errorf("Expected hotkey 'v', got %c", b.GetHotkey())
+	}
+}
