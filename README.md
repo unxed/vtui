@@ -16,7 +16,7 @@ While `tcell` is an excellent low-level terminal driver and `tview` is a great h
 | :--- | :--- | :--- |
 | **Abstractions** | **Driver + Widgets.** Low-level canvas with Flexbox-like layout containers. | **Application Framework.** Full-featured OOP hierarchy (Dialogs, Menus, Focus cycles). |
 | **Layout Mode** | **Flexbox/Grid.** Modern web-like proportions. | **GrowMode (Turbo Vision style).** "Rubber" layout with anchors, perfect for pixel-perfect TUI dialogs. |
-| **Input** | Standard Terminfo-based mapping. | **vtinput integration.** Native support for Kitty/Win32 protocols (distinguishes `Ctrl+Enter`, `Shift+Tab`, etc.). |
+| **Input** | Standard Terminfo-based mapping. | **[vtinput](https://github.com/unxed/vtinput) integration.** Native support for Kitty/Win32 protocols (distinguishes `Ctrl+Enter`, `Shift+Tab`, etc.). |
 | **Rendering** | Full-widget declarative redraw. | **ScreenBuf + ShadowBuf.** Bitwise diffing. Only changed cells are sent via minimal ANSI sequences. |
 | **Memory/GC** | Standard Go allocations during redraws. | **Zero-allocation rendering.** Designed to stay GC-silent during the `Flush()` cycle to eliminate micro-stutters. |
 | **Input Lag** | Standard parsing (can be sensitive to fast bursts). | **Event Draining.** Optimized for "instant" feel and bracketed paste without flickering. |
