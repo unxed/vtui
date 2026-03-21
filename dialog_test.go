@@ -624,3 +624,60 @@ func TestElements_HelpTopic(t *testing.T) {
 		t.Errorf("Checkbox HelpTopic failed: %s", cb.GetHelp())
 	}
 }
+
+func TestDialog_ShadowAndFocusColors(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewScreenBuf()
+	scr.AllocBuf(20, 20)
+	fm.Init(scr)
+	SetDefaultPalette()
+
+	desktop := NewDesktop()
+	fm.Push(desktop)
+
+	// Inactive dialog
+	d1 := NewDialog(2, 2, 7, 7, "D1")
+	// Active dialog
+	d2 := NewDialog(10, 10, 15, 15, "D2")
+
+	fm.Push(d1)
+	fm.Push(d2) // d2 is now on top
+
+	// Simulate focus states
+	d1.SetFocus(false)
+	d2.SetFocus(true)
+
+	// Simulate FrameManager render loop
+	for i, frame := range fm.frames {
+		// Draw shadow BEFORE showing the frame itself
+		if i > 0 { // Skip desktop for shadow
+			x1, y1, x2, y2 := frame.GetPosition()
+			if x1 > 0 || y1 > 0 || x2 < fm.scr.width-1 || y2 < fm.scr.height-1 {
+				fm.scr.ApplyShadow(x1+2, y2+1, x2+2, y2+1) // Bottom
+				fm.scr.ApplyShadow(x2+1, y1+1, x2+2, y2)   // Right
+			}
+		}
+		frame.Show(fm.scr)
+	}
+
+	// 1. Test inactive dialog color (d1)
+	checkCell(t, scr, 4, 2, 'D', Palette[ColDialogBoxTitle])
+
+	// 2. Test active dialog color (d2)
+	checkCell(t, scr, 12, 10, 'D', Palette[ColDialogHighlightBoxTitle])
+
+	// 3. Test shadow rendering of d2
+	baseAttr := Palette[ColDesktopBackground]
+	shadowedFg := GetRGBFore(baseAttr) / 2
+	shadowedBg := GetRGBBack(baseAttr) / 2
+	expectedShadowAttr := SetRGBBoth(baseAttr, shadowedFg, shadowedBg)
+
+	// Check a cell inside the shadow of d2. It should be over the desktop background.
+	checkCell(t, scr, 16, 16, ' ', expectedShadowAttr)
+
+	// Make sure the area right next to the shadow is not shadowed
+	checkCell(t, scr, 18, 16, ' ', baseAttr)
+
+	// Check a cell of d1's shadow that is *not* covered by d2 or its shadow.
+	checkCell(t, scr, 8, 8, ' ', expectedShadowAttr)
+}
