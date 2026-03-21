@@ -41,6 +41,7 @@ func (m *mockFrame) IsDone() bool                       { return m.isDone }
 func (m *mockFrame) GetHelp() string                    { return "" }
 func (m *mockFrame) IsBusy() bool                       { return false }
 func (m *mockFrame) HasShadow() bool                    { return false }
+func (m *mockFrame) GetKeyLabels() *KeySet              { return nil }
 func (m *mockFrame) IsModal() bool                      { return m.isModal }
 func (m *mockFrame) GetWindowNumber() int               { return 0 }
 func (m *mockFrame) SetWindowNumber(n int)              {}

@@ -33,6 +33,7 @@ type Frame interface {
 	GetHelp() string
 	IsBusy() bool // If true, FrameManager may skip the rendering phase
 	HasShadow() bool
+	GetKeyLabels() *KeySet
 
 	// MDI Methods
 	SetPosition(x1, y1, x2, y2 int)
@@ -268,6 +269,20 @@ func (fm *frameManager) Run() {
 				}
 			}
 			fm.StatusLine.UpdateContext(topic)
+		}
+
+		// Update KeyBar content from the active frame
+		if fm.KeyBar != nil {
+			// Find the topmost frame that provides key labels
+			for i := len(fm.frames) - 1; i >= 0; i-- {
+				if ks := fm.frames[i].GetKeyLabels(); ks != nil {
+					fm.KeyBar.Normal = ks.Normal
+					fm.KeyBar.Shift = ks.Shift
+					fm.KeyBar.Ctrl = ks.Ctrl
+					fm.KeyBar.Alt = ks.Alt
+					break
+				}
+			}
 		}
 
 		// If the frame is "busy" (e.g., mass insertion in progress), skip drawing

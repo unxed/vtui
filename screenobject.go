@@ -154,3 +154,6 @@ func (so *ScreenObject) ShowHelp() {
 func (so *ScreenObject) HasShadow() bool {
 	return false
 }
+func (so *ScreenObject) GetKeyLabels() *KeySet {
+	return nil
+}

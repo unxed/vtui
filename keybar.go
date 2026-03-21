@@ -7,6 +7,13 @@ import (
 
 // KeyBarLabels stores labels for F1-F12 for a specific modifier state.
 type KeyBarLabels [12]string
+// KeySet represents a full collection of KeyBar labels for all modifier states.
+type KeySet struct {
+	Normal KeyBarLabels
+	Shift  KeyBarLabels
+	Ctrl   KeyBarLabels
+	Alt    KeyBarLabels
+}
 
 // KeyBar implements the bottom row of function key hints.
 type KeyBar struct {
