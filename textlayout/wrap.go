@@ -34,6 +34,7 @@ func NewWrapEngine(pt *piecetable.PieceTable, li *piecetable.LineIndex) *WrapEng
 
 // SetWidth устанавливает ширину для свертки. При изменении сбрасывает кэш.
 func (we *WrapEngine) SetWidth(width int) {
+	if width < 1 { width = 1 } // Ширина не может быть меньше 1
 	if width != we.wrapWidth {
 		we.wrapWidth = width
 		we.InvalidateCache()
@@ -103,33 +104,34 @@ func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
 		for endRuneIdx < len(lineRunes) {
 			r := lineRunes[endRuneIdx]
 			w := runewidth.RuneWidth(r)
+			if w < 1 { w = 1 } // Обработка zero-width символов как 1 ячейку для надежности
 
 			if visualWidth+w > we.wrapWidth {
-				// Если символ, вызвавший переполнение — пробел, мы просто включаем его
-				// в этот фрагмент (в конец строки) и завершаем фрагмент.
+				// 1. Если это пробел — забираем его в текущую строку и переносим
 				if r == ' ' {
 					endRuneIdx++
 					visualWidth += w
 					break
 				}
-
-				// Защита от бесконечного цикла (символ шире всей доступной области)
+				// 2. Если это ПЕРВЫЙ символ в строке и он не влезает (CJK в окне шириной 1)
+				// Мы обязаны его забрать, чтобы не зациклиться.
 				if endRuneIdx == startRuneIdx {
 					endRuneIdx++
 					visualWidth += w
-				} else {
-					// Ищем последний пробел для «мягкого» переноса слова
-					lastSpace := -1
-					for i := endRuneIdx - 1; i >= startRuneIdx; i-- {
-						if lineRunes[i] == ' ' {
-							lastSpace = i
-							break
-						}
-					}
-					if lastSpace != -1 {
-						endRuneIdx = lastSpace + 1 // Включаем пробел в конец строки
+					break
+				}
+				// 3. Пытаемся сделать Word Wrap (перенос по пробелу)
+				lastSpace := -1
+				for i := endRuneIdx - 1; i >= startRuneIdx; i-- {
+					if lineRunes[i] == ' ' {
+						lastSpace = i
+						break
 					}
 				}
+				if lastSpace != -1 {
+					endRuneIdx = lastSpace + 1
+				}
+				// Если пробелов нет — будет Hard Wrap (разрыв слова)
 				break
 			}
 			visualWidth += w
@@ -147,11 +149,9 @@ func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
 		}
 		fragments = append(fragments, frag)
 
+		// Обновляем позицию. Важно: мы БОЛЬШЕ не пропускаем пробелы в начале новой строки.
+		// Это критично для сохранения отступов (indentation) при переносе.
 		startRuneIdx = endRuneIdx
-		// Пропускаем пробелы в начале следующего фрагмента
-		for startRuneIdx < len(lineRunes) && lineRunes[startRuneIdx] == ' ' {
-			startRuneIdx++
-		}
 		currentBytePos = len(string(lineRunes[:startRuneIdx]))
 	}
 

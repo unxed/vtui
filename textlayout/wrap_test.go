@@ -126,3 +126,45 @@ func TestWrapEngine_Navigation(t *testing.T) {
 		t.Errorf("VisualToLogical(1, 1): expected offset 7, got %d", offset)
 	}
 }
+func TestWrapEngine_ExtremeCorners(t *testing.T) {
+	// 1. Окно шириной 1, символ шириной 2
+	pt := piecetable.New([]byte("世"))
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+	we := NewWrapEngine(pt, li)
+	we.SetWidth(1) // Меньше ширины символа
+
+	frags := we.GetFragments(0)
+	if len(frags) != 1 || frags[0].VisualWidth != 2 {
+		t.Errorf("Narrow window CJK: expected width 2, got %v", frags[0].VisualWidth)
+	}
+
+	// 2. Сверхдлинное слово без пробелов
+	pt2 := piecetable.New([]byte("1234567890"))
+	li2 := piecetable.NewLineIndex()
+	li2.Rebuild(pt2)
+	we.pt = pt2
+	we.li = li2
+	we.SetWidth(3)
+
+	frags2 := we.GetFragments(0)
+	// Ожидаем: "123", "456", "789", "0"
+	if len(frags2) != 4 {
+		t.Errorf("Long word break: expected 4 frags, got %d", len(frags2))
+	}
+
+	// 3. Сохранение отступов (ведущих пробелов)
+	pt3 := piecetable.New([]byte("    Line with indentation"))
+	li3 := piecetable.NewLineIndex()
+	li3.Rebuild(pt3)
+	we.pt = pt3
+	we.li = li3
+	we.SetWidth(10)
+
+	frags3 := we.GetFragments(0)
+	// Первый фрагмент должен содержать отступы
+	text := string(pt3.GetRange(frags3[0].ByteOffsetStart, frags3[0].ByteOffsetEnd-frags3[0].ByteOffsetStart))
+	if text != "    Line " {
+		t.Errorf("Indentation preserved: expected '    Line ', got %q", text)
+	}
+}
