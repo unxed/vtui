@@ -61,6 +61,48 @@ func TestTable_Navigation(t *testing.T) {
 		t.Errorf("Expected SelectPos 0, got %d", tbl.SelectPos)
 	}
 }
+func TestTable_PageNavigation(t *testing.T) {
+	cols := []TableColumn{{Title: "Col", Width: 10}}
+	tbl := NewTable(0, 0, 10, 5, cols) // Height 5, Header 1 -> Data Height 4
+
+	rows := make([]TableRow, 20)
+	for i := range rows {
+		rows[i] = mockRow{"a", "b"}
+	}
+	tbl.SetRows(rows)
+
+	// 1. PgDn from top
+	tbl.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT})
+	if tbl.SelectPos != 4 {
+		t.Errorf("PgDn failed: expected index 4, got %d", tbl.SelectPos)
+	}
+
+	// 2. PgDn again
+	tbl.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT})
+	if tbl.SelectPos != 8 {
+		t.Errorf("PgDn(2) failed: expected index 8, got %d", tbl.SelectPos)
+	}
+
+	// 3. PgUp
+	tbl.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_PRIOR})
+	if tbl.SelectPos != 4 {
+		t.Errorf("PgUp failed: expected index 4, got %d", tbl.SelectPos)
+	}
+
+	// 4. Boundary check - PgUp at top
+	tbl.SelectPos = 2
+	tbl.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_PRIOR})
+	if tbl.SelectPos != 0 {
+		t.Errorf("PgUp boundary failed: expected 0, got %d", tbl.SelectPos)
+	}
+
+	// 5. Boundary check - PgDn at bottom
+	tbl.SelectPos = 18
+	tbl.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT})
+	if tbl.SelectPos != 19 {
+		t.Errorf("PgDn boundary failed: expected 19, got %d", tbl.SelectPos)
+	}
+}
 
 func TestTable_Rendering(t *testing.T) {
 	SetDefaultPalette() // Must initialize colors before rendering
