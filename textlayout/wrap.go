@@ -22,7 +22,7 @@ type WrapEngine struct {
 	li         *piecetable.LineIndex
 	wrapWidth  int
 	wordWrap   bool
-	fragmentCache map[int][]LineFragment
+	fragmentCache [][]LineFragment
 
 	// rowOffsets[i] хранит общее количество визуальных строк во всех
 	// логических строках ПЕРЕД строкой i.
@@ -37,7 +37,7 @@ func NewWrapEngine(pt *piecetable.PieceTable, li *piecetable.LineIndex) *WrapEng
 		li:            li,
 		wrapWidth:     80,
 		wordWrap:      true,
-		fragmentCache: make(map[int][]LineFragment),
+		fragmentCache: nil,
 	}
 }
 
@@ -60,7 +60,7 @@ func (we *WrapEngine) ToggleWrap(wrap bool) {
 
 // InvalidateCache сбрасывает кэш фрагментов.
 func (we *WrapEngine) InvalidateCache() {
-	we.fragmentCache = make(map[int][]LineFragment)
+	we.fragmentCache = nil
 	we.cacheValid = false
 	we.rowOffsets = nil
 	we.totalRows = 0
@@ -68,12 +68,17 @@ func (we *WrapEngine) InvalidateCache() {
 
 // GetFragments возвращает визуальные фрагменты для одной логической строки.
 func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
-	if frags, ok := we.fragmentCache[logLineIdx]; ok {
-		return frags
+	lineCount := we.li.LineCount()
+	if we.fragmentCache == nil || len(we.fragmentCache) != lineCount {
+		we.fragmentCache = make([][]LineFragment, lineCount)
 	}
 
-	if logLineIdx < 0 || logLineIdx >= we.li.LineCount() {
+	if logLineIdx < 0 || logLineIdx >= lineCount {
 		return nil
+	}
+
+	if we.fragmentCache[logLineIdx] != nil {
+		return we.fragmentCache[logLineIdx]
 	}
 
 	startOffset := we.li.GetLineOffset(logLineIdx)
@@ -100,7 +105,7 @@ func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
 			VisualWidth:     width,
 		}
 		we.fragmentCache[logLineIdx] = []LineFragment{frag}
-		return []LineFragment{frag}
+		return we.fragmentCache[logLineIdx]
 	}
 
 	var fragments []LineFragment
@@ -166,7 +171,19 @@ func (we *WrapEngine) ensureRowCountCache() {
 	if we.cacheValid && len(we.rowOffsets) == lineCount {
 		return
 	}
+
 	we.rowOffsets = make([]int, lineCount)
+
+	// Оптимизация: если WordWrap выключен, каждая логическая строка = 1 визуальная
+	if !we.wordWrap {
+		for i := 0; i < lineCount; i++ {
+			we.rowOffsets[i] = i
+		}
+		we.totalRows = lineCount
+		we.cacheValid = true
+		return
+	}
+
 	currentOffset := 0
 	for i := 0; i < lineCount; i++ {
 		we.rowOffsets[i] = currentOffset
@@ -180,6 +197,13 @@ func (we *WrapEngine) ensureRowCountCache() {
 func (we *WrapEngine) GetTotalVisualRows() int {
 	we.ensureRowCountCache()
 	return we.totalRows
+}
+// GetRowOffset возвращает индекс первой визуальной строки для данной логической строки.
+func (we *WrapEngine) GetRowOffset(logLineIdx int) int {
+	we.ensureRowCountCache()
+	if logLineIdx < 0 { return 0 }
+	if logLineIdx >= len(we.rowOffsets) { return we.totalRows }
+	return we.rowOffsets[logLineIdx]
 }
 
 // GetLogLineAtVisualRow переводит абсолютный индекс визуальной строки в индекс
@@ -204,23 +228,24 @@ func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int)
 	we.ensureRowCountCache()
 	logLineIdx := we.li.GetLineAtOffset(byteOffset)
 	fragments := we.GetFragments(logLineIdx)
-
-	// O(1) получение базового ряда из префиксных сумм
 	totalRow := we.rowOffsets[logLineIdx]
 
 	for i, frag := range fragments {
-		// Используем < для конца фрагмента, чтобы оффсет на границе
-		// переходил на следующую строку.
-		// Исключение — самый конец последней строки файла.
 		isLastFrag := (logLineIdx == we.li.LineCount()-1) && (i == len(fragments)-1)
-
 		if byteOffset >= frag.ByteOffsetStart && (byteOffset < frag.ByteOffsetEnd || (isLastFrag && byteOffset == frag.ByteOffsetEnd)) {
-			textBefore := string(we.pt.GetRange(frag.ByteOffsetStart, byteOffset-frag.ByteOffsetStart))
-			return totalRow + i, runewidth.StringWidth(textBefore)
+			// Вычисляем колонку без аллокаций
+			data := we.pt.GetRange(frag.ByteOffsetStart, byteOffset-frag.ByteOffsetStart)
+			width := 0
+			for len(data) > 0 {
+				r, size := utf8.DecodeRune(data)
+				rw := runewidth.RuneWidth(r)
+				if rw <= 0 { rw = 1 }
+				width += rw
+				data = data[size:]
+			}
+			return totalRow + i, width
 		}
 	}
-
-	// Если мы в конце фрагмента, но не в конце файла — ищем следующий фрагмент
 	return totalRow, 0
 }
 
