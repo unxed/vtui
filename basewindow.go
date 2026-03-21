@@ -92,6 +92,11 @@ func (bw *BaseWindow) Show(scr *ScreenBuf) {
 func (bw *BaseWindow) ProcessKey(e *vtinput.InputEvent) bool {
 	if e.Type == vtinput.FocusEventType {
 		bw.SetFocus(e.SetFocus)
+		GlobalEvents.Publish(Event{
+			Type:   EvFocus,
+			Sender: bw,
+			Data:   e.SetFocus,
+		})
 		return true
 	}
 
@@ -243,6 +248,13 @@ func (bw *BaseWindow) ToggleZoom() {
 func (bw *BaseWindow) SetExitCode(code int) {
 	bw.done = true
 	bw.exitCode = code
+
+	// Оповещаем систему о закрытии окна
+	GlobalEvents.Publish(Event{
+		Type:   EvWindowState,
+		Sender: bw,
+		Data:   "closed",
+	})
 }
 
 func (bw *BaseWindow) Close() {

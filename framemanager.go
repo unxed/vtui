@@ -72,6 +72,14 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.TaskChan = make(chan func(), 64)
 	fm.injectedEvents = make([]*vtinput.InputEvent, 0)
 	SetDefaultPalette()
+
+	// Подписываемся на глобальную команду закрытия приложения
+	GlobalEvents.Subscribe(EvCommand, func(e Event) {
+		if cmd, ok := e.Data.(int); ok && cmd == cmQuit {
+			fm.Shutdown()
+		}
+	})
+
 	// Hide cursor globally at start
 	fm.scr.SetCursorVisible(false)
 }
