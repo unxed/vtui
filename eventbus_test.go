@@ -42,3 +42,22 @@ func TestEventBus_MultipleListeners(t *testing.T) {
 		t.Errorf("Expected 2 handler calls, got %d", count)
 	}
 }
+
+func TestEventBus_Integration_cmQuit(t *testing.T) {
+	scr := NewScreenBuf()
+	scr.AllocBuf(10, 10)
+	fm := &frameManager{}
+	fm.Init(scr)
+
+	fm.Push(NewDesktop()) // Чтобы было что закрывать
+
+	// Публикуем команду выхода через шину
+	GlobalEvents.Publish(Event{
+		Type: EvCommand,
+		Data: cmQuit,
+	})
+
+	if len(fm.frames) != 0 {
+		t.Error("FrameManager failed to react to Global cmQuit command")
+	}
+}

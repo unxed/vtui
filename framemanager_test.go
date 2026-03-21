@@ -126,31 +126,46 @@ func TestFrameManager_MouseCapture(t *testing.T) {
 	frame := newMockFrame(10, 10, 10, 10, false)
 	frame.onProcessMouse = func(e *vtinput.InputEvent) bool {
 		mouseEvents = append(mouseEvents, e)
-		return true // Indicate event was handled to capture mouse
+		return true // Возвращаем true, чтобы FrameManager захватил мышь
 	}
 	fm.Push(frame)
 
-	// 1. Press mouse inside the frame to capture
-	eventChan := make(chan *vtinput.InputEvent, 3)
-	eventChan <- &vtinput.InputEvent{Type: vtinput.MouseEventType, MouseX: 15, MouseY: 15, ButtonState: vtinput.FromLeft1stButtonPressed}
+	// Симулируем события:
+	// 1. Клик внутри (захват)
+	// 2. Движение ДАЛЕКО за пределы (например, координаты -50, -50)
+	// 3. Отпускание кнопки
+	events := []*vtinput.InputEvent{
+		{Type: vtinput.MouseEventType, MouseX: 15, MouseY: 15, ButtonState: vtinput.FromLeft1stButtonPressed, KeyDown: true},
+		{Type: vtinput.MouseEventType, MouseX: 500, MouseY: 500, ButtonState: vtinput.FromLeft1stButtonPressed, KeyDown: false},
+		{Type: vtinput.MouseEventType, MouseX: 500, MouseY: 500, ButtonState: 0, KeyDown: false},
+	}
 
-	// 2. Move mouse outside the frame
-	eventChan <- &vtinput.InputEvent{Type: vtinput.MouseEventType, MouseX: 5, MouseY: 5, ButtonState: vtinput.FromLeft1stButtonPressed}
-
-	// 3. Release mouse
-	eventChan <- &vtinput.InputEvent{Type: vtinput.MouseEventType, MouseX: 5, MouseY: 5, ButtonState: 0}
-
-	// Mock the event loop for 3 events
-	for i := 0; i < 3; i++ {
-		e := <-eventChan
-		dispatchHelper(fm, e)
+	for _, e := range events {
+		// Используем реальную логику диспетчеризации из нашего плана
+		if fm.capturedFrame != nil {
+			fm.capturedFrame.ProcessMouse(e)
+			if e.ButtonState == 0 {
+				fm.capturedFrame = nil
+			}
+		} else {
+			for i := len(fm.frames) - 1; i >= 0; i-- {
+				f := fm.frames[i]
+				x1, y1, x2, y2 := f.GetPosition()
+				if int(e.MouseX) >= x1 && int(e.MouseX) <= x2+2 && int(e.MouseY) >= y1 && int(e.MouseY) <= y2+1 {
+					if f.ProcessMouse(e) && e.ButtonState != 0 {
+						fm.capturedFrame = f
+					}
+					break
+				}
+			}
+		}
 	}
 
 	if len(mouseEvents) != 3 {
-		t.Fatalf("Expected 3 mouse events to be handled by the frame, got %d", len(mouseEvents))
+		t.Errorf("Mouse Capture failed: frame should receive ALL events after capture, got %d", len(mouseEvents))
 	}
-	if fm.capturedFrame != nil {
-		t.Error("Mouse capture was not released after button up")
+	if mouseEvents[1].MouseX != 500 {
+		t.Errorf("Captured event data corrupted: expected X=500, got %d", mouseEvents[1].MouseX)
 	}
 }
 

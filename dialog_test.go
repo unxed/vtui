@@ -673,11 +673,35 @@ func TestDialog_ShadowAndFocusColors(t *testing.T) {
 	expectedShadowAttr := SetRGBBoth(baseAttr, shadowedFg, shadowedBg)
 
 	// Check a cell inside the shadow of d2. It should be over the desktop background.
-	checkCell(t, scr, 16, 16, ' ', expectedShadowAttr)
+	// d2 is (10,10)-(15,15). Shadow bottom is at Y=16, X=12..17.
+	checkCell(t, scr, 13, 16, ' ', expectedShadowAttr)
 
-	// Make sure the area right next to the shadow is not shadowed
-	checkCell(t, scr, 18, 16, ' ', baseAttr)
+	// Make sure the area far from the shadow is clean
+	checkCell(t, scr, 19, 16, ' ', baseAttr)
 
 	// Check a cell of d1's shadow that is *not* covered by d2 or its shadow.
 	checkCell(t, scr, 8, 8, ' ', expectedShadowAttr)
+}
+
+func TestBaseWindow_FocusVisualFeedback(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewScreenBuf()
+	scr.AllocBuf(40, 20)
+
+	// Окно 5,5 -> 20,10. Ширина = 16.
+	// Текст " Active " (8 симв). Отступ = (16-8)/2 = 4.
+	// Старт текста: 5 + 4 = 9. Буква 'A' на позиции 10.
+	win := NewWindow(5, 5, 20, 10, "Active")
+
+	// 1. Тестируем активное состояние
+	win.SetFocus(true)
+	win.Show(scr)
+	// Заголовок должен быть ярким (ColDialogHighlightBoxTitle)
+	checkCell(t, scr, 10, 5, 'A', Palette[ColDialogHighlightBoxTitle])
+
+	// 2. Тестируем потерю фокуса
+	win.ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: false})
+	win.Show(scr)
+	// Заголовок должен стать обычным (ColDialogBoxTitle)
+	checkCell(t, scr, 10, 5, 'A', Palette[ColDialogBoxTitle])
 }
