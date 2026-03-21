@@ -180,12 +180,19 @@ func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int)
 
 // VisualToLogical переводит (строка, колонка) на экране в байтовый оффсет документа.
 func (we *WrapEngine) VisualToLogical(visualRow, visualCol int) int {
-	if visualRow < 0 { return 0 }
+	if visualRow < 0 {
+		return 0
+	}
 	currRow := 0
 	for i := 0; i < we.li.LineCount(); i++ {
 		fragments := we.GetFragments(i)
 		if visualRow < currRow+len(fragments) {
 			frag := fragments[visualRow-currRow]
+
+			// Если фрагмент пустой (например, пустая строка), возвращаем его начало
+			if frag.ByteOffsetStart == frag.ByteOffsetEnd || visualCol <= 0 {
+				return frag.ByteOffsetStart
+			}
 
 			lineData := string(we.pt.GetRange(frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart))
 			runes := []rune(lineData)
@@ -194,7 +201,10 @@ func (we *WrapEngine) VisualToLogical(visualRow, visualCol int) int {
 			w := 0
 			for _, r := range runes {
 				rw := runewidth.RuneWidth(r)
-				// Если текущий символ уже не влезает в visualCol — останавливаемся
+				if rw <= 0 {
+					rw = 1
+				}
+				// Если мы достигли или перешли нужную колонку — возвращаем текущий байт
 				if w+rw > visualCol {
 					return offset
 				}
