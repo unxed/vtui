@@ -319,8 +319,8 @@ func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int)
 	totalRow := we.rowOffsets[logLineIdx]
 
 	for i, frag := range fragments {
-		isLastFrag := (logLineIdx == we.li.LineCount()-1) && (i == len(fragments)-1)
-		if byteOffset >= frag.ByteOffsetStart && (byteOffset < frag.ByteOffsetEnd || (isLastFrag && byteOffset == frag.ByteOffsetEnd)) {
+		isLastFragOfLine := (i == len(fragments)-1)
+		if byteOffset >= frag.ByteOffsetStart && (byteOffset < frag.ByteOffsetEnd || (isLastFragOfLine && byteOffset == frag.ByteOffsetEnd)) {
 			// Вычисляем колонку без аллокаций
 			width := 0
 			if byteOffset > frag.ByteOffsetStart {
