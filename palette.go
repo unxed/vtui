@@ -84,7 +84,7 @@ func SetDefaultPalette() {
 
 	// Dialog Edits (Black on Cyan)
 	Palette[ColDialogEdit] = SetRGBBoth(0, black, cyan)
-	Palette[ColDialogEditSelected] = SetRGBBoth(0, white, black)
+	Palette[ColDialogEditSelected] = SetRGBBoth(0, black, lightGray)
 	Palette[ColDialogEditUnchanged] = SetRGBBoth(0, darkGray, cyan)
 
 	// Dialog Buttons
