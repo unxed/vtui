@@ -7,7 +7,6 @@ import "github.com/unxed/vtinput"
 type ScreenObject struct {
 	X1, Y1, X2, Y2 int
 	owner          *ScreenObject
-	saveScr        *SaveScreen
 	visible        bool
 	focused        bool
 	canFocus       bool
@@ -35,9 +34,8 @@ func (so *ScreenObject) SetPosition(x1, y1, x2, y2 int) {
 	if so.X1 == x1 && so.Y1 == y1 && so.X2 == x2 && so.Y2 == y2 {
 		return
 	}
-	// Background and visibility status become invalid on move
+	// Visibility status becomes invalid on move
 	so.visible = false
-	so.saveScr = nil
 	so.X1, so.Y1, so.X2, so.Y2 = x1, y1, x2, y2
 }
 
@@ -51,20 +49,11 @@ func (so *ScreenObject) Show(scr *ScreenBuf) {
 	if so.IsLocked() {
 		return
 	}
-	// In test mode, disable SaveScreen to avoid conflict with full-screen FillRect
-	// so.saveScr = NewSaveScreen(scr, so.X1, so.Y1, so.X2, so.Y2)
 	so.visible = true
 }
 
-// Hide hides the object and restores the screen area saved beneath it.
+// Hide hides the object.
 func (so *ScreenObject) Hide(scr *ScreenBuf) {
-	if !so.visible {
-		return
-	}
-	if so.saveScr != nil {
-		so.saveScr.Restore(scr)
-		so.saveScr = nil
-	}
 	so.visible = false
 }
 

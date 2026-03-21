@@ -57,6 +57,8 @@ type frameManager struct {
 	MenuBar    *MenuBar
 	StatusLine *StatusLine
 	KeyBar     *KeyBar
+
+	capturedFrame Frame // Frame that currently captures mouse events (during drag/resize)
 }
 
 // FrameManager is the global instance of the frame manager.
@@ -74,14 +76,78 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.scr.SetCursorVisible(false)
 }
 
-// Push adds a new frame to the top of the stack.
+// Push adds a new frame to the top of the stack and assigns a number if it's non-modal.
 func (fm *frameManager) Push(f Frame) {
+	if !f.IsModal() && f.GetType() != TypeDesktop {
+		// Find a free number from 1 to 9
+		used := make(map[int]bool)
+		for _, frame := range fm.frames {
+			if frame.GetWindowNumber() > 0 {
+				used[frame.GetWindowNumber()] = true
+			}
+		}
+		for i := 1; i <= 9; i++ {
+			if !used[i] {
+				f.SetWindowNumber(i)
+				break
+			}
+		}
+	}
+
+	if len(fm.frames) > 0 {
+		fm.frames[len(fm.frames)-1].ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: false})
+	}
+
 	fm.frames = append(fm.frames, f)
+	f.ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: true})
+}
+
+// RequestFocus moves the given frame to the top of the stack (brings it to front).
+// Returns false if a modal dialog blocks the focus change.
+func (fm *frameManager) RequestFocus(f Frame) bool {
+	// If there's a modal dialog on top, we cannot change focus
+	for i := len(fm.frames) - 1; i >= 0; i-- {
+		if fm.frames[i] == f {
+			break
+		}
+		if fm.frames[i].IsModal() {
+			return false
+		}
+	}
+
+	idx := -1
+	for i, frame := range fm.frames {
+		if frame == f {
+			idx = i
+			break
+		}
+	}
+
+	if idx == -1 || idx == len(fm.frames)-1 {
+		return true // Already on top or not found
+	}
+
+	// Tell current top frame it lost focus
+	fm.frames[len(fm.frames)-1].ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: false})
+
+	// Move the frame to the end of the slice
+	fm.frames = append(fm.frames[:idx], fm.frames[idx+1:]...)
+	fm.frames = append(fm.frames, f)
+
+	// Tell new top frame it got focus
+	f.ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: true})
+
+	fm.Redraw()
+	return true
 }
 
 // Pop removes the top-most frame from the stack.
 func (fm *frameManager) Pop() {
 	if len(fm.frames) > 0 {
+		top := fm.frames[len(fm.frames)-1]
+		if fm.capturedFrame == top {
+			fm.capturedFrame = nil
+		}
 		fm.frames = fm.frames[:len(fm.frames)-1]
 	}
 }
@@ -105,6 +171,7 @@ func (fm *frameManager) InjectEvents(events []*vtinput.InputEvent) {
 // Shutdown clears all frames, effectively stopping the application loop.
 func (fm *frameManager) Shutdown() {
 	fm.frames = nil
+	fm.capturedFrame = nil
 }
 // GetTopFrameType returns the type of the topmost frame or -1 if empty.
 func (fm *frameManager) GetTopFrameType() FrameType {
@@ -179,7 +246,16 @@ func (fm *frameManager) Run() {
 		// and Flush to avoid flickering and save CPU.
 		if !topFrame.IsBusy() {
 			fm.scr.SetCursorVisible(false)
-			for _, frame := range fm.frames {
+
+			// Render frames from bottom to top (Painter's algorithm)
+			for i, frame := range fm.frames {
+				// Draw shadow for windows/dialogs (skip desktop and fullscreen frames)
+				x1, y1, x2, y2 := frame.GetPosition()
+				if i > 0 && (x1 > 0 || y1 > 0 || x2 < fm.scr.width-1 || y2 < fm.scr.height-1) {
+					// Shadow offset: +2 on X, +1 on Y. Prevent overlapping corner.
+					fm.scr.ApplyShadow(x1+2, y2+1, x2+2, y2+1) // Bottom shadow (full width)
+					fm.scr.ApplyShadow(x2+1, y1+1, x2+2, y2)   // Right shadow (stops above bottom shadow)
+				}
 				frame.Show(fm.scr)
 			}
 
@@ -245,13 +321,64 @@ func (fm *frameManager) Run() {
 				}
 			}
 
-			// 2. Regular Dispatch to Top Frame
+			// 3. Regular Dispatch (MDI Hit-Testing)
 			topFrame := fm.frames[len(fm.frames)-1]
 			handled := false
+
 			if ev.Type == vtinput.KeyEventType {
 				handled = topFrame.ProcessKey(ev)
 			} else if ev.Type == vtinput.MouseEventType {
-				handled = topFrame.ProcessMouse(ev)
+				mx, my := int(ev.MouseX), int(ev.MouseY)
+
+				// 3.1. Active Mouse Capture (Dragging/Resizing)
+				if fm.capturedFrame != nil {
+					handled = fm.capturedFrame.ProcessMouse(ev)
+					if ev.ButtonState == 0 {
+						fm.capturedFrame = nil // Release capture
+					}
+				} else {
+					// 3.2. Mouse Hit-Testing: check frames from top to bottom
+					for i := len(fm.frames) - 1; i >= 0; i-- {
+						f := fm.frames[i]
+
+						// Desktop always gets mouse if nothing above it handled it
+						if f.GetType() == TypeDesktop {
+							handled = f.ProcessMouse(ev)
+							if handled && ev.ButtonState != 0 {
+								fm.capturedFrame = f
+							}
+							break
+						}
+
+						x1, y1, x2, y2 := f.GetPosition()
+						if mx >= x1 && mx <= x2+2 && my >= y1 && my <= y2+1 {
+							// Click is within this frame (or its shadow)
+							if i != len(fm.frames)-1 {
+								// Try to bring it to front before passing the event
+								if fm.RequestFocus(f) {
+									handled = f.ProcessMouse(ev)
+								}
+							} else {
+								handled = f.ProcessMouse(ev)
+							}
+
+							// If a frame handled a click, it captures the mouse until release
+							if handled && ev.ButtonState != 0 {
+								fm.capturedFrame = f
+							}
+
+							// If the frame is modal, it eats the click even if it didn't handle it
+							// (to prevent clicking on windows behind it)
+							if f.IsModal() || handled {
+								break
+							}
+						} else if f.IsModal() {
+							// Clicked outside a modal dialog. We must NOT pass it to windows below.
+							// Optionally, we could emit a beep here.
+							break
+						}
+					}
+				}
 			}
 
 			// 3. Fallback to Menu Activation (Alt+Hotkey) if top frame didn't want the key

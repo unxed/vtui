@@ -59,6 +59,16 @@ func (bw *BaseWindow) AddItem(item UIElement) {
 func (bw *BaseWindow) Show(scr *ScreenBuf) {
 	bw.ScreenObject.Show(scr)
 	bw.frame.ShowClose = bw.ShowClose
+
+	// Draw active frame color if this window has focus
+	if bw.IsFocused() {
+		bw.frame.ColorBoxIdx = ColDialogBox
+		bw.frame.ColorTitleIdx = ColDialogHighlightBoxTitle
+	} else {
+		bw.frame.ColorBoxIdx = ColDialogBox
+		bw.frame.ColorTitleIdx = ColDialogBoxTitle
+	}
+
 	bw.frame.DisplayObject(scr)
 
 	if bw.ShowZoom {
@@ -80,6 +90,11 @@ func (bw *BaseWindow) Show(scr *ScreenBuf) {
 }
 
 func (bw *BaseWindow) ProcessKey(e *vtinput.InputEvent) bool {
+	if e.Type == vtinput.FocusEventType {
+		bw.SetFocus(e.SetFocus)
+		return true
+	}
+
 	if bw.focusIdx != -1 {
 		if bw.items[bw.focusIdx].ProcessKey(e) {
 			return true
