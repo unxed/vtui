@@ -81,12 +81,18 @@ func FillCharInfo(target []CharInfo, data []byte, attr uint64) []CharInfo {
 	for len(data) > 0 {
 		r, size := utf8.DecodeRune(data)
 		data = data[size:]
+
+		// Sanitize control characters to prevent terminal cursor corruption
+		if r < 0x20 || r == 0x7F {
+			r = '·' // Use middle dot for control chars
+		}
+
 		w := 1
-		if r >= 0x7F { // Fast path for ASCII
+		if r >= 0x7F {
 			w = runewidth.RuneWidth(r)
 		}
 		if w <= 0 {
-			continue
+			w = 1 // Ensure even zero-width chars are visible in binary files
 		}
 		target = append(target, CharInfo{Char: uint64(r), Attributes: attr})
 		for i := 1; i < w; i++ {
@@ -104,6 +110,11 @@ func FillCharInfoWithSelection(target []CharInfo, data []byte, defaultAttr, selA
 		r, size := utf8.DecodeRune(data)
 		data = data[size:]
 
+		// Sanitize control characters
+		if r < 0x20 || r == 0x7F {
+			r = '·'
+		}
+
 		attr := defaultAttr
 		absPos := fragStartOffset + currByte
 		if absPos >= selMin && absPos < selMax {
@@ -116,7 +127,7 @@ func FillCharInfoWithSelection(target []CharInfo, data []byte, defaultAttr, selA
 			w = runewidth.RuneWidth(r)
 		}
 		if w <= 0 {
-			continue
+			w = 1
 		}
 		target = append(target, CharInfo{Char: uint64(r), Attributes: attr})
 		for i := 1; i < w; i++ {
