@@ -320,7 +320,7 @@ func (fm *frameManager) Run() {
 						}
 					}
 					// Otherwise, MenuBar processes keys (Arrows, Esc, Hotkeys)
-					if ev.VirtualKeyCode == vtinput.VK_ESCAPE {
+					if ev.VirtualKeyCode == vtinput.VK_ESCAPE || ev.VirtualKeyCode == vtinput.VK_F10 {
 						fm.MenuBar.Active = false
 						return
 					}

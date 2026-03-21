@@ -128,7 +128,7 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 		}
 	}
 	m.OnClose = func() {
-		mb.Active = false
+		mb.activeSubMenu = nil
 	}
 
 	FrameManager.Push(m)

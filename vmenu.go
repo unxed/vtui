@@ -120,7 +120,7 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 			m.OnRight()
 			return true
 		}
-	case vtinput.VK_ESCAPE:
+	case vtinput.VK_ESCAPE, vtinput.VK_F10:
 		m.SetExitCode(-1)
 		return true
 	case vtinput.VK_RETURN:
