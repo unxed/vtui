@@ -1,6 +1,8 @@
 package textlayout
 
 import (
+    "unicode/utf8"
+
 	"github.com/unxed/vtui/piecetable"
 	"github.com/mattn/go-runewidth"
 )
@@ -92,76 +94,64 @@ func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
 	}
 
 	var fragments []LineFragment
-	lineRunes := []rune(string(lineData))
+	bytePos := 0
+	dataLen := len(lineData)
 
-	currentBytePos := 0
-	startRuneIdx := 0
-
-	for startRuneIdx < len(lineRunes) {
+	for bytePos < dataLen {
 		visualWidth := 0
-		endRuneIdx := startRuneIdx
+		fragStartByte := bytePos
+		lastSpaceEnd := -1
+		lastSpaceWidth := 0
 
-		for endRuneIdx < len(lineRunes) {
-			r := lineRunes[endRuneIdx]
+		scanPos := bytePos
+		for scanPos < dataLen {
+			r, size := utf8.DecodeRune(lineData[scanPos:])
 			w := runewidth.RuneWidth(r)
-			if w < 1 { w = 1 } // Обработка zero-width символов как 1 ячейку для надежности
+			if w < 0 { w = 1 }
 
 			if visualWidth+w > we.wrapWidth {
-				// 1. Если это пробел — забираем его в текущую строку и переносим
 				if r == ' ' {
-					endRuneIdx++
+					// Пробел не влезает, но мы его забираем в конец этой строки
+					scanPos += size
 					visualWidth += w
-					break
+				} else if lastSpaceEnd != -1 {
+					// Word Wrap: откатываемся к последнему пробелу
+					scanPos = lastSpaceEnd
+					visualWidth = lastSpaceWidth
+				} else if scanPos == fragStartByte {
+					// Даже один символ не влез (CJK в узком окне) - поглощаем его
+					scanPos += size
+					visualWidth = w
 				}
-				// 2. Если это ПЕРВЫЙ символ в строке и он не влезает (CJK в окне шириной 1)
-				// Мы обязаны его забрать, чтобы не зациклиться.
-				if endRuneIdx == startRuneIdx {
-					endRuneIdx++
-					visualWidth += w
-					break
-				}
-				// 3. Пытаемся сделать Word Wrap (перенос по пробелу)
-				lastSpace := -1
-				for i := endRuneIdx - 1; i >= startRuneIdx; i-- {
-					if lineRunes[i] == ' ' {
-						lastSpace = i
-						break
-					}
-				}
-				if lastSpace != -1 {
-					endRuneIdx = lastSpace + 1
-				}
-				// Если пробелов нет — будет Hard Wrap (разрыв слова)
 				break
 			}
+
 			visualWidth += w
-			endRuneIdx++
+			scanPos += size
+			if r == ' ' {
+				lastSpaceEnd = scanPos
+				lastSpaceWidth = visualWidth
+			}
 		}
 
-		fragText := lineRunes[startRuneIdx:endRuneIdx]
-		fragByteLen := len(string(fragText))
-
-		frag := LineFragment{
-			LogicalLineIdx: logLineIdx,
-			ByteOffsetStart: startOffset + currentBytePos,
-			ByteOffsetEnd: startOffset + currentBytePos + fragByteLen,
-			VisualWidth: runewidth.StringWidth(string(fragText)),
-		}
-		fragments = append(fragments, frag)
-
-		// Обновляем позицию. Важно: мы БОЛЬШЕ не пропускаем пробелы в начале новой строки.
-		// Это критично для сохранения отступов (indentation) при переносе.
-		startRuneIdx = endRuneIdx
-		currentBytePos = len(string(lineRunes[:startRuneIdx]))
+		fragments = append(fragments, LineFragment{
+			LogicalLineIdx:  logLineIdx,
+			ByteOffsetStart: startOffset + fragStartByte,
+			ByteOffsetEnd:   startOffset + scanPos,
+			VisualWidth:     visualWidth,
+		})
+		bytePos = scanPos
 	}
 
-	if len(fragments) == 0 { // Для пустых строк
-		fragments = append(fragments, LineFragment{LogicalLineIdx: logLineIdx, ByteOffsetStart: startOffset})
+	if len(fragments) == 0 {
+		fragments = append(fragments, LineFragment{LogicalLineIdx: logLineIdx, ByteOffsetStart: startOffset, ByteOffsetEnd: startOffset})
 	}
 
 	we.fragmentCache[logLineIdx] = fragments
 	return fragments
-}// LogicalToVisual переводит байтовый оффсет в документе в (строка, колонка) на экране.
+}
+
+// LogicalToVisual переводит байтовый оффсет в документе в (строка, колонка) на экране.
 func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int) {
 	logLineIdx := we.li.GetLineAtOffset(byteOffset)
 	fragments := we.GetFragments(logLineIdx)

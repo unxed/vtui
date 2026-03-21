@@ -1,8 +1,10 @@
 package textlayout
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
+	"time"
 	"github.com/unxed/vtui/piecetable"
 )
 
@@ -16,10 +18,10 @@ func TestWrapEngine_SimpleWrap(t *testing.T) {
 
 	frags := we.GetFragments(0)
 
-	// Ожидаем, что пробелы "прилипнут" к концам строк
+	// Пояснение: "The quick " (10), "brown fox " (10), "jumps over " (11, пробел в конце), "the lazy " (9), "dog" (3)
 	expectedTexts := []string{"The quick ", "brown fox ", "jumps over ", "the lazy ", "dog"}
 	if len(frags) != len(expectedTexts) {
-		t.Fatalf("Expected %d fragments, got %d", len(expectedTexts), len(frags))
+		t.Fatalf("Expected %d fragments, got %d. Frags: %+v", len(expectedTexts), len(frags), frags)
 	}
 
 	for i, frag := range frags {
@@ -51,12 +53,6 @@ func TestWrapEngine_NoWrap(t *testing.T) {
 }
 
 func TestWrapEngine_UnicodeWrap(t *testing.T) {
-	// 世 - 2 cells wide. Вход: "A世B世C D" (A=1, 世=2, B=1, 世=2, C=1, пробел=1, D=1)
-	// Ширина 4.
-	// Ожидаемый результат:
-	// 1. "A世B" (ширина 4)
-	// 2. "世C " (ширина 4, пробел в конце)
-	// 3. "D"    (ширина 1)
 	text := "A世B世C D"
 	pt := piecetable.New([]byte(text))
 	li := piecetable.NewLineIndex()
@@ -67,6 +63,9 @@ func TestWrapEngine_UnicodeWrap(t *testing.T) {
 
 	frags := we.GetFragments(0)
 
+	// 1. "A世B" (4)
+	// 2. "世C " (4) - пробел в конце
+	// 3. "D"    (1)
 	expectedTexts := []string{"A世B", "世C ", "D"}
 	if len(frags) != 3 {
 		t.Fatalf("Expected 3 fragments for unicode string, got %d. Fragments: %+v", len(frags), frags)
@@ -103,28 +102,67 @@ func TestWrapEngine_LongWord(t *testing.T) {
 }
 
 func TestWrapEngine_Navigation(t *testing.T) {
-	// Строка: "01234 67890" (пробел на 5-й позиции)
+	// Строка: "01234 67890", ширина 5.
+	// Фрагменты: "01234 ", "67890"
 	pt := piecetable.New([]byte("01234 67890"))
 	li := piecetable.NewLineIndex()
 	li.Rebuild(pt)
 	we := NewWrapEngine(pt, li)
 	we.SetWidth(5)
 
-	// Ожидаемые фрагменты при ширине 5: "01234 ", "67890"
-
 	// 1. Тест LogicalToVisual
-	// Позиция '6' (оффсет 6)
+	// Оффсет 6 (символ '6').
 	row, col := we.LogicalToVisual(6)
 	if row != 1 || col != 0 {
 		t.Errorf("LogicalToVisual(6): expected (1, 0), got (%d, %d)", row, col)
 	}
 
 	// 2. Тест VisualToLogical
-	// Клик на вторую строку, вторую колонку (символ '7')
+	// Вторая строка ("67890"), колонка 1 (символ '7')
 	offset := we.VisualToLogical(1, 1)
 	if offset != 7 {
 		t.Errorf("VisualToLogical(1, 1): expected offset 7, got %d", offset)
 	}
+}
+
+func TestWrapEngine_Performance10MB(t *testing.T) {
+	// Создаем 10 МБ текста
+	chunk := "The quick brown fox jumps over the lazy dog. " // 45 bytes
+	count := (10 * 1024 * 1024) / len(chunk)
+	data := make([]byte, 0, count*len(chunk))
+	for i := 0; i < count; i++ {
+		data = append(data, chunk...)
+	}
+
+	pt := piecetable.New(data)
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+	we := NewWrapEngine(pt, li)
+	we.SetWidth(80)
+
+	// Тест 1: С пробелами (Word Wrap)
+	start := time.Now()
+	frags := we.GetFragments(0)
+	elapsed := time.Since(start)
+
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("Performance (with spaces) too slow: %v", elapsed)
+	}
+	t.Logf("10MB with spaces parsed into %d fragments in %v", len(frags), elapsed)
+
+	// Тест 2: Без пробелов (Hard Wrap)
+	we.InvalidateCache()
+	we.pt = piecetable.New(bytes.Repeat([]byte("A"), 10*1024*1024))
+	we.li.Rebuild(we.pt)
+
+	start = time.Now()
+	frags = we.GetFragments(0)
+	elapsed = time.Since(start)
+
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("Performance (hard wrap) too slow: %v", elapsed)
+	}
+	t.Logf("10MB without spaces parsed into %d fragments in %v", len(frags), elapsed)
 }
 func TestWrapEngine_ExtremeCorners(t *testing.T) {
 	// 1. Окно шириной 1, символ шириной 2
@@ -162,9 +200,29 @@ func TestWrapEngine_ExtremeCorners(t *testing.T) {
 	we.SetWidth(10)
 
 	frags3 := we.GetFragments(0)
-	// Первый фрагмент должен содержать отступы
+	// Ожидаем "    Line " (пробел после Line влезает в 10 символов)
 	text := string(pt3.GetRange(frags3[0].ByteOffsetStart, frags3[0].ByteOffsetEnd-frags3[0].ByteOffsetStart))
 	if text != "    Line " {
 		t.Errorf("Indentation preserved: expected '    Line ', got %q", text)
+	}
+}
+
+func TestWrapEngine_MultipleSpaces(t *testing.T) {
+	pt := piecetable.New([]byte("word1    word2"))
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+	we := NewWrapEngine(pt, li)
+	we.SetWidth(10)
+
+	frags := we.GetFragments(0)
+	// 1. "word1     " (9 символов: "word1" + 4 пробела) - это влезает в 10.
+	// 2. "word2"
+	if len(frags) != 2 {
+		t.Fatalf("Expected 2 fragments for multiple spaces, got %d", len(frags))
+	}
+	text1 := string(pt.GetRange(frags[0].ByteOffsetStart, frags[0].ByteOffsetEnd-frags[0].ByteOffsetStart))
+	text2 := string(pt.GetRange(frags[1].ByteOffsetStart, frags[1].ByteOffsetEnd-frags[1].ByteOffsetStart))
+	if text1 != "word1    " || text2 != "word2" {
+		t.Errorf("Multiple spaces failed. Got %q and %q", text1, text2)
 	}
 }
