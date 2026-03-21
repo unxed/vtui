@@ -222,6 +222,30 @@ func (t *Table) ProcessKey(e *vtinput.InputEvent) bool {
 			t.EnsureVisible()
 			return true
 		}
+	case vtinput.VK_PRIOR: // PgUp
+		headerOffset := 0
+		if t.ShowHeader {
+			headerOffset = 1
+		}
+		height := (t.Y2 - t.Y1 + 1) - headerOffset
+		t.SelectPos -= height
+		if t.SelectPos < 0 {
+			t.SelectPos = 0
+		}
+		t.EnsureVisible()
+		return true
+	case vtinput.VK_NEXT: // PgDn
+		headerOffset := 0
+		if t.ShowHeader {
+			headerOffset = 1
+		}
+		height := (t.Y2 - t.Y1 + 1) - headerOffset
+		t.SelectPos += height
+		if t.SelectPos >= len(t.Rows) {
+			t.SelectPos = len(t.Rows) - 1
+		}
+		t.EnsureVisible()
+		return true
 	case vtinput.VK_HOME:
 		t.SelectPos = 0
 		t.EnsureVisible()
