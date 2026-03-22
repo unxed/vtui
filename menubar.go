@@ -104,7 +104,7 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 		if itm.Separator {
 			m.AddSeparator()
 		} else {
-			m.AddItem(itm.Text)
+			m.AddItem(itm)
 		}
 	}
 

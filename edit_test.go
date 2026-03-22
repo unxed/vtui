@@ -42,7 +42,7 @@ func TestVMenu_ScrollbarMouseClick(t *testing.T) {
 	m := NewVMenu("Title")
 	// Add 20 items so menu scrolls
 	for i := 0; i < 20; i++ {
-		m.AddItem("Item")
+		m.AddItem(MenuItem{Text: "Item"})
 	}
 	m.SetPosition(0, 0, 10, 6) // Height 7, data 5 (Y1+1..Y2-1)
 
@@ -82,9 +82,9 @@ func TestVMenu_ScrollbarMouseClick(t *testing.T) {
 }
 func TestVMenu_Hotkeys(t *testing.T) {
 	m := NewVMenu("Menu")
-	m.AddItem("Open &File")
-	m.AddItem("&Save")
-	m.AddItem("E&xit")
+	m.AddItem(MenuItem{Text: "Open &File"})
+	m.AddItem(MenuItem{Text: "&Save"})
+	m.AddItem(MenuItem{Text: "E&xit"})
 
 	// 1. Press 's' (second item hotkey)
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, Char: 's'})

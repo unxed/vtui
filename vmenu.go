@@ -45,8 +45,8 @@ func NewVMenu(title string) *VMenu {
 }
 
 // AddItem adds a new item to the menu.
-func (m *VMenu) AddItem(text string) {
-	m.items = append(m.items, MenuItem{Text: text})
+func (m *VMenu) AddItem(item MenuItem) {
+	m.items = append(m.items, item)
 	if len(m.items) == 1 {
 		m.SetSelectPos(0, 1)
 	}
@@ -125,18 +125,23 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		m.SetExitCode(-1)
 		return true
 	case vtinput.VK_RETURN:
+		DebugLog("VMENU: Return pressed at %d", m.selectPos)
+		// Turbo Vision style: emit command BEFORE setting exit code
+		if m.selectPos >= 0 && m.selectPos < len(m.items) {
+			if cmd := m.items[m.selectPos].Command; cmd != 0 {
+				DebugLog("VMENU: Emitting command %d", cmd)
+				FrameManager.EmitCommand(cmd, m.items[m.selectPos].UserData)
+			} else {
+				DebugLog("VMENU: No command attached to item %d", m.selectPos)
+			}
+		}
+
 		if m.OnSelect != nil {
 			m.OnSelect(m.selectPos)
 		}
 		m.SetExitCode(m.selectPos)
-
-		// Turbo Vision style: automatically emit command if set
-		if m.selectPos >= 0 && m.selectPos < len(m.items) {
-			if cmd := m.items[m.selectPos].Command; cmd != 0 {
-				FrameManager.EmitCommand(cmd, m.items[m.selectPos].UserData)
-			}
-		}
 		return true
+
 	case vtinput.VK_UP:
 		m.SetSelectPos(m.selectPos-1, -1)
 		return true

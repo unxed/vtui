@@ -344,7 +344,7 @@ func (e *Edit) OpenHistory() {
 	}
 	menu := NewVMenu("History")
 	for _, h := range e.History {
-		menu.AddItem(h)
+		menu.AddItem(MenuItem{Text: h})
 	}
 
 	h := len(e.History) + 2

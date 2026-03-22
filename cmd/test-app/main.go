@@ -107,11 +107,11 @@ func main() {
 
 	opMenu := vtui.NewVMenu(" Operations ")
 	opMenu.SetPosition(x1+34, y1+6, x1+58, y1+11) // Height of 5 lines
-	opMenu.AddItem("&Copy File")
-	opMenu.AddItem("&Move File")
+	opMenu.AddItem(vtui.MenuItem{Text: "&Copy File"})
+	opMenu.AddItem(vtui.MenuItem{Text: "&Move File"})
 	opMenu.AddSeparator()
-	opMenu.AddItem("&Delete")
-	opMenu.AddItem("&Attributes")
+	opMenu.AddItem(vtui.MenuItem{Text: "&Delete"})
+	opMenu.AddItem(vtui.MenuItem{Text: "&Attributes"})
 	dlg.AddItem(opMenu)
 
 	recentFiles := []string{"main.go", "edit.go", "dialog.go", "table.go", "pty.go", "vfs.go", "sum.go"}

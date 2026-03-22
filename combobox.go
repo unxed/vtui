@@ -20,7 +20,7 @@ func NewComboBox(x, y, width int, items []string) *ComboBox {
 	cb.canFocus = true
 
 	for _, item := range items {
-		cb.Menu.AddItem(item)
+		cb.Menu.AddItem(MenuItem{Text: item})
 	}
 
 	// Set menu behavior

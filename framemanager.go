@@ -197,18 +197,25 @@ func (fm *frameManager) PostTask(task func()) {
 // EmitCommand broadcasts a command starting from the top-most frame
 // and going down the stack until a frame handles it. (Turbo Vision style)
 func (fm *frameManager) EmitCommand(cmd int, args any) bool {
-	// First, if MenuBar is active, give it a chance (though usually menus emit, not receive)
+	DebugLog("COMMAND: Emitting %d", cmd)
+	// First, if MenuBar is active, give it a chance
 	if fm.MenuBar != nil && fm.MenuBar.Active {
-		if fm.MenuBar.HandleCommand(cmd, args) { return true }
+		if fm.MenuBar.HandleCommand(cmd, args) {
+			DebugLog("COMMAND: Handled by MenuBar")
+			return true
+		}
 	}
 
 	// Route down the frame stack
 	for i := len(fm.frames) - 1; i >= 0; i-- {
+		DebugLog("COMMAND: Checking frame %d (type %d)", i, fm.frames[i].GetType())
 		if fm.frames[i].HandleCommand(cmd, args) {
+			DebugLog("COMMAND: Handled by frame %d", i)
 			fm.Redraw()
 			return true
 		}
 	}
+	DebugLog("COMMAND: No one handled %d", cmd)
 	return false
 }
 // InjectEvents adds simulated input events to the front of the queue.
@@ -455,34 +462,38 @@ func (fm *frameManager) Run() {
 			if topFrame.IsDone() { fm.RemoveFrame(topFrame) }
 		}
 
-		// 3. Event waiting (Blocking)
-		var e *vtinput.InputEvent
-		injected := false
+	// 3. Event waiting (Blocking)
+	var e *vtinput.InputEvent
+	injected := false
 
-		if len(fm.injectedEvents) > 0 {
-			e = fm.injectedEvents[0]
-			fm.injectedEvents = fm.injectedEvents[1:]
-			injected = true
-		} else {
-			select {
-			case <-fm.RedrawChan: continue
-			case task := <-fm.TaskChan:
-				task()
-				fm.Redraw()
-				continue
-			case <-sigChan:
-				width, height, _ := term.GetSize(int(os.Stdin.Fd()))
-				fm.scr.AllocBuf(width, height)
-				for _, f := range fm.frames { f.ResizeConsole(width, height) }
-				continue
-			case ev, ok := <-eventChan:
-				if !ok { return }
-				e = ev
-			}
+	if len(fm.injectedEvents) > 0 {
+		e = fm.injectedEvents[0]
+		fm.injectedEvents = fm.injectedEvents[1:]
+		injected = true
+	} else {
+		select {
+		case <-fm.RedrawChan: continue
+		case task := <-fm.TaskChan:
+			task()
+			fm.Redraw()
+			continue
+		case <-sigChan:
+			width, height, _ := term.GetSize(int(os.Stdin.Fd()))
+			fm.scr.AllocBuf(width, height)
+			for _, f := range fm.frames { f.ResizeConsole(width, height) }
+			continue
+		case ev, ok := <-eventChan:
+			if !ok { return }
+			e = ev
 		}
+	}
 
-		// Process the first received event
-		dispatch(e, injected)
+	if e.Type == vtinput.KeyEventType && e.KeyDown {
+		DebugLog("KEY: Vk=%X Char=%d ActiveFrames=%d", e.VirtualKeyCode, e.Char, len(fm.frames))
+	}
+
+	// Process the first received event
+	dispatch(e, injected)
 
 		// 4. Queue "Drain"
 		// If events arrive in a dense stream (insertion), process them in a batch.

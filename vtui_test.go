@@ -249,7 +249,7 @@ func TestMenuBar_Geometry(t *testing.T) {
 
 func TestVMenu_Callbacks(t *testing.T) {
 	m := NewVMenu("Test")
-	m.AddItem("Item")
+	m.AddItem(MenuItem{Text: "Item"})
 
 	leftTriggered := false
 	rightTriggered := false
@@ -492,9 +492,9 @@ func TestEdit_Unicode_Selection(t *testing.T) {
 
 func TestVMenu_Navigation(t *testing.T) {
 	m := NewVMenu("Title")
-	m.AddItem("One")
+	m.AddItem(MenuItem{Text: "One"})
 	m.AddSeparator()
-	m.AddItem("Two")
+	m.AddItem(MenuItem{Text: "Two"})
 	m.SetPosition(0, 0, 10, 5)
 
 	// Initial selection at 0
@@ -526,9 +526,9 @@ func TestVMenu_Rendering(t *testing.T) {
 	scr.AllocBuf(15, 10)
 	SetDefaultPalette()
 	m := NewVMenu("Title")
-	m.AddItem("Item1")
+	m.AddItem(MenuItem{Text: "Item1"})
 	m.AddSeparator()
-	m.AddItem("Item2")
+	m.AddItem(MenuItem{Text: "Item2"})
 	m.SetPosition(2, 2, 12, 6)
 	m.Show(scr)
 
@@ -690,9 +690,9 @@ func TestIntegration_HotkeyPriority(t *testing.T) {
 
 func TestVMenu_SeparatorNavigation(t *testing.T) {
 	m := NewVMenu("Test")
-	m.AddItem("One")
+	m.AddItem(MenuItem{Text: "One"})
 	m.AddSeparator()
-	m.AddItem("Two")
+	m.AddItem(MenuItem{Text: "Two"})
 
 	// 1. Initial pos is 0
 	if m.selectPos != 0 { t.Fatal("Start pos should be 0") }
@@ -756,9 +756,9 @@ func TestVMenu_GetItemCount(t *testing.T) {
 		t.Errorf("Expected 0 items, got %d", m.GetItemCount())
 	}
 
-	m.AddItem("One")
+	m.AddItem(MenuItem{Text: "One"})
 	m.AddSeparator()
-	m.AddItem("Two")
+	m.AddItem(MenuItem{Text: "Two"})
 
 	if m.GetItemCount() != 3 {
 		t.Errorf("Expected 3 items (including separator), got %d", m.GetItemCount())
@@ -802,7 +802,7 @@ func TestMenuBar_SubMenuCycling(t *testing.T) {
 
 func TestVMenu_NavigationCallbacks(t *testing.T) {
 	m := NewVMenu("Test")
-	m.AddItem("Item")
+	m.AddItem(MenuItem{Text: "Item"})
 
 	// Set callback that DOES NOT close the menu
 	m.OnLeft = func() {}
