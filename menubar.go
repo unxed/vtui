@@ -12,7 +12,7 @@ type MenuBarItem struct {
 }
 
 type MenuBar struct {
-	ScreenObject
+	Bar
 	Items          []MenuBarItem
 	SelectPos      int
 	Active         bool
@@ -41,7 +41,7 @@ func (mb *MenuBar) DisplayObject(scr *ScreenBuf) {
 	if !mb.IsVisible() { return }
 
 	attr := Palette[ColMenuBarItem]
-	scr.FillRect(mb.X1, mb.Y1, mb.X2, mb.Y2, ' ', attr)
+	mb.DrawBackground(scr, attr)
 
 	currX := mb.X1 + 2
 	for i, item := range mb.Items {

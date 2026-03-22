@@ -17,7 +17,7 @@ type KeySet struct {
 
 // KeyBar implements the bottom row of function key hints.
 type KeyBar struct {
-	ScreenObject
+	Bar
 	Normal KeyBarLabels
 	Shift  KeyBarLabels
 	Ctrl   KeyBarLabels
@@ -65,6 +65,9 @@ func (kb *KeyBar) DisplayObject(scr *ScreenBuf) {
 	numAttr := Palette[ColKeyBarNum]
 	textAttr := Palette[ColKeyBarText]
 
+	// Pre-fill background with the color used for gaps/numbers
+	kb.DrawBackground(scr, numAttr)
+
 	for i := 0; i < 12; i++ {
 		x := kb.X1 + (i * slotWidth)
 		if x > kb.X2 { break }
@@ -89,10 +92,6 @@ func (kb *KeyBar) DisplayObject(scr *ScreenBuf) {
 			}
 			scr.Write(labelX, kb.Y1, StringToCharInfo(label, textAttr))
 		}
-
-		// 3. Gap (using number's background color)
-		if i < 11 {
-			scr.Write(x+slotWidth-1, kb.Y1, StringToCharInfo(" ", numAttr))
-		}
+		// 3. Gap is naturally provided by DrawBackground
 	}
 }

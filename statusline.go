@@ -11,7 +11,7 @@ type StatusItem struct {
 // StatusLine provides context-sensitive hotkey hints at the bottom of the screen.
 // Analog of TStatusLine from Turbo Vision.
 type StatusLine struct {
-	ScreenObject
+	Bar
 	Items        map[string][]StatusItem
 	Default      []StatusItem
 	currentTopic string
@@ -45,7 +45,7 @@ func (sl *StatusLine) DisplayObject(scr *ScreenBuf) {
 	numAttr := Palette[ColKeyBarNum]
 	textAttr := Palette[ColKeyBarText]
 
-	scr.FillRect(sl.X1, sl.Y1, sl.X2, sl.Y2, ' ', textAttr)
+	sl.DrawBackground(scr, textAttr)
 
 	currX := sl.X1
 	for _, item := range items {
