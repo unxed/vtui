@@ -313,6 +313,46 @@ type labelFrame struct {
 	labels *KeySet
 }
 func (l *labelFrame) GetKeyLabels() *KeySet { return l.labels }
+type menuFrame struct {
+	mockFrame
+	menu *MenuBar
+}
+func (m *menuFrame) GetMenuBar() *MenuBar { return m.menu }
+
+func TestFrameManager_ContextualMenuBar(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+
+	globalMenu := NewMenuBar([]string{"Global"})
+	fm.MenuBar = globalMenu
+
+	// 1. With no frames, should return global menu
+	if fm.GetActiveMenuBar() != globalMenu {
+		t.Error("Should return global menu when stack is empty")
+	}
+
+	// 2. Push a frame without its own menu
+	f1 := &mockFrame{}
+	fm.Push(f1)
+	if fm.GetActiveMenuBar() != globalMenu {
+		t.Error("Should return global menu if top frame has no context menu")
+	}
+
+	// 3. Push a frame WITH a context menu
+	contextMenu := NewMenuBar([]string{"Context"})
+	f2 := &menuFrame{menu: contextMenu}
+	fm.Push(f2)
+
+	if fm.GetActiveMenuBar() != contextMenu {
+		t.Error("FrameManager failed to pick contextual MenuBar from top frame")
+	}
+
+	// 4. Pop it, should go back to global
+	fm.Pop()
+	if fm.GetActiveMenuBar() != globalMenu {
+		t.Error("Should return global menu after popping contextual frame")
+	}
+}
 
 func TestFrameManager_ContextualLabels(t *testing.T) {
 	fm := &frameManager{}
