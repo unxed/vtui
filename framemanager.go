@@ -419,7 +419,7 @@ func (fm *frameManager) Run() {
 			topFrame := fm.frames[len(fm.frames)-1]
 			handled := false
 
-			if ev.Type == vtinput.KeyEventType {
+			if ev.Type == vtinput.KeyEventType || ev.Type == vtinput.PasteEventType || ev.Type == vtinput.FocusEventType {
 				handled = topFrame.ProcessKey(ev)
 			} else if ev.Type == vtinput.MouseEventType {
 				mx, my := int(ev.MouseX), int(ev.MouseY)
