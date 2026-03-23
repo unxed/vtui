@@ -289,14 +289,29 @@ func (bw *BaseWindow) changeFocus(direction int) {
 	if bw.focusIdx != -1 {
 		bw.items[bw.focusIdx].SetFocus(false)
 	}
+
+	// Determine starting point for the cycle check
 	startIdx := bw.focusIdx
+	if startIdx == -1 {
+		startIdx = 0
+	}
+
 	for {
 		bw.focusIdx += direction
 		if bw.focusIdx < 0 { bw.focusIdx = len(bw.items) - 1 }
 		if bw.focusIdx >= len(bw.items) { bw.focusIdx = 0 }
-		if bw.items[bw.focusIdx].CanFocus() || bw.focusIdx == startIdx { break }
+
+		if bw.items[bw.focusIdx].CanFocus() {
+			bw.items[bw.focusIdx].SetFocus(true)
+			return
+		}
+
+		if bw.focusIdx == startIdx {
+			// Completed a full circle and found no focusable items
+			bw.focusIdx = -1
+			return
+		}
 	}
-	bw.items[bw.focusIdx].SetFocus(true)
 }
 
 func (bw *BaseWindow) selectRadio(rb *RadioButton) {
