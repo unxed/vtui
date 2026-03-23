@@ -484,6 +484,7 @@ func (fm *frameManager) Run() {
 			}
 
 			// 3. Fallbacks (F9, Alt+Hotkey) if top frame didn't want the key
+			// 3. Fallbacks (F9, Alt+Hotkey) if top frame didn't want the key
 			if !handled && ev.Type == vtinput.KeyEventType && ev.KeyDown {
 				if activeMenu != nil && !activeMenu.Active && !topFrame.IsModal() {
 					if ev.VirtualKeyCode == vtinput.VK_F9 {
@@ -497,7 +498,13 @@ func (fm *frameManager) Run() {
 				}
 			}
 
-			if topFrame.IsDone() { fm.RemoveFrame(topFrame) }
+			// 4. Cleanup: Remove all frames that are marked as done.
+			// We iterate backwards to safely remove items while traversing.
+			for i := len(fm.frames) - 1; i >= 0; i-- {
+				if fm.frames[i].IsDone() {
+					fm.RemoveFrame(fm.frames[i])
+				}
+			}
 		}
 
 	// 3. Event waiting (Blocking)

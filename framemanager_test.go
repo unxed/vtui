@@ -488,6 +488,33 @@ func TestFrameManager_MenuAccessibleDuringNonModal(t *testing.T) {
 		t.Error("MenuBar should be activatable when the top frame is non-modal (e.g. Progress window)")
 	}
 }
+func TestFrameManager_CleanupAllDoneFrames(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+
+	f1 := &mockFrame{} // Bottom frame
+	f2 := &mockFrame{} // Top frame
+
+	fm.Push(f1)
+	fm.Push(f2)
+
+	// Simulate f1 (the one underneath) finishing
+	f1.SetExitCode(0)
+
+	// Replicating the cleanup logic from fm.Run()
+	for i := len(fm.frames) - 1; i >= 0; i-- {
+		if fm.frames[i].IsDone() {
+			fm.RemoveFrame(fm.frames[i])
+		}
+	}
+
+	if len(fm.frames) != 1 {
+		t.Errorf("Expected 1 frame left, got %d", len(fm.frames))
+	}
+	if fm.frames[0] != f2 {
+		t.Error("Wrong frame was removed. f2 (the top one) should remain.")
+	}
+}
 
 func TestFrameManager_ModalDialogBlocksF9(t *testing.T) {
 	fm := &frameManager{}
