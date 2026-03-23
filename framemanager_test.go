@@ -430,3 +430,87 @@ func TestFrameManager_CommandBubbling(t *testing.T) {
 		t.Error("Command should have bubbled down to bottom frame")
 	}
 }
+func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewScreenBuf()
+	scr.AllocBuf(80, 25)
+	fm.Init(scr)
+	fm.Push(NewDesktop())
+
+	mb := NewMenuBar([]string{"Options"})
+	fm.MenuBar = mb
+	mb.Active = true // Menu is "open"
+
+	dlg := NewDialog(0, 0, 10, 10, "Modal")
+	btn := NewButton(1, 1, "Ok")
+	okClicked := false
+	btn.OnClick = func() { okClicked = true }
+	dlg.AddItem(btn)
+	fm.Push(dlg) // Modal dialog appears OVER the active menu
+
+	fm.InjectEvents([]*vtinput.InputEvent{
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
+	})
+
+	fm.Run()
+
+	if !okClicked {
+		t.Error("Modal dialog should have priority over active MenuBar for Enter key")
+	}
+	if !mb.Active {
+		t.Error("MenuBar should remain Active (suspended) behind the modal dialog")
+	}
+}
+
+func TestFrameManager_MenuAccessibleDuringNonModal(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewScreenBuf()
+	scr.AllocBuf(80, 25)
+	fm.Init(scr)
+	fm.Push(NewDesktop())
+
+	mb := NewMenuBar([]string{"&Options"})
+	fm.MenuBar = mb
+
+	win := NewWindow(0, 0, 10, 10, "Non-Modal")
+	fm.Push(win)
+
+	// Simulate pressing F9 to activate menu while window is open
+	fm.InjectEvents([]*vtinput.InputEvent{
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F9},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
+	})
+
+	fm.Run()
+
+	if !mb.Active {
+		t.Error("MenuBar should be activatable when the top frame is non-modal (e.g. Progress window)")
+	}
+}
+
+func TestFrameManager_ModalDialogBlocksF9(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewScreenBuf()
+	scr.AllocBuf(80, 25)
+	fm.Init(scr)
+	fm.Push(NewDesktop())
+
+	mb := NewMenuBar([]string{"Options"})
+	fm.MenuBar = mb
+	mb.Active = false
+
+	dlg := NewDialog(0, 0, 10, 10, "Test")
+	fm.Push(dlg)
+
+	fm.InjectEvents([]*vtinput.InputEvent{
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F9},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
+	})
+
+	fm.Run()
+
+	if mb.Active {
+		t.Error("MenuBar should NOT be activated via F9 when a modal dialog is open")
+	}
+}

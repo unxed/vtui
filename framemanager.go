@@ -382,6 +382,9 @@ func (fm *frameManager) Run() {
 		dispatch := func(ev *vtinput.InputEvent, is_injected bool) {
 			if len(fm.frames) == 0 { return }
 
+			topFrame := fm.frames[len(fm.frames)-1]
+			activeMenu := fm.GetActiveMenuBar()
+
 			// Update KeyBar modifiers automatically if present
 			if fm.KeyBar != nil {
 				shift := (ev.ControlKeyState & vtinput.ShiftPressed) != 0
@@ -401,10 +404,8 @@ func (fm *frameManager) Run() {
 					return
 				}
 
-				activeMenu := fm.GetActiveMenuBar()
-
-				// 1. If Menu is Active, it has priority
-				if activeMenu != nil && activeMenu.Active {
+				// 1. If Menu is Active, it has priority UNLESS a modal dialog is on top
+				if activeMenu != nil && activeMenu.Active && !topFrame.IsModal() {
 					// Exception: if a VMenu is open, it MUST handle navigation keys
 					if fm.GetTopFrameType() == TypeMenu {
 						menuFrame := fm.frames[len(fm.frames)-1]
@@ -419,12 +420,11 @@ func (fm *frameManager) Run() {
 						return
 					}
 					if activeMenu.ProcessKey(ev) { return }
-					return // Modal-like: don't pass keys to dialog when menu active
+					return // Don't pass keys to background frames when menu is active
 				}
 			}
 
 			// 3. Regular Dispatch (MDI Hit-Testing)
-			topFrame := fm.frames[len(fm.frames)-1]
 			handled := false
 
 			if ev.Type == vtinput.KeyEventType || ev.Type == vtinput.PasteEventType || ev.Type == vtinput.FocusEventType {
@@ -485,8 +485,7 @@ func (fm *frameManager) Run() {
 
 			// 3. Fallbacks (F9, Alt+Hotkey) if top frame didn't want the key
 			if !handled && ev.Type == vtinput.KeyEventType && ev.KeyDown {
-				activeMenu := fm.GetActiveMenuBar()
-				if activeMenu != nil && !activeMenu.Active {
+				if activeMenu != nil && !activeMenu.Active && !topFrame.IsModal() {
 					if ev.VirtualKeyCode == vtinput.VK_F9 {
 						activeMenu.Active = true
 						return
