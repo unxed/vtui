@@ -402,10 +402,12 @@ func attributesToANSI(attr, lastAttr uint64, activePal *[256]uint32, force256 bo
 
 	var params []string
 
+	resetTriggered := false
 	const flagsMask = (ForegroundIntensity | ForegroundDim | CommonLvbUnderscore | CommonLvbReverse | CommonLvbStrikeout)
 	if (lastAttr&flagsMask) & ^(attr&flagsMask) != 0 {
 		params = append(params, "0")
 		lastAttr = 0
+		resetTriggered = true
 	}
 
 	// 1. Style Flags
@@ -417,13 +419,13 @@ func attributesToANSI(attr, lastAttr uint64, activePal *[256]uint32, force256 bo
 
 	// 2. Foreground Color
 	fgMask := IsFgRGB | (0xFF << 16)
-	if attr&fgMask != lastAttr&fgMask || (attr&IsFgRGB != 0 && GetRGBFore(attr) != GetRGBFore(lastAttr)) {
+	if resetTriggered || attr&fgMask != lastAttr&fgMask || (attr&IsFgRGB != 0 && GetRGBFore(attr) != GetRGBFore(lastAttr)) {
 		params = append(params, colorToANSI(false, attr, activePal, force256, quantCache))
 	}
 
 	// 3. Background Color
 	bgMask := IsBgRGB | (0xFF << 40)
-	if attr&bgMask != lastAttr&bgMask || (attr&IsBgRGB != 0 && GetRGBBack(attr) != GetRGBBack(lastAttr)) {
+	if resetTriggered || attr&bgMask != lastAttr&bgMask || (attr&IsBgRGB != 0 && GetRGBBack(attr) != GetRGBBack(lastAttr)) {
 		params = append(params, colorToANSI(true, attr, activePal, force256, quantCache))
 	}
 

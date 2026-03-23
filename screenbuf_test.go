@@ -32,6 +32,20 @@ func TestAttributesToANSI(t *testing.T) {
 		t.Errorf("Reset expected, got %q", gotReset)
 	}
 }
+func TestAttributesToANSI_ResetBug(t *testing.T) {
+	// Simulate transition: (Bold + Black FG + Cyan BG) -> (Normal + Black FG + Cyan BG)
+	// Index 0 is Black. Removing Bold triggers an SGR 0 (reset).
+	attr1 := ForegroundIntensity | SetIndexBoth(0, 0, 3)
+	attr2 := SetIndexBoth(0, 0, 3)
+
+	got := attributesToANSI(attr2, attr1, nil, false, nil)
+
+	// Since we trigger a reset, the terminal forgets the Foreground color.
+	// We MUST emit the Foreground color (38;5;0) again even though it numerically matches lastAttr=0.
+	if !contains(got, "38;5;0") {
+		t.Errorf("Foreground color missing after reset! Got: %q", got)
+	}
+}
 func TestScreenBuf_OverlayMode(t *testing.T) {
 	scr := NewScreenBuf()
 	scr.AllocBuf(5, 5)
