@@ -1052,3 +1052,101 @@ func TestFrameManager_TargetedNotificationFlow(t *testing.T) {
 		t.Error("Background screen should now report NeedsAttention")
 	}
 }
+func TestFrameManager_PushToFrameScreen_LostAnchor(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+	fm.Push(NewDesktop())
+
+	anchor := &mockFrame{}
+	fm.Push(anchor)
+
+	// Simulate anchor being closed/removed before the notification arrives
+	fm.RemoveFrame(anchor)
+
+	newFrame := &mockFrame{}
+	// This should not panic and should fallback to pushing to the active screen
+	fm.PushToFrameScreen(anchor, newFrame)
+
+	if fm.frames[len(fm.frames)-1] != newFrame {
+		t.Errorf("Fallback push failed for lost anchor")
+	}
+}
+
+func TestFrameManager_CloseActiveScreen_Shifting(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf()) // Creates Screen 0
+
+	// Add Screen 1
+	w1 := NewWindow(0, 0, 10, 10, "W1")
+	fm.AddScreen(w1)
+
+	// Add Screen 2
+	w2 := NewWindow(0, 0, 10, 10, "W2")
+	fm.AddScreen(w2)
+
+	if len(fm.Screens) != 3 || fm.ActiveIdx != 2 {
+		t.Fatalf("Setup failed, expected 3 screens, ActiveIdx 2")
+	}
+
+	// Switch to Screen 1 and close it
+	fm.SwitchScreen(1)
+	fm.CloseActiveScreen()
+
+	// Screen 2 should shift down and become the new ActiveIdx 1
+	if len(fm.Screens) != 2 {
+		t.Errorf("Expected 2 screens after close, got %d", len(fm.Screens))
+	}
+	if fm.ActiveIdx != 1 {
+		t.Errorf("ActiveIdx should remain at the same position if not last. Got %d", fm.ActiveIdx)
+	}
+
+	// Close the last screen (Screen 1)
+	fm.CloseActiveScreen()
+
+	// Should fallback to Screen 0
+	if len(fm.Screens) != 1 {
+		t.Errorf("Expected 1 screen after close, got %d", len(fm.Screens))
+	}
+	if fm.ActiveIdx != 0 {
+		t.Errorf("ActiveIdx should fallback to 0, got %d", fm.ActiveIdx)
+	}
+
+	// Close the only remaining screen (Screen 0)
+	fm.CloseActiveScreen()
+
+	// Should trigger Shutdown
+	if fm.Screens != nil || fm.frames != nil {
+		t.Error("FrameManager should be shut down when the last screen is closed")
+	}
+}
+
+type progressFrame struct {
+	mockFrame
+	prog int
+}
+func (p *progressFrame) GetProgress() int { return p.prog }
+
+func TestAppScreen_GetProgress_DeepSearch(t *testing.T) {
+	s := &AppScreen{}
+
+	// 1. Frame with no progress
+	s.Frames = append(s.Frames, &mockFrame{})
+	if s.GetProgress() != -1 {
+		t.Error("Expected no progress (-1)")
+	}
+
+	// 2. Frame with progress
+	pf := &progressFrame{prog: 42}
+	s.Frames = append(s.Frames, pf)
+	if s.GetProgress() != 42 {
+		t.Errorf("Expected progress 42, got %d", s.GetProgress())
+	}
+
+	// 3. A modal dialog on top that doesn't have progress should not hide the underlying progress
+	modal := &mockFrame{isModal: true}
+	s.Frames = append(s.Frames, modal)
+
+	if s.GetProgress() != 42 {
+		t.Errorf("Expected progress 42 to peek through modal dialog, got %d", s.GetProgress())
+	}
+}
