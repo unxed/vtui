@@ -437,6 +437,10 @@ func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
 	fm.Init(scr)
 	fm.Push(NewDesktop())
 
+	oldFm := FrameManager
+	FrameManager = fm
+	defer func() { FrameManager = oldFm }()
+
 	mb := NewMenuBar([]string{"Options"})
 	fm.MenuBar = mb
 	mb.Active = true // Menu is "open"
@@ -469,6 +473,10 @@ func TestFrameManager_MenuAccessibleDuringNonModal(t *testing.T) {
 	scr.AllocBuf(80, 25)
 	fm.Init(scr)
 	fm.Push(NewDesktop())
+
+	oldFm := FrameManager
+	FrameManager = fm
+	defer func() { FrameManager = oldFm }()
 
 	mb := NewMenuBar([]string{"&Options"})
 	fm.MenuBar = mb
@@ -513,6 +521,89 @@ func TestFrameManager_CleanupAllDoneFrames(t *testing.T) {
 	}
 	if fm.frames[0] != f2 {
 		t.Error("Wrong frame was removed. f2 (the top one) should remain.")
+	}
+}
+func TestFrameManager_MenuBarNavigabilityWithSubMenu(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewScreenBuf()
+	scr.AllocBuf(80, 25)
+	fm.Init(scr)
+	fm.Push(NewDesktop())
+
+	oldFm := FrameManager
+	FrameManager = fm
+	defer func() { FrameManager = oldFm }()
+
+	// Setup MenuBar with two items
+	mb := NewMenuBar(nil)
+	mb.Items = []MenuBarItem{
+		{Label: "File", SubItems: []MenuItem{{Text: "Open"}}},
+		{Label: "Edit", SubItems: []MenuItem{{Text: "Copy"}}},
+	}
+	fm.MenuBar = mb
+	mb.Active = true
+
+	// 1. Open the first submenu ("File")
+	mb.ActivateSubMenu(0)
+	if fm.GetTopFrameType() != TypeMenu {
+		t.Fatal("Submenu File not open")
+	}
+
+	// 2. Inject Right Arrow.
+	// The MenuBar should intercept it, close "File" and open "Edit".
+	fm.InjectEvents([]*vtinput.InputEvent{
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
+	})
+
+	fm.Run()
+
+	// Check if we are now on the "Edit" menu
+	if fm.GetTopFrameType() != TypeMenu {
+		t.Fatal("Menu was closed instead of switched")
+	}
+	currentMenu := fm.frames[len(fm.frames)-1].(*VMenu)
+	if currentMenu.title != "Edit" {
+		t.Errorf("Expected switched menu 'Edit', got %q", currentMenu.title)
+	}
+}
+
+type modalOwnerFrame struct {
+	mockFrame
+	mb *MenuBar
+}
+
+func (m *modalOwnerFrame) GetMenuBar() *MenuBar { return m.mb }
+
+func TestFrameManager_F9WorksForMenuOwningModal(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewScreenBuf()
+	scr.AllocBuf(80, 25)
+	fm.Init(scr)
+	fm.Push(NewDesktop())
+
+	oldFm := FrameManager
+	FrameManager = fm
+	defer func() { FrameManager = oldFm }()
+
+	// Create a modal frame that HAS its own menu bar
+	myMenu := NewMenuBar([]string{"OwnedMenu"})
+	modal := &modalOwnerFrame{
+		mockFrame: *newMockFrame(0, 0, 10, 10, true),
+		mb:        myMenu,
+	}
+	fm.Push(modal)
+
+	// Inject F9
+	fm.InjectEvents([]*vtinput.InputEvent{
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F9},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
+	})
+
+	fm.Run()
+
+	if !myMenu.Active {
+		t.Error("F9 should activate the menu because the modal frame owns it")
 	}
 }
 
