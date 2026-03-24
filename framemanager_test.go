@@ -606,6 +606,57 @@ func TestFrameManager_F9WorksForMenuOwningModal(t *testing.T) {
 		t.Error("F9 should activate the menu because the modal frame owns it")
 	}
 }
+func TestFrameManager_CycleWindows(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+
+	w1 := NewWindow(0, 0, 10, 10, "W1")
+	w2 := NewWindow(0, 0, 10, 10, "W2")
+	w3 := NewWindow(0, 0, 10, 10, "W3")
+
+	fm.Push(NewDesktop())
+	fm.Push(w1)
+	fm.Push(w2)
+	fm.Push(w3) // W3 is on top
+
+	// Ctrl+Tab (Forward): W3 goes to bottom, W2 becomes top
+	fm.CycleWindows(true)
+	if fm.GetTopFrameType() != TypeUser || fm.frames[len(fm.frames)-1] != w2 {
+		t.Errorf("Ctrl+Tab should bring W2 to top. Top is now: %v", fm.frames[len(fm.frames)-1])
+	}
+
+	// Ctrl+Shift+Tab (Backward): W3 comes back from bottom to top
+	fm.CycleWindows(false)
+	if fm.GetTopFrameType() != TypeUser || fm.frames[len(fm.frames)-1] != w3 {
+		t.Errorf("Ctrl+Shift+Tab should bring W3 back to top. Top is now: %v", fm.frames[len(fm.frames)-1])
+	}
+}
+
+func TestFrameManager_TaskCleanup(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+
+	w1 := NewWindow(0, 0, 10, 10, "TaskWin")
+	fm.Push(w1)
+
+	if len(fm.frames) != 1 {
+		t.Fatal("Frame not pushed")
+	}
+
+	fm.TaskChan = make(chan func(), 1)
+	fm.TaskChan <- func() {
+		w1.SetExitCode(0)
+	}
+
+	// Emulate Run() block extraction and execution
+	task := <-fm.TaskChan
+	task()
+	fm.cleanupDoneFrames() // This should now instantly clear it
+
+	if len(fm.frames) != 0 {
+		t.Error("Frame should be cleaned up immediately after task execution")
+	}
+}
 
 func TestFrameManager_ModalDialogBlocksF9(t *testing.T) {
 	fm := &frameManager{}

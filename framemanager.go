@@ -245,6 +245,69 @@ func (fm *frameManager) Shutdown() {
 	fm.frames = nil
 	fm.capturedFrame = nil
 }
+// CycleWindows rotates non-modal user frames (Ctrl+Tab / Ctrl+Shift+Tab)
+func (fm *frameManager) CycleWindows(forward bool) bool {
+	if len(fm.frames) < 2 {
+		return false
+	}
+
+	topFrame := fm.frames[len(fm.frames)-1]
+	if topFrame.IsModal() || topFrame.GetType() == TypeMenu {
+		return false
+	}
+
+	var switchableIdx []int
+	for i, f := range fm.frames {
+		if !f.IsModal() && f.GetType() != TypeDesktop && f.GetType() != TypeMenu {
+			switchableIdx = append(switchableIdx, i)
+		}
+	}
+
+	if len(switchableIdx) < 2 {
+		return false
+	}
+
+	oldTop := fm.frames[len(fm.frames)-1]
+
+	if forward {
+		// Top goes to the bottom of the switchable list
+		topIdx := switchableIdx[len(switchableIdx)-1]
+		topF := fm.frames[topIdx]
+
+		// Shift others up
+		for i := len(switchableIdx) - 1; i > 0; i-- {
+			fm.frames[switchableIdx[i]] = fm.frames[switchableIdx[i-1]]
+		}
+		fm.frames[switchableIdx[0]] = topF
+	} else {
+		// Bottom goes to the top of the switchable list
+		bottomIdx := switchableIdx[0]
+		bottomF := fm.frames[bottomIdx]
+
+		for i := 0; i < len(switchableIdx)-1; i++ {
+			fm.frames[switchableIdx[i]] = fm.frames[switchableIdx[i+1]]
+		}
+		fm.frames[switchableIdx[len(switchableIdx)-1]] = bottomF
+	}
+
+	newTop := fm.frames[len(fm.frames)-1]
+
+	if oldTop != newTop {
+		oldTop.ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: false})
+		newTop.ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: true})
+		fm.Redraw()
+	}
+
+	return true
+}
+
+func (fm *frameManager) cleanupDoneFrames() {
+	for i := len(fm.frames) - 1; i >= 0; i-- {
+		if fm.frames[i].IsDone() {
+			fm.RemoveFrame(fm.frames[i])
+		}
+	}
+}
 // GetTopFrameType returns the type of the topmost frame or -1 if empty.
 func (fm *frameManager) GetTopFrameType() FrameType {
 	if len(fm.frames) == 0 {
@@ -404,6 +467,14 @@ func (fm *frameManager) Run() {
 					return
 				}
 
+				// Window Cycling (Ctrl+Tab / Ctrl+Shift+Tab)
+				if ev.VirtualKeyCode == vtinput.VK_TAB && (ev.ControlKeyState&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed)) != 0 {
+					shift := (ev.ControlKeyState & vtinput.ShiftPressed) != 0
+					if fm.CycleWindows(!shift) {
+						return
+					}
+				}
+
 				// 1. If Menu is Active, it has priority.
 				// We allow it even if topFrame is modal, provided topFrame IS the menu itself
 				// or the frame that owns the menu.
@@ -504,12 +575,7 @@ func (fm *frameManager) Run() {
 			}
 
 			// 4. Cleanup: Remove all frames that are marked as done.
-			// We iterate backwards to safely remove items while traversing.
-			for i := len(fm.frames) - 1; i >= 0; i-- {
-				if fm.frames[i].IsDone() {
-					fm.RemoveFrame(fm.frames[i])
-				}
-			}
+			fm.cleanupDoneFrames()
 		}
 
 	// 3. Event waiting (Blocking)
@@ -525,6 +591,7 @@ func (fm *frameManager) Run() {
 		case <-fm.RedrawChan: continue
 		case task := <-fm.TaskChan:
 			task()
+			fm.cleanupDoneFrames()
 			fm.Redraw()
 			continue
 		case <-sigChan:
