@@ -39,11 +39,6 @@ func (mb *MenuBar) Show(scr *ScreenBuf) {
 
 func (mb *MenuBar) DisplayObject(scr *ScreenBuf) {
 	if !mb.IsVisible() { return }
-	// State-check guard: If we are not active, but a submenu still exists, close it.
-	// This handles cases where focus is lost due to an external event (e.g., a new dialog).
-	if !mb.Active && mb.activeSubMenu != nil {
-		mb.closeSub()
-	}
 
 	attr := Palette[ColMenuBarItem]
 	mb.DrawBackground(scr, attr)

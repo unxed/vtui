@@ -41,6 +41,17 @@ func NewScreenBuf() *ScreenBuf {
 	}
 }
 
+// HardReset clears the shadow buffer and forces a complete redraw of the screen.
+// Essential when re-attaching to a new physical terminal.
+func (s *ScreenBuf) HardReset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.shadow {
+		s.shadow[i] = CharInfo{}
+	}
+	s.dirty = true
+}
+
 // AllocBuf allocates or reallocates memory for the screen buffers.
 func (s *ScreenBuf) AllocBuf(width, height int) {
 	s.mu.Lock()

@@ -1,12 +1,12 @@
 package vtui
 
 import (
-	"io"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 	"strings"
+	"runtime/debug"
 
 	"github.com/unxed/vtinput"
 	"golang.org/x/term"
@@ -105,6 +105,7 @@ type frameManager struct {
 	ctrlPressed      bool
 	switcherActive   bool
 	switcherIdx      int
+	running          bool
 }
 
 // FrameManager is the global instance of the frame manager.
@@ -398,6 +399,10 @@ func (fm *frameManager) Shutdown() {
 	fm.frames = nil
 	fm.capturedFrame = nil
 }
+// IsShutdown returns true if the FrameManager has been shut down explicitly.
+func (fm *frameManager) IsShutdown() bool {
+	return fm.Screens == nil
+}
 
 // CycleWindows updates the selection in the switcher overlay
 func (fm *frameManager) CycleWindows(forward bool) bool {
@@ -549,9 +554,16 @@ func (fm *frameManager) cleanupDoneFrames() {
 // GetTopFrameType returns the type of the topmost frame or -1 if empty.
 func (fm *frameManager) GetTopFrameType() FrameType {
 	if len(fm.frames) == 0 {
+		DebugLog("FRAMEWORK: GetTopFrameType(), len(fm.frames) == 0")
 		return -1
 	}
 	return fm.frames[len(fm.frames)-1].GetType()
+}
+func (fm *frameManager) GetTopFrame() Frame {
+	if len(fm.frames) == 0 {
+		return nil
+	}
+	return fm.frames[len(fm.frames)-1]
 }
 
 func (fm *frameManager) GetScreenSize() int {
@@ -559,31 +571,52 @@ func (fm *frameManager) GetScreenSize() int {
 	return fm.scr.width
 }
 
+// Stop signals the main loop to exit.
+func (fm *frameManager) Stop() {
+	DebugLog("FM: Stop() requested. Deactivating menus and exiting loop.")
+	// Safety: deactivate top menu before leaving to avoid stale sub-menus on return
+	if fm.MenuBar != nil {
+		fm.MenuBar.Active = false
+	}
+	fm.running = false
+	// Wake up the select loop immediately
+	select {
+	case fm.RedrawChan <- struct{}{}:
+	default:
+	}
+}
+
 // Run starts the main application event loop.
-func (fm *frameManager) Run() {
+func (fm *frameManager) Run(reader *vtinput.Reader) {
+	fm.running = true
 	// Restore cursor visibility on exit
 	defer func() {
+		if r := recover(); r != nil {
+			DebugLog("FATAL PANIC in FrameManager: %v\n%s", r, debug.Stack())
+		}
+		fm.running = false
 		fm.scr.SetCursorVisible(true)
 		fm.scr.Flush()
-		// Reset terminal palette back to user's default
-		os.Stdout.WriteString("\x1b]104\x07")
 	}()
-	// Configure channel for receiving vtinput events
-	reader := vtinput.NewReader(os.Stdin)
+
 	eventChan := make(chan *vtinput.InputEvent, 1)
+	stopChan := make(chan struct{})
 	go func() {
 		for {
-			e, err := reader.ReadEvent()
-			if err != nil {
-				if err != io.EOF {
-					// TODO: Log error
-				}
-				close(eventChan)
+			select {
+			case <-stopChan:
 				return
+			default:
+				e, err := reader.ReadEvent()
+				if err != nil {
+					close(eventChan)
+					return
+				}
+				eventChan <- e
 			}
-			eventChan <- e
 		}
 	}()
+	defer close(stopChan)
 
 	// Configure channel for tracking window resizing
 	sigChan := make(chan os.Signal, 1)
@@ -598,12 +631,17 @@ func (fm *frameManager) Run() {
 		default:
 		}
 	}
-	for {
+	DebugLog("FM: Entering Run loop. MenuBar set: %v, KeyBar set: %v", fm.MenuBar != nil, fm.KeyBar != nil)
+	for fm.running {
 		if len(fm.frames) == 0 {
-			return // No more frames, exit application.
+			DebugLog("FM: No frames left, exiting Run loop.")
+			return
 		}
 
 		// 1. Rendering
+		if len(fm.frames) == 0 {
+			return
+		}
 		topFrame := fm.frames[len(fm.frames)-1]
 
 		// Update global status line context automatically
@@ -642,6 +680,13 @@ func (fm *frameManager) Run() {
 		// If the frame is "busy" (e.g., mass insertion in progress), skip drawing
 		// and Flush to avoid flickering and save CPU.
 		if !topFrame.IsBusy() {
+			// Cleanup orphaned menus safely outside the frames iteration loop
+			// to avoid "index out of range" during rendering.
+			activeMenu := fm.GetActiveMenuBar()
+			if activeMenu != nil && !activeMenu.Active && activeMenu.activeSubMenu != nil {
+				activeMenu.closeSub()
+			}
+
 			fm.scr.SetCursorVisible(false)
 			fm.scr.ActivePalette = nil
 			// By default, we use OverlayMode (Early Binding) for host UI elements.
@@ -664,7 +709,7 @@ func (fm *frameManager) Run() {
 			fm.renderSwitcher(fm.scr)
 
 			// Render Standard Global UI
-			activeMenu := fm.GetActiveMenuBar()
+			activeMenu = fm.GetActiveMenuBar()
 			if activeMenu != nil && activeMenu.Active {
 				activeMenu.Show(fm.scr)
 			}
@@ -861,11 +906,20 @@ func (fm *frameManager) Run() {
 			if !handled && ev.Type == vtinput.KeyEventType && ev.KeyDown {
 				// Allow F9 if not modal, OR if the modal frame itself has a menu
 				canActivateMenu := !topFrame.IsModal() || topFrame.GetMenuBar() != nil
-				if activeMenu != nil && !activeMenu.Active && canActivateMenu {
-					if ev.VirtualKeyCode == vtinput.VK_F9 {
+				if ev.VirtualKeyCode == vtinput.VK_F9 {
+					if activeMenu == nil {
+						DebugLog("FM: F9 pressed but activeMenu is NIL")
+					} else if activeMenu.Active {
+						DebugLog("FM: F9 pressed but Menu is already active")
+					} else if !canActivateMenu {
+						DebugLog("FM: F9 pressed but Menu activation blocked by modal frame")
+					} else {
+						DebugLog("FM: F9 accepted, activating menu")
 						activeMenu.Active = true
 						return
 					}
+				}
+				if activeMenu != nil && !activeMenu.Active && canActivateMenu {
 					alt := (ev.ControlKeyState & (vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0
 					if alt && ev.Char != 0 {
 						if activeMenu.ProcessKey(ev) {
@@ -907,6 +961,7 @@ func (fm *frameManager) Run() {
 				loopAgain = true
 			case ev, ok := <-eventChan:
 				if !ok {
+					DebugLog("FM: eventChan closed, exiting Run() // in Event waiting (Blocking)")
 					return
 				}
 				e = ev
@@ -921,28 +976,25 @@ func (fm *frameManager) Run() {
 			DebugLog("KEY: Vk=%X Char=%d ActiveFrames=%d", e.VirtualKeyCode, e.Char, len(fm.frames))
 		}
 
-		// Process the first received event
 		dispatch(e, injected)
 
 		// 4. Queue "Drain"
-		// If events arrive in a dense stream (insertion), process them in a batch.
-		for {
+		// Burst process pending events (e.g. fast typing or paste)
+		for fm.running && !fm.IsShutdown() {
 			idleTimer.Reset(2 * time.Millisecond)
 			select {
 			case ev, ok := <-eventChan:
 				if !idleTimer.Stop() {
-					select {
-					case <-idleTimer.C:
-					default:
-					}
+					select { case <-idleTimer.C: default: }
 				}
-				if !ok {
-					return
+				if !ok { return }
+
+				// If previous event in this burst closed the window/app, stop immediately.
+				if len(fm.frames) > 0 {
+					dispatch(ev, false)
 				}
-				dispatch(ev, false)
 				continue
 			case <-idleTimer.C:
-				// Burst finished
 			}
 			break
 		}

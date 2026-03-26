@@ -25,4 +25,5 @@ const (
 	CmView   = 103
 	CmEdit   = 104
 	CmSearch = 105
+	CmBackground = 106
 )
