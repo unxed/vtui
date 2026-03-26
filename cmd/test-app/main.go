@@ -218,6 +218,6 @@ func main() {
 
 	vtui.FrameManager.Push(dlg)
 
-
-	vtui.FrameManager.Run()
+	reader := vtinput.NewReader(os.Stdin)
+	vtui.FrameManager.Run(reader)
 }

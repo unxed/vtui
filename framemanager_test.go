@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"os"
 	"testing"
 	"strings"
 	"github.com/unxed/vtinput"
@@ -460,7 +461,7 @@ func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
 	})
 
-	fm.Run()
+	fm.Run(vtinput.NewReader(os.Stdin))
 
 	if !okClicked {
 		t.Error("Modal dialog should have priority over active MenuBar for Enter key")
@@ -493,7 +494,7 @@ func TestFrameManager_MenuAccessibleDuringNonModal(t *testing.T) {
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
 	})
 
-	fm.Run()
+	fm.Run(vtinput.NewReader(os.Stdin))
 
 	if !mb.Active {
 		t.Error("MenuBar should be activatable when the top frame is non-modal (e.g. Progress window)")
@@ -559,7 +560,7 @@ func TestFrameManager_MenuBarNavigabilityWithSubMenu(t *testing.T) {
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
 	})
 
-	fm.Run()
+	fm.Run(vtinput.NewReader(os.Stdin))
 
 	// Check if we are now on the "Edit" menu
 	if fm.GetTopFrameType() != TypeMenu {
@@ -603,7 +604,7 @@ func TestFrameManager_F9WorksForMenuOwningModal(t *testing.T) {
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
 	})
 
-	fm.Run()
+	fm.Run(vtinput.NewReader(os.Stdin))
 
 	if !myMenu.Active {
 		t.Error("F9 should activate the menu because the modal frame owns it")
@@ -784,7 +785,7 @@ func TestFrameManager_F12ScreensMenu(t *testing.T) {
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
 	})
 
-	fm.Run()
+	fm.Run(vtinput.NewReader(os.Stdin))
 
 	if fm.GetTopFrameType() != TypeMenu {
 		t.Fatalf("F12 did not open a menu. Top type: %d", fm.GetTopFrameType())
@@ -937,7 +938,7 @@ func TestFrameManager_ModalDialogBlocksF9(t *testing.T) {
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
 	})
 
-	fm.Run()
+	fm.Run(vtinput.NewReader(os.Stdin))
 
 	if mb.Active {
 		t.Error("MenuBar should NOT be activated via F9 when a modal dialog is open")

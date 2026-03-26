@@ -551,6 +551,12 @@ func (fm *frameManager) cleanupDoneFrames() {
 		fm.Shutdown()
 	}
 }
+func (fm *frameManager) cleanupOrphanedMenus() {
+	activeMenu := fm.GetActiveMenuBar()
+	if activeMenu != nil && !activeMenu.Active && activeMenu.activeSubMenu != nil {
+		activeMenu.closeSub()
+	}
+}
 // GetTopFrameType returns the type of the topmost frame or -1 if empty.
 func (fm *frameManager) GetTopFrameType() FrameType {
 	if len(fm.frames) == 0 {
@@ -682,10 +688,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 		if !topFrame.IsBusy() {
 			// Cleanup orphaned menus safely outside the frames iteration loop
 			// to avoid "index out of range" during rendering.
-			activeMenu := fm.GetActiveMenuBar()
-			if activeMenu != nil && !activeMenu.Active && activeMenu.activeSubMenu != nil {
-				activeMenu.closeSub()
-			}
+			fm.cleanupOrphanedMenus()
 
 			fm.scr.SetCursorVisible(false)
 			fm.scr.ActivePalette = nil
@@ -709,7 +712,8 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 			fm.renderSwitcher(fm.scr)
 
 			// Render Standard Global UI
-			activeMenu = fm.GetActiveMenuBar()
+			// Render Standard Global UI
+			activeMenu := fm.GetActiveMenuBar()
 			if activeMenu != nil && activeMenu.Active {
 				activeMenu.Show(fm.scr)
 			}

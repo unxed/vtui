@@ -777,6 +777,7 @@ func TestMenuBar_OrphanedSubMenu(t *testing.T) {
 	// 1. Create a menubar with one item that has a submenu
 	mb := NewMenuBar(nil)
 	mb.Items = []MenuBarItem{{Label: "&File", SubItems: []MenuItem{{Text: "Open"}}}}
+	fm.MenuBar = mb
 
 	// 2. Activate the menubar and open the submenu
 	mb.Active = true
@@ -790,12 +791,12 @@ func TestMenuBar_OrphanedSubMenu(t *testing.T) {
 	// 3. Simulate losing focus: something else happens, making the menubar inactive
 	mb.Active = false
 
-	// 4. Simulate a new render cycle by calling Show(). This is where the fix should trigger.
-	mb.Show(scr)
+	// 4. Simulate the pre-render cleanup phase. This is where the fix should trigger.
+	fm.cleanupOrphanedMenus()
 
 	// 5. Assert: The VMenu should have been popped from the stack.
 	if len(fm.frames) != 1 || fm.GetTopFrameType() == TypeMenu {
-		t.Errorf("MenuBar.Show() failed to close orphaned submenu. Frame count: %d", len(fm.frames))
+		t.Errorf("cleanupOrphanedMenus failed to close orphaned submenu. Frame count: %d", len(fm.frames))
 	}
 }
 
@@ -885,7 +886,7 @@ func TestMenuBar_SubMenuCleanup_Deep(t *testing.T) {
 	mb.Active = false
 
 	// 4. Trigger render cycle cleanup
-	mb.Show(scr)
+	fm.cleanupOrphanedMenus()
 
 	// 5. Assert: Submenu should be removed even though it was NOT the top frame
 	for _, f := range fm.frames {
