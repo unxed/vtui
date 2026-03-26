@@ -47,10 +47,14 @@ func (e *Edit) Show(scr *ScreenBuf) {
 
 	// Ensure cursor is visible before display
 	visibleWidth := e.X2 - e.X1 + 1
+	if visibleWidth < 1 { visibleWidth = 1 } // Safety: handle zero-width windows
+
 	if e.curPos < e.leftPos {
 		e.leftPos = e.curPos
 	}
-	for runewidth.StringWidth(string(e.text[e.leftPos:e.curPos])) >= visibleWidth {
+	// Safety: leftPos must not exceed curPos. StringWidth >= visibleWidth
+	// triggers scrolling to the right.
+	for e.leftPos < e.curPos && runewidth.StringWidth(string(e.text[e.leftPos:e.curPos])) >= visibleWidth {
 		e.leftPos++
 	}
 
