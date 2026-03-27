@@ -8,11 +8,15 @@ type BaseFrame struct {
 	ExitCode int
 	Modal    bool
 	Number   int
+	OnResult func(int)
 }
 
 func (bf *BaseFrame) SetExitCode(code int) {
 	bf.Done = true
 	bf.ExitCode = code
+	if bf.OnResult != nil {
+		bf.OnResult(code)
+	}
 }
 
 func (bf *BaseFrame) IsDone() bool         { return bf.Done }
