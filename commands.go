@@ -26,4 +26,5 @@ const (
 	CmEdit   = 104
 	CmSearch = 105
 	CmBackground = 106
+	CmMkDir      = 107
 )
