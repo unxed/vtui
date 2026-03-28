@@ -28,6 +28,12 @@ type TableRow interface {
 }
 
 // Table is a generic control for displaying tabular data.
+// SelectableRow is an optional interface for rows that can be selected.
+type SelectableRow interface {
+	IsSelected() bool
+}
+
+// Table is a generic control for displaying tabular data.
 type Table struct {
 	ScreenObject
 	Columns        []TableColumn
@@ -38,10 +44,12 @@ type Table struct {
 	ShowSeparators bool
 	ShowScrollBar  bool
 
-	ColorTextIdx         int
-	ColorSelectedTextIdx int
-	ColorTitleIdx        int
-	ColorBoxIdx          int
+	ColorTextIdx             int
+	ColorSelectedTextIdx     int
+	ColorItemSelectTextIdx   int
+	ColorItemSelectCursorIdx int
+	ColorTitleIdx            int
+	ColorBoxIdx              int
 }
 
 func NewTable(x, y, w, h int, columns []TableColumn) *Table {
@@ -51,10 +59,12 @@ func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 		ShowHeader:     true,
 		ShowSeparators: true,
 		ShowScrollBar:  false,
-		ColorTextIdx:         ColTableText,
-		ColorSelectedTextIdx: ColTableSelectedText,
-		ColorTitleIdx:        ColTableColumnTitle,
-		ColorBoxIdx:          ColTableBox,
+		ColorTextIdx:             ColTableText,
+		ColorSelectedTextIdx:     ColTableSelectedText,
+		ColorItemSelectTextIdx:   ColTableText, // Default to normal
+		ColorItemSelectCursorIdx: ColTableSelectedText, // Default to normal cursor
+		ColorTitleIdx:            ColTableColumnTitle,
+		ColorBoxIdx:              ColTableBox,
 	}
 	t.canFocus = true
 	t.SetPosition(x, y, x+w-1, y+h-1)
@@ -100,12 +110,29 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 		currY := t.Y1 + yOffset + i
 
 		if rowIdx < len(t.Rows) {
+			isSelected := false
+			if selRow, ok := t.Rows[rowIdx].(SelectableRow); ok {
+				isSelected = selRow.IsSelected()
+			}
+
 			attr := Palette[t.ColorTextIdx]
+			if isSelected {
+				attr = Palette[t.ColorItemSelectTextIdx]
+			}
+
 			if rowIdx == t.SelectPos {
 				if t.IsFocused() {
-					attr = Palette[t.ColorSelectedTextIdx]
+					if isSelected {
+						attr = Palette[t.ColorItemSelectCursorIdx]
+					} else {
+						attr = Palette[t.ColorSelectedTextIdx]
+					}
 				} else {
-					attr = Palette[t.ColorTextIdx]
+					if isSelected {
+						attr = Palette[t.ColorItemSelectTextIdx]
+					} else {
+						attr = Palette[t.ColorTextIdx]
+					}
 				}
 			}
 			t.drawRow(scr, currY, rowIdx, attr)

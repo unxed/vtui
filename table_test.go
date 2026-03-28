@@ -19,6 +19,51 @@ func (m mockRow) GetCellText(col int) string {
 	return m.col2
 }
 
+type mockSelectableRow struct {
+	col1     string
+	selected bool
+}
+
+func (m mockSelectableRow) GetCellText(col int) string {
+	return m.col1
+}
+
+func (m mockSelectableRow) IsSelected() bool {
+	return m.selected
+}
+
+func TestTable_SelectableRowRendering(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewScreenBuf()
+	scr.AllocBuf(15, 5)
+
+	cols := []TableColumn{{Title: "C1", Width: 10, Alignment: AlignLeft}}
+	tbl := NewTable(0, 0, 10, 3, cols)
+	tbl.ColorItemSelectTextIdx = ColDialogHighlightText
+	tbl.ColorItemSelectCursorIdx = ColDialogHighlightSelectedButton
+
+	row1 := mockSelectableRow{"Unsel", false}
+	row2 := mockSelectableRow{"Sel", true}
+	tbl.SetRows([]TableRow{row1, row2})
+
+	tbl.SetFocus(true)
+	tbl.SelectPos = 0
+	tbl.Show(scr)
+
+	// row1 (unselected, cursor) -> ColTableSelectedText
+	checkCell(t, scr, 0, 1, 'U', Palette[ColTableSelectedText])
+
+	// row2 (selected, no cursor) -> ColorItemSelectTextIdx
+	checkCell(t, scr, 0, 2, 'S', Palette[ColDialogHighlightText])
+
+	// Move cursor to row2
+	tbl.SelectPos = 1
+	tbl.Show(scr)
+
+	// row2 (selected, cursor) -> ColorItemSelectCursorIdx
+	checkCell(t, scr, 0, 2, 'S', Palette[ColDialogHighlightSelectedButton])
+}
+
 func TestTable_Navigation(t *testing.T) {
 	cols := []TableColumn{
 		{Title: "C1", Width: 5},
