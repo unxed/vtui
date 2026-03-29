@@ -840,49 +840,8 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 				}
 			}
 
-			// --- Standard Framework Event Logic ---
+			// --- Menu Interception ---
 			if ev.Type == vtinput.KeyEventType && ev.KeyDown {
-				// Global Quit (standard for vtui tools)
-				if ev.VirtualKeyCode == vtinput.VK_Q && (ev.ControlKeyState&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed)) != 0 {
-					fm.Shutdown()
-					return
-				}
-
-				// Window Cycling (Ctrl+Tab / Ctrl+Shift+Tab)
-				if ev.VirtualKeyCode == vtinput.VK_TAB && fm.ctrlPressed {
-					shift := (ev.ControlKeyState & vtinput.ShiftPressed) != 0
-					// Only consume the event if cycling is actually possible
-					if fm.CycleWindows(!shift) {
-						return
-					}
-				}
-
-				// Ctrl+N - Fork Active Frame into new Screen
-				if ev.VirtualKeyCode == vtinput.VK_N && fm.ctrlPressed {
-					fm.Flash()
-					// We need a way to clone the top-level frame.
-					// For now, let's trigger a Command that Panels can handle.
-					fm.EmitCommand(CmResize, "fork") // Temporary hack or use specialized Command
-					return
-				}
-
-				// Ctrl+W - Close Active Screen
-				if ev.VirtualKeyCode == vtinput.VK_W && fm.ctrlPressed {
-					fm.Flash()
-					fm.CloseActiveScreen()
-					return
-				}
-
-				// F12 - Screens Menu (Window List)
-				// We must ignore NumLock, CapsLock, and EnhancedKey flags
-				modifierMask := uint32(vtinput.LeftAltPressed | vtinput.RightAltPressed | vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.ShiftPressed)
-				if ev.VirtualKeyCode == vtinput.VK_F12 && (ev.ControlKeyState&modifierMask) == 0 {
-					if fm.GetTopFrameType() != TypeMenu {
-						fm.showScreensMenu()
-						return
-					}
-				}
-
 				// 1. If Menu is Active, it has priority.
 				// We allow it even if topFrame is modal, provided topFrame IS the menu itself
 				// or the frame that owns the menu.
@@ -969,8 +928,49 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 				}
 			}
 
-			// 3. Fallbacks (F9, Alt+Hotkey) if top frame didn't want the key
+			// 3. Fallbacks (F9, Alt+Hotkey, Global Shortcuts) if top frame didn't want the key
 			if !handled && ev.Type == vtinput.KeyEventType && ev.KeyDown {
+				// Global Quit (standard for vtui tools)
+				if ev.VirtualKeyCode == vtinput.VK_Q && fm.ctrlPressed {
+					fm.Shutdown()
+					return
+				}
+
+				// Window Cycling (Ctrl+Tab / Ctrl+Shift+Tab)
+				if ev.VirtualKeyCode == vtinput.VK_TAB && (fm.ctrlPressed || fm.switcherActive) {
+					shift := (ev.ControlKeyState & vtinput.ShiftPressed) != 0
+					// Only consume the event if cycling is actually possible
+					if fm.CycleWindows(!shift) {
+						return
+					}
+				}
+
+				// Ctrl+N - Fork Active Frame into new Screen
+				if ev.VirtualKeyCode == vtinput.VK_N && fm.ctrlPressed {
+					fm.Flash()
+					// We need a way to clone the top-level frame.
+					// For now, let's trigger a Command that Panels can handle.
+					fm.EmitCommand(CmResize, "fork") // Temporary hack or use specialized Command
+					return
+				}
+
+				// Ctrl+W - Close Active Screen
+				if ev.VirtualKeyCode == vtinput.VK_W && fm.ctrlPressed {
+					fm.Flash()
+					fm.CloseActiveScreen()
+					return
+				}
+
+				// F12 - Screens Menu (Window List)
+				// We must ignore NumLock, CapsLock, and EnhancedKey flags
+				modifierMask := uint32(vtinput.LeftAltPressed | vtinput.RightAltPressed | vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.ShiftPressed)
+				if ev.VirtualKeyCode == vtinput.VK_F12 && (ev.ControlKeyState&modifierMask) == 0 {
+					if fm.GetTopFrameType() != TypeMenu {
+						fm.showScreensMenu()
+						return
+					}
+				}
+
 				// Allow F9 if not modal, OR if the modal frame itself has a menu
 				canActivateMenu := !topFrame.IsModal() || topFrame.GetMenuBar() != nil
 				if ev.VirtualKeyCode == vtinput.VK_F9 {

@@ -731,6 +731,71 @@ func TestFrameManager_CycleScreens(t *testing.T) {
 		t.Errorf("Expected switch back to Screen 1, stayed at %d", fm.ActiveIdx)
 	}
 }
+func TestFrameManager_CycleBackwards(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+	fm.Push(NewDesktop())           // Screen 0
+	fm.AddScreen(NewWindow(0,0,5,5, "W1")) // Screen 1
+	fm.AddScreen(NewWindow(0,0,5,5, "W2")) // Screen 2, ActiveIdx = 2
+
+	// 1. Shift+Ctrl+Tab (forward=false)
+	fm.ctrlPressed = true
+	fm.CycleWindows(false) // 2 -> 1
+	if fm.switcherIdx != 1 {
+		t.Errorf("Backward cycle failed: expected 1, got %d", fm.switcherIdx)
+	}
+
+	fm.CycleWindows(false) // 1 -> 0
+	if fm.switcherIdx != 0 {
+		t.Errorf("Backward cycle failed: expected 0, got %d", fm.switcherIdx)
+	}
+
+	fm.CycleWindows(false) // 0 -> 2 (wrap)
+	if fm.switcherIdx != 2 {
+		t.Errorf("Backward cycle wrap failed: expected 2, got %d", fm.switcherIdx)
+	}
+}
+
+func TestFrameManager_ShortcutPriority(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+	fm.Push(NewDesktop())
+
+	ctrlWPressed := false
+	frame := &mockFrame{}
+	frame.onProcessKey = func(e *vtinput.InputEvent) bool {
+		if e.VirtualKeyCode == vtinput.VK_W && (e.ControlKeyState & vtinput.LeftCtrlPressed) != 0 {
+			ctrlWPressed = true
+			return true // Frame intercepts Ctrl+W
+		}
+		return false
+	}
+	fm.Push(frame)
+
+	// Simulate Ctrl+W
+	ev := &vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true,
+		VirtualKeyCode: vtinput.VK_W, ControlKeyState: vtinput.LeftCtrlPressed,
+	}
+
+	// We need to simulate the dispatch logic from Run()
+	fm.ctrlPressed = true
+	handled := frame.ProcessKey(ev)
+
+	if !handled {
+		t.Fatal("Frame should have handled Ctrl+W")
+	}
+
+	// If handled is true, the fallback section in fm.Run (which closes screens) is not reached.
+	if !ctrlWPressed {
+		t.Error("Frame's own Ctrl+W handler was not called")
+	}
+
+	// Ensure screen wasn't closed (still 1 screen + desktop)
+	if len(fm.Screens) == 0 {
+		t.Error("Global fallback shortcut triggered even though frame handled the key")
+	}
+}
 
 func TestFrameManager_CycleSingleScreen(t *testing.T) {
 	fm := &frameManager{}

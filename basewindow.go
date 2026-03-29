@@ -184,6 +184,10 @@ func (bw *BaseWindow) ProcessKey(e *vtinput.InputEvent) bool {
 		bw.Close()
 		return true
 	case vtinput.VK_TAB:
+		ctrl := (e.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed)) != 0
+		if ctrl {
+			return false // Let FrameManager handle Ctrl+Tab window cycling
+		}
 		shift := (e.ControlKeyState & vtinput.ShiftPressed) != 0
 		if shift {
 			bw.changeFocus(-1)
