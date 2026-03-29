@@ -923,3 +923,59 @@ func TestVMenu_NavigationCallbacks(t *testing.T) {
 		t.Error("VMenu should be closed when callback calls SetExitCode")
 	}
 }
+
+func TestVMenu_ShortcutRendering(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewScreenBuf()
+	scr.AllocBuf(30, 10)
+
+	m := NewVMenu("Shortcuts")
+	// Item: "Copy", Shortcut: "F5". Total width: 15 (0..14)
+	m.AddItem(MenuItem{Text: "Copy", Shortcut: "F5"})
+	m.SetPosition(0, 0, 14, 3) // Interior width: 13. Padding: 13 - 5 (text) - 3 (shortcut) = 5
+	m.Show(scr)
+
+	// Interior string: " Copy" (5) + "     " (5) + "F5 " (3) = 13 chars
+	// Written to X=1..13. 
+	// 'F' is at index 10 of the string -> X = 11
+	// '5' is at index 11 of the string -> X = 12
+	// Attributes: item is selected by default, so ColMenuSelectedText.
+	attr := Palette[ColMenuSelectedText]
+	checkCell(t, scr, 11, 1, 'F', attr)
+	checkCell(t, scr, 12, 1, '5', attr)
+}
+
+func TestMenuBar_DynamicSubMenuWidth(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+	oldFm := FrameManager
+	FrameManager = fm
+	defer func() { FrameManager = oldFm }()
+
+	mb := NewMenuBar(nil)
+	mb.Items = []MenuBarItem{
+		{
+			Label: "Test",
+			SubItems: []MenuItem{
+				{Text: "Short"},
+				{Text: "This is a very long label", Shortcut: "Alt+F10"},
+			},
+		},
+	}
+
+	mb.ActivateSubMenu(0)
+	
+	if fm.GetTopFrameType() != TypeMenu {
+		t.Fatal("Submenu not activated")
+	}
+
+	menu := fm.frames[len(fm.frames)-1].(*VMenu)
+	x1, _, x2, _ := menu.GetPosition()
+	width := x2 - x1 + 1
+
+	// " This is a very long label" (26) + "Alt+F10 " (8) + 4 padding = 38
+	// The logic should result in a width significantly larger than default 24
+	if width < 30 {
+		t.Errorf("Submenu width was not calculated dynamically. Expected >30, got %d", width)
+	}
+}
