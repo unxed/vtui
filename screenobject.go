@@ -70,6 +70,15 @@ func (so *ScreenObject) Hide(scr *ScreenBuf) {
 func (so *ScreenObject) IsVisible() bool {
 	return so.visible
 }
+// SafeRender wraps standard Show logic with visibility and clipping checks.
+func (so *ScreenObject) SafeRender(scr *ScreenBuf, renderFn func(scr *ScreenBuf)) {
+	if !so.visible || so.IsLocked() {
+		return
+	}
+	scr.PushClipRect(so.X1, so.Y1, so.X2, so.Y2)
+	renderFn(scr)
+	scr.PopClipRect()
+}
 // SetVisible manually sets the visibility flag.
 func (so *ScreenObject) SetVisible(v bool) {
 	so.visible = v
