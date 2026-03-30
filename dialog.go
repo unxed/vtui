@@ -22,6 +22,7 @@ type UIElement interface {
 	ProcessMouse(e *vtinput.InputEvent) bool
 	HandleCommand(cmd int, args any) bool
 	HandleBroadcast(cmd int, args any) bool
+	Valid(cmd int) bool
 }
 
 // DataControl is an interface for UI elements that can store and return data.

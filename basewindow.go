@@ -417,6 +417,12 @@ func (bw *BaseWindow) HandleCommand(cmd int, args any) bool {
 
 	// 2. Handle standard window commands
 	switch cmd {
+	case CmOK, CmDefault:
+		if !bw.Valid(cmd) {
+			return true // Consumed but blocked by validation
+		}
+		bw.SetExitCode(cmd)
+		return true
 	case CmClose, CmCancel:
 		bw.Close()
 		return true
@@ -438,6 +444,14 @@ func (bw *BaseWindow) HandleBroadcast(cmd int, args any) bool {
 		}
 	}
 	return handled
+}
+func (bw *BaseWindow) Valid(cmd int) bool {
+	for _, item := range bw.items {
+		if !item.Valid(cmd) {
+			return false
+		}
+	}
+	return true
 }
 
 func (bw *BaseWindow) HasShadow() bool { return true }

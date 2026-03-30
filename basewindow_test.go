@@ -193,3 +193,40 @@ func TestBaseWindow_HandleBroadcast_Propagation(t *testing.T) {
 		t.Error("Broadcast was not propagated to all items")
 	}
 }
+func TestBaseWindow_Validation(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewScreenBuf())
+	defer fm.Shutdown()
+
+	// Use NewDialog because BaseWindow doesn't implement GetType()
+	bw := NewDialog(0, 0, 40, 10, "Validation Test")
+	edit := NewEdit(1, 1, 10, "50")
+	// Only allow 1-10
+	edit.Validator = &IntRangeValidator{Min: 1, Max: 10}
+	bw.AddItem(edit)
+	fm.Push(bw)
+
+	// 1. Test failure
+	// Try to "click OK" (Command CmOK)
+	handled := bw.HandleCommand(CmOK, nil)
+
+	if !handled { t.Error("Command should be consumed") }
+	if bw.IsDone() { t.Error("Window should not close with invalid input") }
+
+	// 2. Test success
+	edit.SetText("5")
+	handled = bw.HandleCommand(CmOK, nil)
+
+	if !handled { t.Error("Command should be handled") }
+	if !bw.IsDone() { t.Error("Window should close with valid input") }
+	if bw.ExitCode != CmOK { t.Errorf("Wrong exit code: %d", bw.ExitCode) }
+}
+
+func TestRegexValidator(t *testing.T) {
+	v := &RegexValidator{Pattern: "^[a-z]+$"}
+
+	if !v.Validate("abc") { t.Error("Regex should match simple lowercase") }
+	if v.Validate("123") { t.Error("Regex should not match numbers") }
+	if v.Validate("ABC") { t.Error("Regex should be case sensitive") }
+}

@@ -119,6 +119,9 @@ func (so *ScreenObject) IsLocked() bool {
 func (so *ScreenObject) HandleBroadcast(cmd int, args any) bool {
 	return false
 }
+func (so *ScreenObject) Valid(cmd int) bool {
+	return true
+}
 
 // ProcessKey (stub) will be overridden in child classes.
 func (so *ScreenObject) ProcessKey(key *vtinput.InputEvent) bool {

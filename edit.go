@@ -22,6 +22,7 @@ type Edit struct {
 	History           []string
 	OnAction          func()
 	ColorTextIdx      int
+	Validator         Validator
 	ColorUnchangedIdx int
 	ColorSelectedIdx  int
 }
@@ -140,6 +141,20 @@ func (e *Edit) SetData(val any) {
 	if s, ok := val.(string); ok {
 		e.SetText(s)
 	}
+}
+func (e *Edit) Valid(cmd int) bool {
+	if e.Validator != nil && (cmd == CmOK || cmd == CmDefault) {
+		if !e.Validator.Validate(e.GetText()) {
+			// Find the parent frame to show the error message on
+			var top Frame
+			if FrameManager != nil {
+				top = FrameManager.GetTopFrame()
+			}
+			e.Validator.Error(top)
+			return false
+		}
+	}
+	return true
 }
 // InsertString inserts text at the current cursor position.
 func (e *Edit) InsertString(text string) {

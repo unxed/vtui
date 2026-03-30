@@ -37,6 +37,7 @@ type Frame interface {
 	GetKeyLabels() *KeySet
 	HandleCommand(cmd int, args any) bool // Turbo Vision style command routing
 	HandleBroadcast(cmd int, args any) bool
+	Valid(cmd int) bool
 
 	// MDI Methods
 	GetMenuBar() *MenuBar
