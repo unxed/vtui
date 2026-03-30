@@ -1,14 +1,25 @@
 package vtui
 
 // GroupBox is a decorative titled frame used to visually group elements.
+// It embeds a Group to manage child elements.
 type GroupBox struct {
-	ScreenObject
-	Title string
+	Group
+	Title              string
+	ColorBoxIdx        int
+	ColorTitleIdx      int
+	ColorBackgroundIdx int
 }
 
 func NewGroupBox(x1, y1, x2, y2 int, title string) *GroupBox {
-	gb := &GroupBox{Title: title}
-	gb.SetPosition(x1, y1, x2, y2)
+	gb := &GroupBox{
+		Group:              *NewGroup(x1+1, y1+1, x2-x1-1, y2-y1-1),
+		Title:              title,
+		ColorBoxIdx:        ColDialogBox,
+		ColorTitleIdx:      ColDialogHighlightText,
+		ColorBackgroundIdx: ColDialogText,
+	}
+	// The GroupBox itself handles position, the inner group is relative
+	gb.ScreenObject.SetPosition(x1, y1, x2, y2)
 	return gb
 }
 
@@ -18,39 +29,32 @@ func (gb *GroupBox) Show(scr *ScreenBuf) {
 }
 
 func (gb *GroupBox) DisplayObject(scr *ScreenBuf) {
-	if !gb.IsVisible() { return }
-	attr := Palette[ColDialogBox]
-	sym := getBoxSymbols(SingleBox)
-
-	w := gb.X2 - gb.X1 + 1
-
-	// Top with Title
-	topLine := make([]CharInfo, w)
-	for i := range topLine { topLine[i] = CharInfo{Char: uint64(sym[bsH]), Attributes: attr} }
-	topLine[0] = CharInfo{Char: uint64(sym[bsTL]), Attributes: attr}
-	topLine[w-1] = CharInfo{Char: uint64(sym[bsTR]), Attributes: attr}
-
-	scr.Write(gb.X1, gb.Y1, topLine)
-
-	if gb.Title != "" {
-		tStr := " " + gb.Title + " "
-		// Use highlight color for GroupBox titles to make them stand out
-		scr.Write(gb.X1+2, gb.Y1, StringToCharInfo(tStr, Palette[ColDialogHighlightText]))
+	if !gb.IsVisible() {
+		return
 	}
 
-	// Bottom
-	botLine := make([]CharInfo, w)
-	for i := range botLine { botLine[i] = CharInfo{Char: uint64(sym[bsH]), Attributes: attr} }
-	botLine[0] = CharInfo{Char: uint64(sym[bsBL]), Attributes: attr}
-	botLine[w-1] = CharInfo{Char: uint64(sym[bsBR]), Attributes: attr}
-	scr.Write(gb.X1, gb.Y2, botLine)
+	// 1. Draw the frame and title
+	frame := NewBorderedFrame(gb.X1, gb.Y1, gb.X2, gb.Y2, SingleBox, gb.Title)
+	frame.ColorBoxIdx = gb.ColorBoxIdx
+	frame.ColorTitleIdx = gb.ColorTitleIdx
+	frame.ColorBackgroundIdx = gb.ColorBackgroundIdx
+	// A groupbox doesn't fill its background, it's transparent to the dialog's bg
+	// So we only draw the border part of the frame.
+	frame.DisplayObject(scr)
 
-	// Sides
-	side := []CharInfo{{Char: uint64(sym[bsV]), Attributes: attr}}
-	for y := gb.Y1 + 1; y < gb.Y2; y++ {
-		scr.Write(gb.X1, y, side)
-		scr.Write(gb.X2, y, side)
-	}
+	// 2. Draw the children inside the frame
+	gb.Group.DisplayObject(scr)
 }
 
-func (gb *GroupBox) CanFocus() bool { return false }
+// Override CanFocus for GroupBox itself. Focus is handled by its children.
+func (gb *GroupBox) CanFocus() bool {
+	// A GroupBox can be a focus target if it contains focusable children.
+	// The changeFocus logic will handle this.
+	for _, item := range gb.items {
+		if item.CanFocus() && !item.IsDisabled() {
+			return true
+		}
+	}
+	return false
+}
+

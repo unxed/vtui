@@ -397,11 +397,15 @@ type cmdMockFrame struct {
 }
 
 func (c *cmdMockFrame) HandleCommand(cmd int, args any) bool {
-	if c.onCmd != nil { return c.onCmd(cmd, args) }
+	if c.onCmd != nil {
+		return c.onCmd(cmd, args)
+	}
 	return false
 }
 func (c *cmdMockFrame) HandleBroadcast(cmd int, args any) bool {
-	if c.onCmd != nil { return c.onCmd(cmd, args) }
+	if c.onCmd != nil {
+		return c.onCmd(cmd, args)
+	}
 	return false
 }
 

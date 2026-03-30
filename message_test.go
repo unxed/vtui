@@ -14,8 +14,8 @@ func TestShowMessage_Structure(t *testing.T) {
 
 	// Check the number of elements:
 	// 2 lines of text + 3 buttons = 5 elements
-	if len(dlg.items) != 5 {
-		t.Errorf("Wrong item count. Got %d, want 5", len(dlg.items))
+	if len(dlg.rootGroup.items) != 5 {
+		t.Errorf("Wrong item count. Got %d, want 5", len(dlg.rootGroup.items))
 	}
 
 	// Check the frame title
@@ -25,7 +25,7 @@ func TestShowMessage_Structure(t *testing.T) {
 
 	// Check that buttons return the correct ExitCode
 	for i := 0; i < 3; i++ {
-		btn := dlg.items[2+i].(*Button)
+		btn := dlg.rootGroup.items[2+i].(*Button)
 		btn.OnClick()
 		if dlg.ExitCode != i {
 			t.Errorf("Button %d failed to set exit code. Got %d", i, dlg.ExitCode)

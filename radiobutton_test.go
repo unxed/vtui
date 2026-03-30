@@ -20,7 +20,7 @@ func TestRadioButton_GroupLogic(t *testing.T) {
 
 	// Simulate click on the second button (index 1 in the dialog)
 	// Call the internal selection method for the test
-	d.selectRadio(rb2)
+	d.rootGroup.selectRadio(rb2)
 
 	if rb1.Selected {
 		t.Error("rb1 should be deselected after rb2 chosen")

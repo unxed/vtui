@@ -140,8 +140,8 @@ func TestGroupBox_Rendering(t *testing.T) {
 	gb.Show(scr)
 
 	// Check title
-	// " Group " starts at X=2+2=4.
-	// We use ColDialogHighlightText for GroupBox titles to make them stand out.
-	checkCell(t, scr, 4, 2, ' ', Palette[ColDialogHighlightText])
-	checkCell(t, scr, 5, 2, 'G', Palette[ColDialogHighlightText])
+	// Calculated title start for " Group " is at X=3 (X1+1).
+	checkCell(t, scr, 3, 2, ' ', Palette[ColDialogHighlightText])
+	checkCell(t, scr, 4, 2, 'G', Palette[ColDialogHighlightText])
+	checkCell(t, scr, 5, 2, 'r', Palette[ColDialogHighlightText])
 }

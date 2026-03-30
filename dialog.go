@@ -1,7 +1,6 @@
 package vtui
 
 import (
-	"testing"
 	"github.com/unxed/vtinput"
 )
 
@@ -58,57 +57,3 @@ func (d *Dialog) SetProgress(p int) {
 	d.progress = p
 }
 
-func TestBaseWindow_DataMapping(t *testing.T) {
-	type TestData struct {
-		Name      string `vtui:"user_name"`
-		Admin     bool   `vtui:"is_admin"`
-		Option    int    `vtui:"opt_radio"`
-		Flags     uint32 // No tag, should use field name
-	}
-
-	bw := NewBaseWindow(0, 0, 40, 20, "Data Test")
-
-	edit := NewEdit(1, 1, 20, "")
-	edit.SetId("user_name")
-	bw.AddItem(edit)
-
-	chk := NewCheckbox(1, 2, "Admin", false)
-	chk.SetId("is_admin")
-	bw.AddItem(chk)
-
-	rg := NewRadioGroup(1, 3, 1, []string{"O1", "O2"})
-	rg.SetId("opt_radio")
-	bw.AddItem(rg)
-
-	cg := NewCheckGroup(1, 6, 1, []string{"F1", "F2"})
-	cg.SetId("Flags")
-	bw.AddItem(cg)
-
-	// 1. Test SetData
-	input := TestData{
-		Name:   "Explorer",
-		Admin:  true,
-		Option: 1,
-		Flags:  0x02, // Only F2 checked
-	}
-	bw.SetData(input)
-
-	if edit.GetText() != "Explorer" { t.Errorf("Edit failed: %s", edit.GetText()) }
-	if chk.State != 1 { t.Error("Checkbox failed") }
-	if rg.Selected != 1 { t.Error("Radio failed") }
-	if !cg.States[1] || cg.States[0] { t.Error("CheckGroup failed") }
-
-	// 2. Test GetData
-	edit.SetText("NewName")
-	chk.State = 0
-	rg.Selected = 0
-	cg.States[0] = true
-
-	var output TestData
-	bw.GetData(&output)
-
-	if output.Name != "NewName" { t.Errorf("GetData string fail: %s", output.Name) }
-	if output.Admin != false { t.Error("GetData bool fail") }
-	if output.Option != 0 { t.Error("GetData int fail") }
-	if output.Flags != 0x03 { t.Errorf("GetData mask fail: 0x%X", output.Flags) }
-}

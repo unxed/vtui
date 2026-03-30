@@ -34,7 +34,7 @@ func TestSelectDirDialog_Navigation(t *testing.T) {
 
 	// Verify Edit field has the path
 	var pathEdit *Edit
-	for _, item := range dlg.items {
+	for _, item := range dlg.rootGroup.items {
 		if e, ok := item.(*Edit); ok {
 			pathEdit = e
 			break
@@ -47,7 +47,7 @@ func TestSelectDirDialog_Navigation(t *testing.T) {
 
 	// Find the ListBox
 	var lb *ListBox
-	for _, item := range dlg.items {
+	for _, item := range dlg.rootGroup.items {
 		if l, ok := item.(*ListBox); ok {
 			lb = l
 			break
@@ -78,7 +78,7 @@ func TestSelectDirDialog_ArrowVsEnter(t *testing.T) {
 	dlg := SelectDirDialog("Test", tmpDir, vfs)
 
 	var lb *ListBox
-	for _, item := range dlg.items {
+	for _, item := range dlg.rootGroup.items {
 		if l, ok := item.(*ListBox); ok { lb = l; break }
 	}
 
@@ -112,7 +112,7 @@ func TestInputBox_OkCallback(t *testing.T) {
 	// Find Edit and Button
 	var edit *Edit
 	var okBtn *Button
-	for _, item := range dlg.items {
+	for _, item := range dlg.rootGroup.items {
 		if e, ok := item.(*Edit); ok { edit = e }
 		if b, ok := item.(*Button); ok && b.hotkey == 'o' { okBtn = b }
 	}
@@ -143,7 +143,7 @@ func TestSelectFileDialog_Selection(t *testing.T) {
 	var lb *ListBox
 	var fileEdit *Edit
 	editCount := 0
-	for _, item := range dlg.items {
+	for _, item := range dlg.rootGroup.items {
 		if l, ok := item.(*ListBox); ok {
 			lb = l
 		}
@@ -151,10 +151,6 @@ func TestSelectFileDialog_Selection(t *testing.T) {
 			editCount++
 			if editCount == 2 { // fileEdit is the second Edit field
 				fileEdit = e
-			}
-		}
-	}
-
 	if lb == nil || fileEdit == nil { t.Fatal("SelectFileDialog structure error") }
 
 	// Find dummy.txt in list
@@ -170,5 +166,8 @@ func TestSelectFileDialog_Selection(t *testing.T) {
 
 	if fileEdit.GetText() != "dummy.txt" {
 		t.Errorf("File Edit not updated on selection. Got %q", fileEdit.GetText())
+	}
+}
+		}
 	}
 }
