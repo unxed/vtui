@@ -408,3 +408,56 @@ func TestValidators_ErrorUI(t *testing.T) {
 		t.Error("RegexValidator.Error() did not push a message box")
 	}
 }
+
+func TestBaseWindow_NoDownwardCommandRouting(t *testing.T) {
+	bw := NewBaseWindow(0, 0, 10, 10, "Recursion Test")
+	
+	itemHandledCommand := false
+	//mock := &broadcastMockElement{}
+	// Override HandleCommand for this instance
+	// Since we can't easily override methods on instances in Go,
+	// we use a specific mock that records calls.
+	item := &cmdMockFrame{}
+	item.onCmd = func(cmd int, args any) bool {
+		itemHandledCommand = true
+		return true
+	}
+	// Items are usually UIElement, cmdMockFrame satisfies this
+	bw.AddItem(item)
+	bw.focusIdx = 0
+
+	// Trigger a command on the Window.
+	// It should NOT try to pass it to the item anymore.
+	bw.HandleCommand(CmOK, nil)
+
+	if itemHandledCommand {
+		t.Error("Window passed command down to focused item, risking infinite recursion")
+	}
+}
+
+func TestBaseWindow_ChangeFocus_FromUnfocused(t *testing.T) {
+	bw := NewBaseWindow(0, 0, 10, 10, "Initial Focus")
+	b1 := NewButton(1, 1, "B1")
+	b2 := NewButton(1, 2, "B2")
+	bw.AddItem(b1)
+	bw.AddItem(b2)
+
+	// Manually un-focus
+	bw.focusIdx = -1
+	b1.SetFocus(false)
+	b2.SetFocus(false)
+
+	// 1. Move forward from nothing -> should land on index 0
+	bw.changeFocus(1)
+	if bw.focusIdx != 0 {
+		t.Errorf("Forward from unfocused failed: expected 0, got %d", bw.focusIdx)
+	}
+
+	// 2. Move backward from nothing -> should land on index 1
+	bw.focusIdx = -1
+	bw.changeFocus(-1)
+	if bw.focusIdx != 1 {
+		t.Errorf("Backward from unfocused failed: expected 1, got %d", bw.focusIdx)
+	}
+}
+
