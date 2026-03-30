@@ -26,6 +26,7 @@ func NewHelpView(engine *HelpEngine, startTopic string) *HelpView {
 	}
 	hv.scrollBar = NewScrollBar(0, 0, 0)
 	hv.scrollBar.OnScroll = func(v int) { hv.scrollTop = v }
+	hv.scrollBar.PgStep = 10 // Default, will be updated in Show
 	hv.Modal = true
 	hv.ShowClose = true
 	hv.SwitchTopic(startTopic)
@@ -113,6 +114,7 @@ func (hv *HelpView) Show(scr *ScreenBuf) {
 		if totalScrollable > contentH {
 			hv.scrollBar.SetParams(hv.scrollTop, 0, totalScrollable-contentH)
 			hv.scrollBar.SetPosition(hv.X2-1, hv.Y1+1+hv.current.StickyRows, hv.X2-1, hv.Y2-1)
+			hv.scrollBar.PgStep = contentH
 			hv.scrollBar.Show(scr)
 		}
 	}

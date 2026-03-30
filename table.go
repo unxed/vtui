@@ -310,13 +310,14 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 		}
 	}
 	return false
-	return false
 }
 
 func (t *Table) SetPosition(x1, y1, x2, y2 int) {
 	t.ScreenObject.SetPosition(x1, y1, x2, y2)
 	t.updateViewHeight()
 	if t.ScrollBar != nil {
-		t.ScrollBar.SetPosition(t.X2, t.Y1 + map[bool]int{true: 1, false: 0}[t.ShowHeader], t.X2, t.Y2)
+		startY := t.Y1 + map[bool]int{true: 1, false: 0}[t.ShowHeader]
+		t.ScrollBar.SetPosition(t.X2, startY, t.X2, t.Y2)
+		t.ScrollBar.PgStep = t.Y2 - startY + 1
 	}
 }

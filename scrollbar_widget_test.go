@@ -25,14 +25,14 @@ func TestScrollBar_WidgetMouse(t *testing.T) {
 	})
 	if val != 6 { t.Errorf("Bottom arrow click failed, got %d", val) }
 
-	// 3. Page Up area (e.g., Y=2)
+	// 3. Page Up area (Value 5, Track 1-8, Thumb 2-4. Click at Y=1)
 	sb.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: true, ButtonState: vtinput.FromLeft1stButtonPressed,
-		MouseY: 2,
+		MouseY: 1,
 	})
 	if val != 0 { t.Errorf("PageUp click failed (5-10=-5 -> 0), got %d", val) }
 
-	// 4. Page Down area (e.g., Y=7)
+	// 4. Page Down area (Value 5, Click at Y=7)
 	sb.SetParams(5, 0, 20)
 	sb.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: true, ButtonState: vtinput.FromLeft1stButtonPressed,
