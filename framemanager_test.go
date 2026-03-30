@@ -399,6 +399,43 @@ func (c *cmdMockFrame) HandleCommand(cmd int, args any) bool {
 	if c.onCmd != nil { return c.onCmd(cmd, args) }
 	return false
 }
+func (c *cmdMockFrame) HandleBroadcast(cmd int, args any) bool {
+	if c.onCmd != nil { return c.onCmd(cmd, args) }
+	return false
+}
+
+func TestFrameManager_Broadcast(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+
+	count1 := 0
+	f1 := &cmdMockFrame{onCmd: func(cmd int, args any) bool { count1++; return true }}
+
+	count2 := 0
+	f2 := &cmdMockFrame{onCmd: func(cmd int, args any) bool { count2++; return true }}
+
+	// Помещаем фреймы в разные экраны
+	fm.Push(f1)           // Screen 0
+	fm.AddScreen(f2)      // Screen 1
+
+	// Посылаем бродкаст
+	fm.Broadcast(777, nil)
+
+	if count1 != 1 || count2 != 1 {
+		t.Errorf("Broadcast failed to reach all frames. F1: %d, F2: %d", count1, count2)
+	}
+}
+
+func TestFrameManager_BroadcastWithItems(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewScreenBuf())
+
+	//win := NewWindow(0,0,10,10, "BroadcastTarget")
+
+	//itemHandled := false
+	//edit := NewEdit(1,1,5, "")
+	// Мы еще не реализовали HandleBroadcast в Edit, сделаем это через Id или кастомный тип для теста
+}
 
 func TestFrameManager_CommandBubbling(t *testing.T) {
 	fm := &frameManager{}

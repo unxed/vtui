@@ -430,6 +430,15 @@ func (bw *BaseWindow) HandleCommand(cmd int, args any) bool {
 	// 3. Bubble up to BaseFrame (which bubbles to owner)
 	return bw.BaseFrame.HandleCommand(cmd, args)
 }
+func (bw *BaseWindow) HandleBroadcast(cmd int, args any) bool {
+	handled := false
+	for _, item := range bw.items {
+		if item.HandleBroadcast(cmd, args) {
+			handled = true
+		}
+	}
+	return handled
+}
 
 func (bw *BaseWindow) HasShadow() bool { return true }
 // SetData populates UI elements from a struct using field names or `vtui` tags.

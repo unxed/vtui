@@ -36,6 +36,7 @@ type Frame interface {
 	HasShadow() bool
 	GetKeyLabels() *KeySet
 	HandleCommand(cmd int, args any) bool // Turbo Vision style command routing
+	HandleBroadcast(cmd int, args any) bool
 
 	// MDI Methods
 	GetMenuBar() *MenuBar
@@ -317,6 +318,26 @@ func (fm *frameManager) Flash() {
 
 	fm.scr.SetOverlayMode(prevOverlay)
 	fm.Redraw()
+}
+
+// Broadcast sends a command to ALL frames in ALL screens, bypassing focus and modality.
+// Returns true if at least one element handled the broadcast.
+func (fm *frameManager) Broadcast(cmd int, args any) bool {
+	if fm.Screens == nil {
+		return false
+	}
+	handled := false
+	for _, s := range fm.Screens {
+		for i := len(s.Frames) - 1; i >= 0; i-- {
+			if s.Frames[i].HandleBroadcast(cmd, args) {
+				handled = true
+			}
+		}
+	}
+	if handled {
+		fm.Redraw()
+	}
+	return handled
 }
 
 // RequestFocus moves the given frame to the top of the stack (brings it to front).

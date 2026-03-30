@@ -43,3 +43,7 @@ func (bf *BaseFrame) HandleCommand(cmd int, args any) bool {
 	}
 	return false
 }
+
+func (bf *BaseFrame) HandleBroadcast(cmd int, args any) bool {
+	return bf.ScreenObject.HandleBroadcast(cmd, args)
+}
