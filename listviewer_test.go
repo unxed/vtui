@@ -46,3 +46,19 @@ func TestListViewer_MoveRelative(t *testing.T) {
 	lv.MoveRelative(-10)
 	if lv.SelectPos != 0 { t.Errorf("MoveRelative underflow failed, got %d", lv.SelectPos) }
 }
+
+func TestListViewer_BoundaryChecks(t *testing.T) {
+	lv := &ListViewer{ItemCount: 5, ViewHeight: 10}
+
+	// SetSelectPos beyond ItemCount
+	lv.SetSelectPos(100)
+	if lv.SelectPos != 4 {
+		t.Errorf("SetSelectPos should clamp to ItemCount-1, got %d", lv.SelectPos)
+	}
+
+	// SetSelectPos below 0
+	lv.SetSelectPos(-100)
+	if lv.SelectPos != 0 {
+		t.Errorf("SetSelectPos should clamp to 0, got %d", lv.SelectPos)
+	}
+}

@@ -100,13 +100,16 @@ func DrawScrollBar(scr *ScreenBuf, x, y, length int, topItem, itemsCount int, at
 	scr.Write(x, y+length-1, []CharInfo{{Char: uint64(ScrollDownArrow), Attributes: attr}})
 
 	return true
-}// ScrollBar is a standalone UIElement for scrolling (analogous to TScrollBar).
+}
+
+// ScrollBar is a standalone UIElement for scrolling (analogous to TScrollBar).
 type ScrollBar struct {
 	ScreenObject
 	Value    int
 	Min, Max int
 	PgStep   int
 	OnScroll func(int)
+	dragging bool
 }
 
 func NewScrollBar(x, y, h int) *ScrollBar {
@@ -126,22 +129,66 @@ func (sb *ScrollBar) Show(scr *ScreenBuf) {
 	if h < 2 || sb.Max <= sb.Min { return }
 
 	attr := Palette[ColTableBox]
-	// Using itemsCount calculation: maxTop = total - viewHeight => total = maxTop + viewHeight
 	DrawScrollBar(scr, sb.X1, sb.Y1, h, sb.Value, sb.Max+h, attr)
 }
 
 func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
-	if e.ButtonState != vtinput.FromLeft1stButtonPressed || !e.KeyDown { return false }
-	my := int(e.MouseY)
+	if e.Type != vtinput.MouseEventType { return false }
+
 	h := sb.Y2 - sb.Y1 + 1
-	if my == sb.Y1 { sb.scroll(sb.Value - 1) } else if my == sb.Y2 { sb.scroll(sb.Value + 1) } else {
-		if my < sb.Y1+h/2 { sb.scroll(sb.Value - sb.PgStep) } else { sb.scroll(sb.Value + sb.PgStep) }
+	if h < 2 { return false }
+	trackLen := h - 2
+	my := int(e.MouseY)
+
+	// Release drag
+	if e.ButtonState == 0 {
+		sb.dragging = false
+		return false
 	}
-	return true
+
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed {
+		if e.KeyDown {
+			// Clicked on arrows
+			if my == sb.Y1 { sb.scroll(sb.Value - 1); return true }
+			if my == sb.Y2 { sb.scroll(sb.Value + 1); return true }
+
+			// Detect click on thumb vs track
+			cPos, cLen := CalcScrollBar(h, sb.Value, sb.Max+h)
+			relY := my - sb.Y1 - 1
+			if relY >= cPos && relY < cPos+cLen {
+				sb.dragging = true
+			} else {
+				if relY < cPos { sb.scroll(sb.Value - sb.PgStep) } else { sb.scroll(sb.Value + sb.PgStep) }
+			}
+			return true
+		} else if sb.dragging {
+			// Dragging logic: map Y to Value
+			relY := my - sb.Y1 - 1
+			if relY < 0 { relY = 0 }
+			if relY >= trackLen { relY = trackLen - 1 }
+
+			// Approximate mapping
+			newVal := 0
+			if trackLen > 1 {
+				newVal = (relY * sb.Max) / (trackLen - 1)
+			}
+			sb.scroll(newVal)
+			return true
+		}
+	}
+	return false
 }
 
 func (sb *ScrollBar) scroll(v int) {
 	if v < sb.Min { v = sb.Min }
 	if v > sb.Max { v = sb.Max }
-	if v != sb.Value && sb.OnScroll != nil { sb.OnScroll(v) }
+	if v != sb.Value {
+		sb.Value = v
+		if sb.OnScroll != nil {
+			sb.OnScroll(v)
+		}
+	}
+}
+func (sb *ScrollBar) IsDragging() bool {
+	return sb.dragging
 }
