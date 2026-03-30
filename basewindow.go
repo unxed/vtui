@@ -278,15 +278,20 @@ func (bw *BaseWindow) ToggleZoom() {
 
 func (bw *BaseWindow) changeFocus(direction int) {
 	if len(bw.items) == 0 { return }
-	if bw.focusIdx != -1 {
+	
+	// If starting from scratch, decide where to begin checking
+	if bw.focusIdx == -1 {
+		if direction > 0 {
+			bw.focusIdx = len(bw.items) - 1
+		} else {
+			bw.focusIdx = 0
+		}
+	} else {
 		bw.items[bw.focusIdx].SetFocus(false)
 	}
 
-	// Determine starting point for the cycle check
+	// Determine starting point for the cycle check (where we started before movement)
 	startIdx := bw.focusIdx
-	if startIdx == -1 {
-		startIdx = 0
-	}
 
 	for {
 		bw.focusIdx += direction
@@ -408,14 +413,7 @@ func (bw *BaseWindow) MoveRelative(dx, dy int) {
 
 // HandleCommand implements Turbo Vision style command routing for Windows/Dialogs.
 func (bw *BaseWindow) HandleCommand(cmd int, args any) bool {
-	// 1. Try to pass to the focused UI element first
-	if bw.focusIdx != -1 {
-		if bw.items[bw.focusIdx].HandleCommand(cmd, args) {
-			return true
-		}
-	}
-
-	// 2. Handle standard window commands
+	// 1. Handle standard window commands
 	switch cmd {
 	case CmOK, CmDefault:
 		if !bw.Valid(cmd) {
