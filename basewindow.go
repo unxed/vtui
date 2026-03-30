@@ -3,6 +3,7 @@ package vtui
 import (
 	"fmt"
 	"unicode"
+	"reflect"
 
 	"github.com/unxed/vtinput"
 )
@@ -431,3 +432,63 @@ func (bw *BaseWindow) HandleCommand(cmd int, args any) bool {
 }
 
 func (bw *BaseWindow) HasShadow() bool { return true }
+// SetData populates UI elements from a struct using field names or `vtui` tags.
+func (bw *BaseWindow) SetData(record any) {
+	val := reflect.ValueOf(record)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	if val.Kind() != reflect.Struct {
+		return
+	}
+
+	typ := val.Type()
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldType := typ.Field(i)
+		id := fieldType.Tag.Get("vtui")
+		if id == "" {
+			id = fieldType.Name
+		}
+
+		for _, item := range bw.items {
+			if item.GetId() == id {
+				if dc, ok := item.(DataControl); ok {
+					dc.SetData(field.Interface())
+				}
+				break
+			}
+		}
+	}
+}
+
+// GetData populates a struct from UI elements using field names or `vtui` tags.
+func (bw *BaseWindow) GetData(record any) {
+	val := reflect.ValueOf(record)
+	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+		return
+	}
+	val = val.Elem()
+	typ := val.Type()
+
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldType := typ.Field(i)
+		id := fieldType.Tag.Get("vtui")
+		if id == "" {
+			id = fieldType.Name
+		}
+
+		for _, item := range bw.items {
+			if item.GetId() == id {
+				if dc, ok := item.(DataControl); ok {
+					itemVal := reflect.ValueOf(dc.GetData())
+					if itemVal.Type().AssignableTo(field.Type()) {
+						field.Set(itemVal)
+					}
+				}
+				break
+			}
+		}
+	}
+}

@@ -14,11 +14,19 @@ type ScreenObject struct {
 	helpTopic      string
 	growMode       GrowMode
 	hotkey         rune
+	Id             string
 }
 
 // GetHotkey returns the assigned hotkey rune for the object.
 func (so *ScreenObject) GetHotkey() rune {
 	return so.hotkey
+}
+func (so *ScreenObject) GetId() string {
+	return so.Id
+}
+
+func (so *ScreenObject) SetId(id string) {
+	so.Id = id
 }
 func (so *ScreenObject) SetGrowMode(gm GrowMode) {
 	so.growMode = gm

@@ -132,6 +132,15 @@ func (e *Edit) SetText(text string) {
 	e.selStart = -1
 	e.selAnchor = -1
 }
+func (e *Edit) GetData() any {
+	return e.GetText()
+}
+
+func (e *Edit) SetData(val any) {
+	if s, ok := val.(string); ok {
+		e.SetText(s)
+	}
+}
 // InsertString inserts text at the current cursor position.
 func (e *Edit) InsertString(text string) {
 	if e.selStart != -1 {

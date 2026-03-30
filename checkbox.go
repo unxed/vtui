@@ -83,3 +83,19 @@ func (cb *Checkbox) Toggle() {
 		}
 	}
 }
+
+func (cb *Checkbox) GetData() any {
+	return cb.State
+}
+
+func (cb *Checkbox) SetData(val any) {
+	if i, ok := val.(int); ok {
+		cb.State = i
+	} else if b, ok := val.(bool); ok {
+		if b {
+			cb.State = 1
+		} else {
+			cb.State = 0
+		}
+	}
+}

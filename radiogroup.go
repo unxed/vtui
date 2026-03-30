@@ -107,6 +107,16 @@ func (rg *RadioGroup) DisplayObject(scr *ScreenBuf) {
 	}
 }
 
+func (rg *RadioGroup) GetData() any {
+	return rg.Selected
+}
+
+func (rg *RadioGroup) SetData(val any) {
+	if i, ok := val.(int); ok {
+		rg.Selected = i
+	}
+}
+
 func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 	if !e.KeyDown {
 		return false

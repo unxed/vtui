@@ -110,3 +110,44 @@ func TestDialog_ArrowKeyNavigationFallback(t *testing.T) {
 		t.Errorf("VK_UP did not move focus to prev element, got index %d", d.focusIdx)
 	}
 }
+
+func TestBaseWindow_DataMapping_EdgeCases(t *testing.T) {
+	bw := NewBaseWindow(0, 0, 10, 10, "Edge Case Test")
+	edit := NewEdit(0, 0, 5, "")
+	edit.SetId("field1")
+	bw.AddItem(edit)
+
+	// 1. SetData с некорректными типами (не должно паниковать)
+	bw.SetData(nil)
+	bw.SetData("not a struct")
+	bw.SetData(42)
+
+	// 2. GetData в не-указатель или не-структуру
+	var target string
+	bw.GetData(target) // Не указатель
+	bw.GetData(&target) // Указатель не на структуру
+
+	// 3. Несовпадение типов данных
+	type WrongTypeStruct struct {
+		Field1 int `vtui:"field1"` // В UI это Edit (string), а тут int
+	}
+	wrong := WrongTypeStruct{Field1: 123}
+	bw.SetData(wrong) // Должно просто проигнорировать, так как int не string
+	if edit.GetText() != "" {
+		t.Error("SetData should ignore value when types are incompatible")
+	}
+
+	edit.SetText("NotANumber")
+	var result WrongTypeStruct
+	bw.GetData(&result) // Не должно упасть, просто не запишет значение
+	if result.Field1 != 0 {
+		t.Error("GetData should not set field when types are incompatible")
+	}
+
+	// 4. Отсутствие ID
+	type MissingIdStruct struct {
+		UnknownField string `vtui:"no_such_id"`
+	}
+	missing := MissingIdStruct{UnknownField: "val"}
+	bw.SetData(missing) // Ничего не должно произойти
+}

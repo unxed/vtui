@@ -16,18 +16,21 @@ type CheckGroup struct {
 	colWidths []int
 }
 
-// GetData returns bitmask of states (TV style)
-func (cg *CheckGroup) GetData() uint32 {
+func (cg *CheckGroup) GetData() any {
 	var mask uint32
 	for i, s := range cg.States {
-		if s { mask |= (1 << i) }
+		if s {
+			mask |= (1 << i)
+		}
 	}
 	return mask
 }
 
-func (cg *CheckGroup) SetData(mask uint32) {
-	for i := range cg.States {
-		cg.States[i] = (mask & (1 << i)) != 0
+func (cg *CheckGroup) SetData(val any) {
+	if mask, ok := val.(uint32); ok {
+		for i := range cg.States {
+			cg.States[i] = (mask & (1 << i)) != 0
+		}
 	}
 }
 
