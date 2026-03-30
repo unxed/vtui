@@ -230,3 +230,83 @@ func TestRegexValidator(t *testing.T) {
 	if v.Validate("123") { t.Error("Regex should not match numbers") }
 	if v.Validate("ABC") { t.Error("Regex should be case sensitive") }
 }
+func TestIntRangeValidator_EdgeCases(t *testing.T) {
+	v := &IntRangeValidator{Min: 0, Max: 100}
+
+	// 1. Non-numeric input
+	if v.Validate("abc") { t.Error("IntRange should not validate non-numeric strings") }
+	if v.Validate("") { t.Error("IntRange should not validate empty strings") }
+
+	// 2. Out of bounds
+	if v.Validate("-1") { t.Error("Below min") }
+	if v.Validate("101") { t.Error("Above max") }
+}
+
+func TestBaseWindow_Validation_Recursive(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewScreenBuf())
+	defer fm.Shutdown()
+
+	dlg := NewDialog(0, 0, 40, 10, "Multi Validation")
+	e1 := NewEdit(1, 1, 10, "valid")
+	e1.Validator = &RegexValidator{Pattern: "^valid$"}
+	e2 := NewEdit(1, 2, 10, "invalid")
+	e2.Validator = &RegexValidator{Pattern: "^valid$"}
+
+	dlg.AddItem(e1)
+	dlg.AddItem(e2)
+	fm.Push(dlg)
+
+	// Should be invalid because e2 is invalid
+	if dlg.Valid(CmOK) {
+		t.Error("Dialog should be invalid if ANY item is invalid")
+	}
+}
+
+func TestBaseWindow_Validation_CmDefault(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewScreenBuf())
+	defer fm.Shutdown()
+
+	dlg := NewDialog(0, 0, 20, 5, "Enter Test")
+	edit := NewEdit(1, 1, 10, "wrong")
+	edit.Validator = &RegexValidator{Pattern: "^correct$"}
+	dlg.AddItem(edit)
+	fm.Push(dlg)
+
+	// CmDefault is usually triggered by Enter
+	handled := dlg.HandleCommand(CmDefault, nil)
+
+	if !handled { t.Error("CmDefault should be consumed") }
+	if dlg.IsDone() { t.Error("CmDefault should be blocked by validation") }
+}
+
+func TestValidators_ErrorUI(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewScreenBuf())
+	defer fm.Shutdown()
+
+	dlg := NewDialog(0, 0, 20, 5, "Target")
+	fm.Push(dlg)
+
+	initialFrames := len(fm.frames)
+
+	// Trigger error on IntRange
+	iv := &IntRangeValidator{Min: 1, Max: 10}
+	iv.Error(dlg)
+
+	if len(fm.frames) <= initialFrames {
+		t.Error("IntRangeValidator.Error() did not push a message box")
+	}
+
+	// Trigger error on Regex
+	rv := &RegexValidator{ErrorMessage: "Custom Error"}
+	rv.Error(dlg)
+
+	if len(fm.frames) <= initialFrames+1 {
+		t.Error("RegexValidator.Error() did not push a message box")
+	}
+}
