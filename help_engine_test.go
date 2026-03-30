@@ -61,3 +61,23 @@ Welcome to the intro.
 		t.Error("IntroTopic parsing failed")
 	}
 }
+
+func TestHelpEngine_Parsing_Complex(t *testing.T) {
+	memVfs := vfs.NewOSVFS(t.TempDir())
+	engine := NewHelpEngine(memVfs)
+
+	// Test multiple links on one line and nested formatting
+	topic := &HelpTopic{Name: "Test"}
+	line := "See ~Link 1~T1@ and ~Link 2~T2@. Also #~Link In Bold~T3@#"
+	engine.parseLinks(topic, line, 0)
+
+	if len(topic.Links) != 3 {
+		t.Fatalf("Expected 3 links, got %d", len(topic.Links))
+	}
+	if topic.Links[0].Text != "Link 1" || topic.Links[1].Target != "T2" {
+		t.Error("Link text or target extraction failed")
+	}
+	if topic.Links[2].Text != "Link In Bold" {
+		t.Error("Link inside bold markers failed")
+	}
+}

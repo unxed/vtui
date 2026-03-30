@@ -147,18 +147,28 @@ func (hv *HelpView) renderLine(scr *ScreenBuf, x, y int, line string, width int,
 }
 
 func (hv *HelpView) ProcessKey(e *vtinput.InputEvent) bool {
-	if hv.BaseWindow.ProcessKey(e) { return true }
-	if !e.KeyDown { return false }
+	if !e.KeyDown {
+		// Pass Focus events to BaseWindow
+		return hv.BaseWindow.ProcessKey(e)
+	}
 
+	// 1. Handle Help-specific navigation BEFORE BaseWindow focus cycling
 	switch e.VirtualKeyCode {
 	case vtinput.VK_TAB:
+		if len(hv.current.Links) == 0 {
+			return hv.BaseWindow.ProcessKey(e)
+		}
 		shift := (e.ControlKeyState & vtinput.ShiftPressed) != 0
 		if shift {
 			hv.selectedIdx--
-			if hv.selectedIdx < 0 { hv.selectedIdx = len(hv.current.Links) - 1 }
+			if hv.selectedIdx < 0 {
+				hv.selectedIdx = len(hv.current.Links) - 1
+			}
 		} else {
 			hv.selectedIdx++
-			if hv.selectedIdx >= len(hv.current.Links) { hv.selectedIdx = 0 }
+			if hv.selectedIdx >= len(hv.current.Links) {
+				hv.selectedIdx = 0
+			}
 		}
 		hv.ensureLinkVisible()
 		return true
@@ -174,15 +184,21 @@ func (hv *HelpView) ProcessKey(e *vtinput.InputEvent) bool {
 		return true
 
 	case vtinput.VK_UP:
-		if hv.scrollTop > 0 { hv.scrollTop-- }
+		if hv.scrollTop > 0 {
+			hv.scrollTop--
+		}
 		return true
+
 	case vtinput.VK_DOWN:
-		if hv.scrollTop < len(hv.current.Lines)-hv.Y2+hv.Y1-hv.current.StickyRows {
+		// Height available for scrolling content (Window height - 2 borders - sticky rows)
+		viewHeight := (hv.Y2 - hv.Y1 + 1) - 2 - hv.current.StickyRows
+		if hv.scrollTop < (len(hv.current.Lines)-hv.current.StickyRows)-viewHeight {
 			hv.scrollTop++
 		}
 		return true
 	}
-	return false
+
+	return hv.BaseWindow.ProcessKey(e)
 }
 
 func (hv *HelpView) ensureLinkVisible() {
