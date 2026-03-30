@@ -283,9 +283,17 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 	headerOffset := map[bool]int{true: 1, false: 0}[t.ShowHeader]
 
 	if e.WheelDirection != 0 {
-		if e.WheelDirection > 0 && t.TopPos > 0 { t.TopPos-- }
-		if e.WheelDirection < 0 && t.TopPos < len(t.Rows)-t.ViewHeight { t.TopPos++ }
-		return true
+		if e.WheelDirection > 0 {
+			if t.TopPos > 0 {
+				t.TopPos--
+				return true
+			}
+		} else {
+			if t.TopPos < len(t.Rows)-t.ViewHeight {
+				t.TopPos++
+				return true
+			}
+		}
 	}
 
 	if e.ButtonState != 0 && e.KeyDown {

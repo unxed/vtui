@@ -244,9 +244,17 @@ func (t *TreeView) ProcessKey(e *vtinput.InputEvent) bool {
 func (t *TreeView) ProcessMouse(e *vtinput.InputEvent) bool {
 	if t.IsDisabled() || e.Type != vtinput.MouseEventType || len(t.flatNodes) == 0 { return false }
 	if e.WheelDirection != 0 {
-		if e.WheelDirection > 0 && t.TopPos > 0 { t.TopPos-- }
-		if e.WheelDirection < 0 && t.TopPos < len(t.flatNodes)-t.ViewHeight { t.TopPos++ }
-		return true
+		if e.WheelDirection > 0 {
+			if t.TopPos > 0 {
+				t.TopPos--
+				return true
+			}
+		} else {
+			if t.TopPos < len(t.flatNodes)-t.ViewHeight {
+				t.TopPos++
+				return true
+			}
+		}
 	}
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
