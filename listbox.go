@@ -15,12 +15,15 @@ type ListBox struct {
 	OnAction   func(int)
 
 	ColorTextIdx         int
+	MultiSelect bool
+	SelectedMap map[int]bool
 	ColorSelectedTextIdx int
 }
 
 func NewListBox(x, y, w, h int, items []string) *ListBox {
 	lb := &ListBox{
 		Items:                items,
+		SelectedMap:          make(map[int]bool),
 		ColorTextIdx:         ColTableText,
 		ColorSelectedTextIdx: ColTableSelectedText,
 	}
@@ -29,6 +32,13 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 	return lb
 }
 
+func (lb *ListBox) GetSelectedIndices() []int {
+	var res []int
+	for i := range lb.Items {
+		if lb.SelectedMap[i] { res = append(res, i) }
+	}
+	return res
+}
 func (lb *ListBox) Show(scr *ScreenBuf) {
 	lb.ScreenObject.Show(scr)
 	lb.DisplayObject(scr)
@@ -50,8 +60,18 @@ func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 		currY := lb.Y1 + i
 
 		attr := colText
+		isSelected := lb.SelectedMap[idx]
+
+		if isSelected {
+			attr = Palette[ColDialogHighlightText] // Use highlight for selected items
+		}
+
 		if idx == lb.SelectPos && lb.IsFocused() {
-			attr = colSel
+			if isSelected {
+				attr = Palette[ColDialogHighlightSelectedButton]
+			} else {
+				attr = colSel
+			}
 		}
 
 		if idx < len(lb.Items) {
@@ -83,6 +103,15 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 	oldPos := lb.SelectPos
 
 	switch e.VirtualKeyCode {
+	case vtinput.VK_SPACE, vtinput.VK_INSERT:
+		if lb.MultiSelect {
+			lb.SelectedMap[lb.SelectPos] = !lb.SelectedMap[lb.SelectPos]
+			if e.VirtualKeyCode == vtinput.VK_INSERT && lb.SelectPos < len(lb.Items)-1 {
+				lb.SelectPos++
+				lb.EnsureVisible()
+			}
+			return true
+		}
 	case vtinput.VK_UP:
 		if lb.SelectPos > 0 { lb.SelectPos-- }
 	case vtinput.VK_RETURN:

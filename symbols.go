@@ -17,6 +17,8 @@ var boxSymbols = []rune{
 	'╟', '╢',
 	// Button brackets (24-25)
 	'[', ']',
+	// Separator connectors for Single Box (26-27)
+	'╟', '╢',
 }
 
 const (

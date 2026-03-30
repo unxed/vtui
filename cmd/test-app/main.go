@@ -106,7 +106,7 @@ func main() {
 	vtui.FrameManager.KeyBar = kb
 
 	// --- Comprehensive Window ---
-	baseWin := vtui.NewWindow(0, 0, 63, 25, " vtui demo ")
+	baseWin := vtui.NewWindow(0, 0, 75, 28, " vtui demo ")
 	baseWin.ShowClose = true
 	baseWin.Center(width, height)
 
@@ -115,17 +115,18 @@ func main() {
 	x1, y1 := dlg.X1, dlg.Y1
 
 	// LEFT: Input & Options
-	dlg.AddItem(vtui.NewLabel(x1+2, y1+2, "Select &mode:", nil))
-	rb1 := vtui.NewRadioButton(x1+4, y1+3, "&Fast and Dangerous")
-	rb1.Selected = true
-	dlg.AddItem(rb1)
-	dlg.AddItem(vtui.NewRadioButton(x1+4, y1+4, "Slow and &Stable"))
+	dlg.AddItem(vtui.NewGroupBox(x1+2, y1+1, x1+35, y1+5, "Execution Mode"))
 
-	combo := vtui.NewComboBox(x1+13, y1+6, 16, []string{"UTF-8", "CP866", "Win-1251"})
-	dlg.AddItem(vtui.NewLabel(x1+2, y1+6, "&Encoding:", combo))
+	modes := []string{"&Fast and Dangerous", "Slow and &Stable"}
+	rg := vtui.NewRadioGroup(x1+4, y1+2, 1, modes)
+	dlg.AddItem(vtui.NewLabel(x1+3, y1+1, "&Mode:", rg)) // Link hotkey 'M' to the group
+	dlg.AddItem(rg)
+
+	combo := vtui.NewComboBox(x1+14, y1+7, 16, []string{"UTF-8", "CP866", "Win-1251"})
+	dlg.AddItem(vtui.NewLabel(x1+2, y1+7, "&Encoding:", combo))
 	dlg.AddItem(combo)
 
-	cmdEdit := vtui.NewEdit(x1+13, y1+8, 16, "ls -la")
+	cmdEdit := vtui.NewEdit(x1+14, y1+9, 16, "ls -la")
 	cmdEdit.History = []string{"git status", "go build", "rm -rf /", "ls -la"}
 	cmdEdit.ShowHistoryButton = true
 	cmdEdit.SetHelp("edit")
@@ -136,17 +137,23 @@ func main() {
 		}
 		vtui.ShowMessage(" Execute ", "Command added to history:\n"+text, []string{"&Ok"})
 	}
-	dlg.AddItem(vtui.NewLabel(x1+2, y1+8, "&Command:", cmdEdit))
+	dlg.AddItem(vtui.NewLabel(x1+2, y1+9, "&Command:", cmdEdit))
 	dlg.AddItem(cmdEdit)
 
+	cb3 := vtui.NewCheckbox(x1+2, y1+11, "3-s&tate Checkbox", true)
+	cb3.State = 2 // Demo 3-state
+	dlg.AddItem(cb3)
+
 	// RIGHT: Operations & List
-	dlg.AddItem(vtui.NewVText(x1+30, y1+2, "│CORE│", vtui.Palette[vtui.ColDialogText]))
-	dlg.AddItem(vtui.NewLabel(x1+34, y1+2, "S&ettings:", nil))
-	dlg.AddItem(vtui.NewCheckbox(x1+36, y1+3, "Enable &AI", false))
-	dlg.AddItem(vtui.NewCheckbox(x1+36, y1+4, "A&uto-update", true))
+	dlg.AddItem(vtui.NewVText(x1+37, y1+2, "│CORE│", vtui.Palette[vtui.ColDialogText]))
+
+	dlg.AddItem(vtui.NewGroupBox(x1+40, y1+1, x1+73, y1+5, "Features"))
+	cg := vtui.NewCheckGroup(x1+42, y1+2, 2, []string{"Enable &AI", "A&uto-upd", "&Logging", "&Debug"})
+	cg.States[1] = true // auto-update enabled by default
+	dlg.AddItem(cg)
 
 	opMenu := vtui.NewVMenu(" Operations ")
-	opMenu.SetPosition(x1+34, y1+6, x1+58, y1+11) // Height of 5 lines
+	opMenu.SetPosition(x1+40, y1+7, x1+64, y1+12) // Height of 5 lines
 	opMenu.AddItem(vtui.MenuItem{Text: "&Copy File", Command: vtui.CmCopy})
 	opMenu.AddItem(vtui.MenuItem{Text: "&Move File"})
 	opMenu.AddSeparator()
@@ -154,17 +161,15 @@ func main() {
 	opMenu.AddItem(vtui.MenuItem{Text: "&Attributes"})
 	dlg.AddItem(opMenu)
 
-	recentFiles := []string{"main.go", "edit.go", "dialog.go", "table.go", "pty.go", "vfs.go", "sum.go"}
-	lb := vtui.NewListBox(x1+34, y1+13, 24, 3, recentFiles)
-	dlg.AddItem(vtui.NewLabel(x1+34, y1+12, "&Recent:", lb))
-	dlg.AddItem(lb)
+	// FULL WIDTH SEPARATOR
+	dlg.AddItem(vtui.NewSeparator(x1, y1+14, 76, true, true))
 
 	// CENTER: Table
 	tableCols := []vtui.TableColumn{
-		{Title: "Filename", Width: 35},
+		{Title: "Filename", Width: 48},
 		{Title: "Size", Width: 12, Alignment: vtui.AlignRight},
 	}
-	table := vtui.NewTable(x1+2, y1+17, 58, 5, tableCols)
+	table := vtui.NewTable(x1+2, y1+16, 72, 7, tableCols)
 	table.SetRows([]vtui.TableRow{
 		fileRow{"README.md", "2 KB"},
 		fileRow{"LICENSE", "1 KB"},
@@ -176,29 +181,29 @@ func main() {
 	dlg.AddItem(table)
 
 	// BOTTOM: Buttons
-	btnOk := vtui.NewButton(x1+12, y1+23, "&Ok")
+	btnOk := vtui.NewButton(x1+16, y1+25, "&Ok")
 	btnOk.OnClick = func() { dlg.SetExitCode(0); desktop.SetExitCode(0) }
 	btnOk.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
-	btnMsg := vtui.NewButton(x1+24, y1+23, "Show &Msg")
+	btnMsg := vtui.NewButton(x1+28, y1+25, "Show &Msg")
 	btnMsg.OnClick = func() {
 		vtui.ShowMessage(" MessageBox ", "Resizing is enabled!\nGrab the bottom-right corner.", []string{"&Got it"})
 	}
 	btnMsg.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
-	btnDir := vtui.NewButton(x1+36, y1+23, "&Dir")
+	btnDir := vtui.NewButton(x1+40, y1+25, "&Dir")
 	btnDir.OnClick = func() {
 		vtui.SelectDirDialog(" Choose Directory ", ".", &localVFS{path: "."})
 	}
 	btnDir.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
-	btnFile := vtui.NewButton(x1+44, y1+23, "&File")
+	btnFile := vtui.NewButton(x1+48, y1+25, "&File")
 	btnFile.OnClick = func() {
 		vtui.SelectFileDialog(" Open File ", ".", &localVFS{path: "."})
 	}
 	btnFile.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
-	btnInp := vtui.NewButton(x1+52, y1+23, "&Inp")
+	btnInp := vtui.NewButton(x1+56, y1+25, "&Inp")
 	btnInp.OnClick = func() {
 		vtui.InputBox(" Question ", "What is your name?", "Explorer", func(s string) {
 			vtui.ShowMessage(" Reply ", "Hello, "+s+"!", []string{"&Hi"})
