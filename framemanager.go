@@ -114,6 +114,10 @@ type frameManager struct {
 	switcherActive   bool
 	switcherIdx      int
 	running          bool
+
+	lastMouseClickTime time.Time
+	lastMouseX, lastMouseY int
+	lastMouseButton uint32
 }
 
 // FrameManager is the global instance of the frame manager.
@@ -840,6 +844,21 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 				return
 			}
 
+			// Generate DoubleClick flag from sequence of clicks
+			if ev.Type == vtinput.MouseEventType && ev.ButtonState != 0 && ev.KeyDown {
+				now := time.Now()
+				if ev.ButtonState == fm.lastMouseButton && int(ev.MouseX) == fm.lastMouseX && int(ev.MouseY) == fm.lastMouseY && now.Sub(fm.lastMouseClickTime) < 400*time.Millisecond {
+					ev.MouseEventFlags |= vtinput.DoubleClick
+					fm.lastMouseButton = 0 // prevent triple click
+					DebugLog("FM: DoubleClick generated at (%d,%d)", ev.MouseX, ev.MouseY)
+				} else {
+					fm.lastMouseButton = ev.ButtonState
+					fm.lastMouseX = int(ev.MouseX)
+					fm.lastMouseY = int(ev.MouseY)
+					fm.lastMouseClickTime = now
+				}
+			}
+
 			topFrame := fm.frames[len(fm.frames)-1]
 			activeMenu := fm.GetActiveMenuBar()
 
@@ -903,6 +922,9 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 				handled = topFrame.ProcessKey(ev)
 			} else if ev.Type == vtinput.MouseEventType {
 				mx, my := int(ev.MouseX), int(ev.MouseY)
+				if ev.ButtonState != 0 || ev.WheelDirection != 0 {
+					DebugLog("FM: Mouse Event at (%d,%d) State:%X Wheel:%d", mx, my, ev.ButtonState, ev.WheelDirection)
+				}
 
 				// 3.1. Active Mouse Capture (Dragging/Resizing)
 				if fm.capturedFrame != nil {
@@ -926,6 +948,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 
 						x1, y1, x2, y2 := f.GetPosition()
 						if mx >= x1 && mx <= x2+2 && my >= y1 && my <= y2+1 {
+							DebugLog("FM: Hit-test SUCCESS for frame %d type %d. Pos: (%d,%d)-(%d,%d)", i, f.GetType(), x1, y1, x2, y2)
 							// Click is within this frame (or its shadow)
 							if i != len(fm.frames)-1 {
 								// Try to bring it to front before passing the event
@@ -946,9 +969,14 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 							if f.IsModal() || handled {
 								break
 							}
-						} else if f.IsModal() {
-							// Clicked outside a modal dialog. We must NOT pass it to windows below.
-							// Optionally, we could emit a beep here.
+						} else {
+							// For troubleshooting sizing issues
+							if ev.ButtonState != 0 {
+								// DebugLog("FM: Hit-test miss for frame %d type %d. Bounds: (%d,%d)-(%d,%d)", i, f.GetType(), x1, y1, x2, y2)
+							}
+						}
+
+						if f.IsModal() {
 							break
 						}
 					}
