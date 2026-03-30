@@ -20,172 +20,120 @@ type MenuItem struct {
 // VMenu implements a vertical menu with navigation support.
 type VMenu struct {
 	ScreenObject
-	title     string
-	items     []MenuItem
-	done      bool
-	exitCode  int
-	OnSelect  func(int)
-	OnClose   func()
-	OnLeft    func()
-	OnRight   func()
-	selectPos int // Selected item index
-	topPos    int // Index of the first visible item (for scrolling)
+	ListViewer
+	title      string
+	items      []MenuItem
+	done       bool
+	exitCode   int
+	OnSelect   func(int)
+	OnClose    func()
+	OnLeft     func()
+	OnRight    func()
 	HideShadow bool
+	ScrollBar  *ScrollBar
 }
 
 // NewVMenu creates a new vertical menu instance.
 func NewVMenu(title string) *VMenu {
 	clean, _, _ := ParseAmpersandString(title)
 	m := &VMenu{
-		title:     clean,
-		items:     []MenuItem{},
-		selectPos: 0,
+		title: clean,
+		items: []MenuItem{},
 	}
 	m.canFocus = true
+	m.ScrollBar = NewScrollBar(0, 0, 0)
+	m.ScrollBar.OnScroll = func(v int) { m.TopPos = v }
 	return m
+}
+
+func (m *VMenu) SetPosition(x1, y1, x2, y2 int) {
+	m.ScreenObject.SetPosition(x1, y1, x2, y2)
+	m.ViewHeight = y2 - y1 - 1
+	if m.ScrollBar == nil {
+		m.ScrollBar = NewScrollBar(m.X2, m.Y1+1, m.ViewHeight)
+		m.ScrollBar.OnScroll = func(v int) { m.TopPos = v }
+	} else {
+		m.ScrollBar.SetPosition(m.X2, m.Y1+1, m.X2, m.Y2-1)
+	}
 }
 
 // AddItem adds a new item to the menu.
 func (m *VMenu) AddItem(item MenuItem) {
 	m.items = append(m.items, item)
-	if len(m.items) == 1 {
-		m.SetSelectPos(0, 1)
-	}
+	m.ItemCount = len(m.items)
+	if len(m.items) == 1 { m.SetSelectPos(0, 1) }
 }
 
 // AddSeparator adds a separator line.
 func (m *VMenu) AddSeparator() {
 	m.items = append(m.items, MenuItem{Separator: true})
-}
-// GetItemCount returns the number of items (including separators) in the menu.
-func (m *VMenu) GetItemCount() int {
-	return len(m.items)
+	m.ItemCount = len(m.items)
 }
 
-// SetSelectPos sets the currently selected item and manages scrolling.
+func (m *VMenu) GetItemCount() int { return len(m.items) }
+
+// SetSelectPos sets the currently selected item, skipping separators.
 func (m *VMenu) SetSelectPos(pos int, direct int) {
-	count := len(m.items)
-	if count == 0 { return }
-
+	if m.ItemCount == 0 { return }
 	newPos := pos
-	if newPos < 0 { newPos = count - 1 }
-	if newPos >= count { newPos = 0 }
+	if newPos < 0 { newPos = m.ItemCount - 1 }
+	if newPos >= m.ItemCount { newPos = 0 }
 
-	// Skip separators
 	if m.items[newPos].Separator {
-		if direct == 0 {
-			direct = 1
-		}
+		if direct == 0 { direct = 1 }
 		searchPos := newPos
-		for i := 0; i < count; i++ {
+		for i := 0; i < m.ItemCount; i++ {
 			if !m.items[searchPos].Separator {
 				newPos = searchPos
 				break
 			}
 			searchPos += direct
-			if searchPos < 0 {
-				searchPos = count - 1
-			} else if searchPos >= count {
-				searchPos = 0
-			}
+			if searchPos < 0 { searchPos = m.ItemCount - 1 } else if searchPos >= m.ItemCount { searchPos = 0 }
 		}
 	}
-	m.selectPos = newPos
-
-	// Scrolling
-	h := m.Y2 - m.Y1 - 1
-	if h <= 0 { return }
-	if m.selectPos < m.topPos {
-		m.topPos = m.selectPos
-	} else if m.selectPos >= m.topPos+h {
-		m.topPos = m.selectPos - h + 1
-	}
+	m.ListViewer.SetSelectPos(newPos)
 }
 
 // ProcessKey processes navigation keys.
 func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
-	if m.IsDisabled() { return false }
-	if e.Type != vtinput.KeyEventType || !e.KeyDown {
-		return false
-	}
-
+	if m.IsDisabled() || !e.KeyDown { return false }
 	switch e.VirtualKeyCode {
-	case vtinput.VK_F1:
-		m.ShowHelp()
-		return true
 	case vtinput.VK_LEFT:
-		if m.OnLeft != nil {
-			m.OnLeft() // Swapping logic is handled by the callback
-			return true
-		}
+		if m.OnLeft != nil { m.OnLeft(); return true }
 	case vtinput.VK_RIGHT:
-		if m.OnRight != nil {
-			m.OnRight()
-			return true
-		}
+		if m.OnRight != nil { m.OnRight(); return true }
 	case vtinput.VK_ESCAPE, vtinput.VK_F10:
-		m.SetExitCode(-1)
-		// If we are pushed as a Frame, we handle the key to prevent bubbling
-		// to background frames (e.g. MenuBar). If we are a widget, bubble up.
-		return FrameManager.GetTopFrame() == Frame(m)
+		m.SetExitCode(-1); return FrameManager.GetTopFrame() == Frame(m)
 	case vtinput.VK_RETURN:
-		if m.selectPos >= 0 && m.selectPos < len(m.items) {
-			item := m.items[m.selectPos]
-			if !item.Separator && FrameManager.DisabledCommands.IsDisabled(item.Command) {
-				return true // Swallow key but do nothing
-			}
-
-			if item.Command != 0 {
-				FrameManager.EmitCommand(item.Command, item.UserData)
-			}
+		if m.SelectPos >= 0 && m.SelectPos < m.ItemCount {
+			item := m.items[m.SelectPos]
+			if !item.Separator && FrameManager.DisabledCommands.IsDisabled(item.Command) { return true }
+			if item.Command != 0 { FrameManager.EmitCommand(item.Command, item.UserData) }
 		}
-
-		if m.OnSelect != nil {
-			m.OnSelect(m.selectPos)
-		}
-		m.SetExitCode(m.selectPos)
-		return true
-
-	case vtinput.VK_UP:
-		m.SetSelectPos(m.selectPos-1, -1)
-		return true
-	case vtinput.VK_DOWN:
-		m.SetSelectPos(m.selectPos+1, 1)
-		return true
-	case vtinput.VK_HOME:
-		m.SetSelectPos(0, 1)
-		return true
-	case vtinput.VK_END:
-		m.SetSelectPos(len(m.items)-1, -1)
-		return true
+		if m.OnSelect != nil { m.OnSelect(m.SelectPos) }
+		m.SetExitCode(m.SelectPos); return true
+	case vtinput.VK_UP: m.SetSelectPos(m.SelectPos-1, -1); return true
+	case vtinput.VK_DOWN: m.SetSelectPos(m.SelectPos+1, 1); return true
+	case vtinput.VK_HOME: m.SetSelectPos(0, 1); return true
+	case vtinput.VK_END: m.SetSelectPos(m.ItemCount-1, -1); return true
+	case vtinput.VK_PRIOR: m.SetSelectPos(m.SelectPos-m.ViewHeight, -1); return true
+	case vtinput.VK_NEXT: m.SetSelectPos(m.SelectPos+m.ViewHeight, 1); return true
 	}
-
-	// Quick jump by hotkey
 	if e.Char != 0 {
 		charLower := unicode.ToLower(e.Char)
 		for i, item := range m.items {
-			if item.Separator {
-				continue
-			}
+			if item.Separator { continue }
 			_, hk, _ := ParseAmpersandString(item.Text)
 			if hk == charLower {
-				if FrameManager.DisabledCommands.IsDisabled(item.Command) {
-					return true // Hotkey for disabled item ignored
-				}
+				if FrameManager.DisabledCommands.IsDisabled(item.Command) { return true }
 				m.SetSelectPos(i, 1)
-				if m.OnSelect != nil {
-					m.OnSelect(i)
-				}
+				if m.OnSelect != nil { m.OnSelect(i) }
 				m.SetExitCode(i)
-
-				if item.Command != 0 {
-					FrameManager.EmitCommand(item.Command, item.UserData)
-				}
+				if item.Command != 0 { FrameManager.EmitCommand(item.Command, item.UserData) }
 				return true
 			}
 		}
 	}
-
 	return false
 }
 
@@ -229,64 +177,35 @@ func (m *VMenu) ClearDone() {
 
 // ProcessMouse handles mouse wheel scrolling and menu item clicks.
 func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
-	if m.IsDisabled() { return false }
-	if e.Type != vtinput.MouseEventType {
-		return false
-	}
+	if m.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
 
-	// Wheel scrolling
-	if e.WheelDirection > 0 {
-		m.SetSelectPos(m.selectPos-1, -1)
-		return true
-	} else if e.WheelDirection < 0 {
-		m.SetSelectPos(m.selectPos+1, 1)
+	if e.WheelDirection != 0 {
+		if e.WheelDirection > 0 { m.SetSelectPos(m.SelectPos-1, -1) } else { m.SetSelectPos(m.SelectPos+1, 1) }
 		return true
 	}
 
-	// Left button click
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
-
-		// Checking whether we fit inside menu frame
-		if mx >= m.X1 && mx <= m.X2 && my >= m.Y1 && my <= m.Y2 {
-			height := m.Y2 - m.Y1 - 1
-
-			// Process scrollbar click
-			if len(m.items) > height && mx == m.X2 {
-				startY := m.Y1 + 1
-				if my == startY {
-					m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
-					return true
-				} else if my == startY+height-1 {
-					m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
-					return true
-				} else if my > startY && my < startY+height-1 {
-					// PageUp / PageDown
-					if my < startY+height/2 {
-						m.SetSelectPos(m.selectPos-height, -1)
-					} else {
-						m.SetSelectPos(m.selectPos+height, 1)
-					}
-					return true
-				}
+		h := m.ViewHeight
+		if mx == m.X2 && m.ItemCount > h {
+			startY := m.Y1 + 1
+			if my == startY { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP}) } else if my == startY+h-1 { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN}) } else {
+				if my < startY+h/2 { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_PRIOR}) } else { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT}) }
 			}
-
-			// Calculation of the index taking into account the presence/absence of a frame
-			offset := 1
-			// TODO: detect NoBox mode properly
-			clickedIdx := m.topPos + (my - m.Y1 - offset)
-			if clickedIdx >= 0 && clickedIdx < len(m.items) && !m.items[clickedIdx].Separator {
-				m.SetSelectPos(clickedIdx, 1)
-				if m.OnSelect != nil {
-					m.OnSelect(clickedIdx)
-				}
-				m.SetExitCode(clickedIdx)
-				return true
-			}
+			return true
+		}
+		
+		clickedIdx := m.TopPos + (my - m.Y1 - 1)
+		if mx >= m.X1 && mx < m.X2 && clickedIdx >= 0 && clickedIdx < m.ItemCount && !m.items[clickedIdx].Separator {
+			m.SetSelectPos(clickedIdx, 1)
+			if m.OnSelect != nil { m.OnSelect(clickedIdx) }
+			m.SetExitCode(clickedIdx)
+			return true
 		}
 	}
 	return false
 }
+
 
 // Show prepares the background and calls the render method.
 func (m *VMenu) Show(scr *ScreenBuf) {
@@ -315,30 +234,25 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	fullWidth := m.X2 - m.X1 + 1
 	interiorWidth := fullWidth - 2
 	height := m.Y2 - m.Y1 - 1
+	if height < 0 { height = 0 }
 
 	colHigh := Palette[ColMenuHighlight]
 	colSelHigh := Palette[ColMenuSelectedHighlight]
 
 	// 3. Rendering items
 	for i := 0; i < height; i++ {
-		itemIdx := i + m.topPos
+		itemIdx := i + m.TopPos
 		currY := m.Y1 + 1 + i
-		if currY >= m.Y2 {
-			break
-		}
-
-		if itemIdx >= len(m.items) {
-			continue
-		}
+		if currY >= m.Y2 { break }
+		if itemIdx >= len(m.items) { continue }
 
 		item := m.items[itemIdx]
 		isDisabled := !item.Separator && FrameManager.DisabledCommands.IsDisabled(item.Command)
 
 		attr := colText
 		if isDisabled {
-			// Gray out the text
 			attr = DimColor(attr)
-		} else if itemIdx == m.selectPos {
+		} else if itemIdx == m.SelectPos {
 			attr = colSel
 		}
 
@@ -370,7 +284,7 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 			fullItemText += shortcutText
 
 			finalHighAttr := colHigh
-			if itemIdx == m.selectPos {
+			if itemIdx == m.SelectPos {
 				finalHighAttr = colSelHigh
 			}
 
@@ -380,8 +294,9 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	}
 
 	// 4. Scrollbar
-	if len(m.items) > height {
-		DrawScrollBar(scr, m.X2, m.Y1+1, height, m.topPos, len(m.items), colBox)
+	if m.ScrollBar != nil && height > 0 && m.ItemCount > height {
+		m.ScrollBar.SetParams(m.TopPos, 0, m.ItemCount-height)
+		m.ScrollBar.Show(scr)
 	}
 }
 

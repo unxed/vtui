@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/unxed/vtinput"
 	"github.com/unxed/vtui"
@@ -115,6 +116,12 @@ func showShowcaseDialog() {
 	btnDisabled := vtui.NewButton(x+29, y+11, "Disabled Btn")
 	btnDisabled.SetDisabled(true)
 	dlg.AddItem(btnDisabled)
+
+	// Bottom: Live clock using DynamicText
+	clock := vtui.NewDynamicText(x+29, y+15, 20, vtui.Palette[vtui.ColDialogText], func() string {
+		return "Time: " + time.Now().Format("15:04:05")
+	})
+	dlg.AddItem(clock)
 
 	// Bottom: Close button
 	btnClose := vtui.NewButton(x+23, y+15, "&Close")

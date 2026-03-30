@@ -115,7 +115,7 @@ func TestVMenu_DisabledCommandVisualsAndLogic(t *testing.T) {
 	}
 
 	// 2. Check Logic: Enter on disabled item
-	m.selectPos = 1
+	m.SelectPos = 1
 	m.done = false
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
 

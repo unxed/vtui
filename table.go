@@ -40,10 +40,9 @@ type MultiColSelectableRow interface {
 // Table is a generic control for displaying tabular data.
 type Table struct {
 	ScreenObject
+	ListViewer
 	Columns        []TableColumn
 	Rows           []TableRow
-	SelectPos      int
-	TopPos         int
 	SelectCol      int
 	CellSelection  bool
 	ShowHeader     bool
@@ -56,35 +55,50 @@ type Table struct {
 	ColorItemSelectCursorIdx int
 	ColorTitleIdx            int
 	ColorBoxIdx              int
+	ScrollBar                *ScrollBar
 }
 
 func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 	t := &Table{
-		Columns:        columns,
-		Rows:           []TableRow{},
-		ShowHeader:     true,
-		ShowSeparators: true,
-		ShowScrollBar:  false,
+		Columns:                  columns,
+		Rows:                     []TableRow{},
+		ShowHeader:               true,
+		ShowSeparators:           true,
+		ShowScrollBar:            false,
 		ColorTextIdx:             ColTableText,
 		ColorSelectedTextIdx:     ColTableSelectedText,
-		ColorItemSelectTextIdx:   ColTableText, // Default to normal
-		ColorItemSelectCursorIdx: ColTableSelectedText, // Default to normal cursor
+		ColorItemSelectTextIdx:   ColTableText,
+		ColorItemSelectCursorIdx: ColTableSelectedText,
 		ColorTitleIdx:            ColTableColumnTitle,
 		ColorBoxIdx:              ColTableBox,
 	}
 	t.canFocus = true
+	// Create scrollbar before SetPosition to ensure correct initial coordinates
+	t.ScrollBar = NewScrollBar(x+w-1, y, h)
+	t.ScrollBar.OnScroll = func(v int) { t.TopPos = v }
 	t.SetPosition(x, y, x+w-1, y+h-1)
 	return t
 }
 
 func (t *Table) SetRows(rows []TableRow) {
 	t.Rows = rows
-	if t.SelectPos >= len(rows) {
-		t.SelectPos = len(rows) - 1
-	}
-	if t.SelectPos < 0 && len(rows) > 0 {
+	t.ItemCount = len(rows)
+	if t.ItemCount == 0 {
+		t.SelectPos = 0
+	} else if t.SelectPos >= t.ItemCount {
+		t.SelectPos = t.ItemCount - 1
+	} else if t.SelectPos < 0 {
 		t.SelectPos = 0
 	}
+	t.updateViewHeight()
+	t.EnsureVisible()
+}
+
+func (t *Table) updateViewHeight() {
+	h := t.Y2 - t.Y1 + 1
+	if t.ShowHeader { h-- }
+	if h < 0 { h = 0 }
+	t.ViewHeight = h
 }
 
 func (t *Table) Show(scr *ScreenBuf) {
@@ -133,10 +147,8 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 
 	// 4. Draw Scrollbar
 	if t.ShowScrollBar && len(t.Rows) > dataHeight {
-		scrollbarX := t.X2
-		scrollbarY := t.Y1 + yOffset
-		scrollbarLen := dataHeight
-		DrawScrollBar(scr, scrollbarX, scrollbarY, scrollbarLen, t.TopPos, len(t.Rows), Palette[t.ColorBoxIdx])
+		t.ScrollBar.SetParams(t.TopPos, 0, len(t.Rows)-dataHeight)
+		t.ScrollBar.Show(scr)
 	}
 }
 
@@ -250,161 +262,43 @@ func (t *Table) formatCell(text string, width int, align Alignment) string {
 }
 
 func (t *Table) ProcessKey(e *vtinput.InputEvent) bool {
-	if !e.KeyDown {
-		return false
-	}
+	if !e.KeyDown || t.IsDisabled() { return false }
 	switch e.VirtualKeyCode {
 	case vtinput.VK_LEFT:
 		if t.CellSelection {
-			if t.SelectCol > 0 {
-				t.SelectCol--
-				return true
-			} else if t.SelectPos > 0 {
-				t.SelectPos--
-				t.SelectCol = len(t.Columns) - 1
-				t.EnsureVisible()
-				return true
-			}
+			if t.SelectCol > 0 { t.SelectCol--; return true }
+			if t.MoveRelative(-1) { t.SelectCol = len(t.Columns) - 1; return true }
 		}
 	case vtinput.VK_RIGHT:
 		if t.CellSelection {
-			if t.SelectCol < len(t.Columns)-1 {
-				t.SelectCol++
-				return true
-			} else if t.SelectPos < len(t.Rows)-1 {
-				t.SelectPos++
-				t.SelectCol = 0
-				t.EnsureVisible()
-				return true
-			}
+			if t.SelectCol < len(t.Columns)-1 { t.SelectCol++; return true }
+			if t.MoveRelative(1) { t.SelectCol = 0; return true }
 		}
-	case vtinput.VK_UP:
-		if t.SelectPos > 0 {
-			t.SelectPos--
-			t.EnsureVisible()
-			return true
-		}
-	case vtinput.VK_DOWN:
-		if t.SelectPos < len(t.Rows)-1 {
-			t.SelectPos++
-			t.EnsureVisible()
-			return true
-		}
-	case vtinput.VK_PRIOR: // PgUp
-		headerOffset := 0
-		if t.ShowHeader {
-			headerOffset = 1
-		}
-		height := (t.Y2 - t.Y1 + 1) - headerOffset
-		t.SelectPos -= height
-		if t.SelectPos < 0 {
-			t.SelectPos = 0
-		}
-		t.EnsureVisible()
-		return true
-	case vtinput.VK_NEXT: // PgDn
-		headerOffset := 0
-		if t.ShowHeader {
-			headerOffset = 1
-		}
-		height := (t.Y2 - t.Y1 + 1) - headerOffset
-		t.SelectPos += height
-		if t.SelectPos >= len(t.Rows) {
-			t.SelectPos = len(t.Rows) - 1
-		}
-		t.EnsureVisible()
-		return true
-	case vtinput.VK_HOME:
-		t.SelectPos = 0
-		t.EnsureVisible()
-		return true
-	case vtinput.VK_END:
-		t.SelectPos = len(t.Rows) - 1
-		t.EnsureVisible()
-		return true
 	}
-	return false
-}
-
-func (t *Table) EnsureVisible() {
-	headerOffset := 0
-	if t.ShowHeader {
-		headerOffset = 1
-	}
-	height := (t.Y2 - t.Y1 + 1) - headerOffset
-
-	if height <= 0 {
-		return
-	}
-
-	if t.SelectPos < t.TopPos {
-		t.TopPos = t.SelectPos
-	} else if t.SelectPos >= t.TopPos+height {
-		t.TopPos = t.SelectPos - height + 1
-	}
+	return t.HandleNavKey(e.VirtualKeyCode)
 }
 
 func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
-	if e.Type != vtinput.MouseEventType {
-		return false
-	}
+	if t.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
+	headerOffset := map[bool]int{true: 1, false: 0}[t.ShowHeader]
 
-	headerOffset := 0
-	if t.ShowHeader {
-		headerOffset = 1
-	}
-	dataHeight := (t.Y2 - t.Y1 + 1) - headerOffset
-
-	// Check scrollbar click
-	if t.ShowScrollBar && len(t.Rows) > dataHeight && int(e.MouseX) == t.X2 {
-		if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-			my := int(e.MouseY)
-			startY := t.Y1 + headerOffset
-			if my == startY {
-				t.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
-				return true
-			} else if my == startY+dataHeight-1 {
-				t.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
-				return true
-			} else if my > startY && my < startY+dataHeight-1 {
-				if my < startY+dataHeight/2 {
-					t.TopPos -= dataHeight
-					if t.TopPos < 0 {
-						t.TopPos = 0
-					}
-				} else {
-					t.TopPos += dataHeight
-					if t.TopPos > len(t.Rows)-dataHeight {
-						t.TopPos = len(t.Rows) - dataHeight
-					}
-				}
-				return true
-			}
-		}
-	}
-
-	if e.WheelDirection > 0 {
-		if t.TopPos > 0 {
-			t.TopPos--
-		}
-		return true
-	} else if e.WheelDirection < 0 {
-		if t.TopPos < len(t.Rows)-dataHeight {
-			t.TopPos++
-		}
+	if e.WheelDirection != 0 {
+		if e.WheelDirection > 0 && t.TopPos > 0 { t.TopPos-- }
+		if e.WheelDirection < 0 && t.TopPos < len(t.Rows)-t.ViewHeight { t.TopPos++ }
 		return true
 	}
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-		my := int(e.MouseY)
-		mx := int(e.MouseX)
-		clickIdx := t.TopPos + (my - t.Y1 - headerOffset)
-		if my >= t.Y1+headerOffset && my <= t.Y2 && clickIdx >= 0 && clickIdx < len(t.Rows) {
+		if t.ShowScrollBar && len(t.Rows) > t.ViewHeight && int(e.MouseX) == t.X2 {
+			return t.ScrollBar.ProcessMouse(e)
+		}
+		clickIdx := t.TopPos + (int(e.MouseY) - t.Y1 - headerOffset)
+		if int(e.MouseY) >= t.Y1+headerOffset && int(e.MouseY) <= t.Y2 && clickIdx >= 0 && clickIdx < len(t.Rows) {
 			t.SelectPos = clickIdx
 			if t.CellSelection {
 				currX := t.X1
 				for i, col := range t.Columns {
-					if mx >= currX && mx < currX+col.Width {
+					if int(e.MouseX) >= currX && int(e.MouseX) < currX+col.Width {
 						t.SelectCol = i
 						break
 					}
@@ -416,4 +310,12 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 		}
 	}
 	return false
+}
+
+func (t *Table) SetPosition(x1, y1, x2, y2 int) {
+	t.ScreenObject.SetPosition(x1, y1, x2, y2)
+	t.updateViewHeight()
+	if t.ScrollBar != nil {
+		t.ScrollBar.SetPosition(t.X2, t.Y1 + map[bool]int{true: 1, false: 0}[t.ShowHeader], t.X2, t.Y2)
+	}
 }

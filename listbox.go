@@ -8,9 +8,8 @@ import (
 // ListBox represents a list of strings for selection within a dialog.
 type ListBox struct {
 	ScreenObject
+	ListViewer
 	Items      []string
-	SelectPos  int
-	TopPos     int
 	OnChange   func(int)
 	OnAction   func(int)
 
@@ -18,6 +17,7 @@ type ListBox struct {
 	MultiSelect bool
 	SelectedMap map[int]bool
 	ColorSelectedTextIdx int
+	ScrollBar   *ScrollBar
 }
 
 func NewListBox(x, y, w, h int, items []string) *ListBox {
@@ -27,8 +27,15 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 		ColorTextIdx:         ColTableText,
 		ColorSelectedTextIdx: ColTableSelectedText,
 	}
+	lb.ItemCount = len(items)
+	lb.ViewHeight = h
+	if lb.ItemCount == 0 {
+		lb.SelectPos = 0
+	}
 	lb.canFocus = true
 	lb.SetPosition(x, y, x+w-1, y+h-1)
+	lb.ScrollBar = NewScrollBar(x+w-1, y, h)
+	lb.ScrollBar.OnScroll = func(v int) { lb.TopPos = v }
 	return lb
 }
 
@@ -48,11 +55,11 @@ func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 	if !lb.IsVisible() { return }
 
 	width := lb.X2 - lb.X1 + 1
+	if len(lb.Items) > lb.ViewHeight { width-- }
 	height := lb.Y2 - lb.Y1 + 1
 
 	colText := Palette[lb.ColorTextIdx]
 	colSel := Palette[lb.ColorSelectedTextIdx]
-	colBox := Palette[ColTableBox]
 
 	// 1. Elements rendering
 	for i := 0; i < height; i++ {
@@ -63,7 +70,7 @@ func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 		isSelected := lb.SelectedMap[idx]
 
 		if isSelected {
-			attr = Palette[ColDialogHighlightText] // Use highlight for selected items
+			attr = Palette[ColDialogHighlightText]
 		}
 
 		if idx == lb.SelectPos && lb.IsFocused() {
@@ -82,32 +89,26 @@ func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 			text = runewidth.Truncate(text, width, "")
 			vLen := runewidth.StringWidth(text)
 
-			// Write text and fill the rest of the line with spaces
 			scr.Write(lb.X1, currY, StringToCharInfo(text, attr))
 			if vLen < width {
-				scr.FillRect(lb.X1+vLen, currY, lb.X2, currY, ' ', attr)
+				scr.FillRect(lb.X1+vLen, currY, lb.X1+width-1, currY, ' ', attr)
 			}
 		} else {
-			// Empty lines at the end
-			scr.FillRect(lb.X1, currY, lb.X2, currY, ' ', colText)
+			scr.FillRect(lb.X1, currY, lb.X1+width-1, currY, ' ', colText)
 		}
 	}
 
 	// 2. Scrollbar
 	if len(lb.Items) > height {
-		DrawScrollBar(scr, lb.X2, lb.Y1, height, lb.TopPos, len(lb.Items), colBox)
+		lb.ScrollBar.SetParams(lb.TopPos, 0, len(lb.Items)-height)
+		lb.ScrollBar.Show(scr)
 	}
 }
 
 func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
-	if !e.KeyDown { return false }
-	if lb.IsDisabled() { return false }
+	if !e.KeyDown || lb.IsDisabled() { return false }
 
-	height := lb.Y2 - lb.Y1 + 1
-	oldPos := lb.SelectPos
-
-	switch e.VirtualKeyCode {
-	case vtinput.VK_SPACE, vtinput.VK_INSERT:
+	if e.VirtualKeyCode == vtinput.VK_SPACE || e.VirtualKeyCode == vtinput.VK_INSERT {
 		if lb.MultiSelect {
 			lb.SelectedMap[lb.SelectPos] = !lb.SelectedMap[lb.SelectPos]
 			if e.VirtualKeyCode == vtinput.VK_INSERT && lb.SelectPos < len(lb.Items)-1 {
@@ -116,92 +117,37 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 			}
 			return true
 		}
-	case vtinput.VK_UP:
-		if lb.SelectPos > 0 { lb.SelectPos-- }
-	case vtinput.VK_RETURN:
-		if lb.OnAction != nil {
-			lb.OnAction(lb.SelectPos)
-		}
+	}
+	if e.VirtualKeyCode == vtinput.VK_RETURN {
+		if lb.OnAction != nil { lb.OnAction(lb.SelectPos) }
 		return true
-	case vtinput.VK_DOWN:
-		if lb.SelectPos < len(lb.Items)-1 { lb.SelectPos++ }
-	case vtinput.VK_PRIOR: // PgUp
-		lb.SelectPos -= height
-		if lb.SelectPos < 0 { lb.SelectPos = 0 }
-	case vtinput.VK_NEXT: // PgDn
-		lb.SelectPos += height
-		if lb.SelectPos >= len(lb.Items) { lb.SelectPos = len(lb.Items) - 1 }
-	case vtinput.VK_HOME:
-		lb.SelectPos = 0
-	case vtinput.VK_END:
-		lb.SelectPos = len(lb.Items) - 1
-	default:
-		return false
 	}
 
-	if lb.SelectPos != oldPos {
-		lb.EnsureVisible()
-		if lb.OnChange != nil {
-			lb.OnChange(lb.SelectPos)
-		}
+	if lb.HandleNavKey(e.VirtualKeyCode) {
+		if lb.OnChange != nil { lb.OnChange(lb.SelectPos) }
 		return true
 	}
 
 	return false
 }
 
-func (lb *ListBox) EnsureVisible() {
-	height := lb.Y2 - lb.Y1 + 1
-	if lb.SelectPos < lb.TopPos {
-		lb.TopPos = lb.SelectPos
-	} else if lb.SelectPos >= lb.TopPos+height {
-		lb.TopPos = lb.SelectPos - height + 1
-	}
-}
 
 func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
-	if e.Type != vtinput.MouseEventType { return false }
 	if lb.IsDisabled() { return false }
-
-	mx, my := int(e.MouseX), int(e.MouseY)
-	height := lb.Y2 - lb.Y1 + 1
-
-	// Mouse wheel processing
-	if e.WheelDirection > 0 {
-		if lb.TopPos > 0 { lb.TopPos-- }
-		return true
-	} else if e.WheelDirection < 0 {
-		if lb.TopPos < len(lb.Items)-height { lb.TopPos++ }
+	if e.WheelDirection != 0 {
+		if e.WheelDirection > 0 && lb.TopPos > 0 { lb.TopPos-- }
+		if e.WheelDirection < 0 && lb.TopPos < len(lb.Items)-lb.ViewHeight { lb.TopPos++ }
 		return true
 	}
-
-	// Click
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-		if mx >= lb.X1 && mx <= lb.X2 && my >= lb.Y1 && my <= lb.Y2 {
-			// Check click on the scrollbar
-			if len(lb.Items) > height && mx == lb.X2 {
-				if my == lb.Y1 {
-					lb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
-				} else if my == lb.Y2 {
-					lb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
-				} else {
-	// Page-wise scrolling
-					if my < lb.Y1 + height/2 {
-						lb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_PRIOR})
-					} else {
-						lb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT})
-					}
-				}
-				return true
-			}
-
-			// Item selection
-			clickIdx := lb.TopPos + (my - lb.Y1)
-			if clickIdx >= 0 && clickIdx < len(lb.Items) {
-				lb.SelectPos = clickIdx
-				if lb.OnChange != nil { lb.OnChange(lb.SelectPos) }
-				return true
-			}
+		if int(e.MouseX) == lb.X2 && len(lb.Items) > lb.ViewHeight {
+			return lb.ScrollBar.ProcessMouse(e)
+		}
+		clickIdx := lb.TopPos + (int(e.MouseY) - lb.Y1)
+		if clickIdx >= 0 && clickIdx < len(lb.Items) {
+			lb.SelectPos = clickIdx
+			if lb.OnChange != nil { lb.OnChange(lb.SelectPos) }
+			return true
 		}
 	}
 	return false

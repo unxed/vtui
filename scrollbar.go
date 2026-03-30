@@ -1,5 +1,7 @@
 package vtui
 
+import "github.com/unxed/vtinput"
+
 // Symbols for the scrollbar, similar to Oem2Unicode from far2l
 const (
 	ScrollUpArrow    = '▲' // 0x25B2
@@ -46,12 +48,11 @@ func CalcScrollBar(length, topItem, itemsCount int) (caretPos, caretLength int) 
 
 	// Calculate thumb size (proportional to the visible area)
 	cLen := MathRound(trackLen*viewHeight, total)
-	if cLen < 1 {
-		cLen = 1
+	cLen = Max(1, cLen)
+	if cLen >= trackLen && trackLen > 0 {
+		cLen = trackLen -1
 	}
-	if cLen >= trackLen {
-		cLen = trackLen - 1
-	}
+	cLen = Min(cLen, trackLen)
 
 	// Calculate maximum values for content scroll and the thumb itself
 	maxTop := total - viewHeight
@@ -99,4 +100,48 @@ func DrawScrollBar(scr *ScreenBuf, x, y, length int, topItem, itemsCount int, at
 	scr.Write(x, y+length-1, []CharInfo{{Char: uint64(ScrollDownArrow), Attributes: attr}})
 
 	return true
+}// ScrollBar is a standalone UIElement for scrolling (analogous to TScrollBar).
+type ScrollBar struct {
+	ScreenObject
+	Value    int
+	Min, Max int
+	PgStep   int
+	OnScroll func(int)
+}
+
+func NewScrollBar(x, y, h int) *ScrollBar {
+	sb := &ScrollBar{PgStep: h}
+	sb.SetPosition(x, y, x, y+h-1)
+	return sb
+}
+
+func (sb *ScrollBar) SetParams(val, min, max int) {
+	sb.Value, sb.Min, sb.Max = val, min, max
+}
+
+func (sb *ScrollBar) Show(scr *ScreenBuf) {
+	sb.ScreenObject.Show(scr)
+	if !sb.IsVisible() { return }
+	h := sb.Y2 - sb.Y1 + 1
+	if h < 2 || sb.Max <= sb.Min { return }
+
+	attr := Palette[ColTableBox]
+	// Using itemsCount calculation: maxTop = total - viewHeight => total = maxTop + viewHeight
+	DrawScrollBar(scr, sb.X1, sb.Y1, h, sb.Value, sb.Max+h, attr)
+}
+
+func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
+	if e.ButtonState != vtinput.FromLeft1stButtonPressed || !e.KeyDown { return false }
+	my := int(e.MouseY)
+	h := sb.Y2 - sb.Y1 + 1
+	if my == sb.Y1 { sb.scroll(sb.Value - 1) } else if my == sb.Y2 { sb.scroll(sb.Value + 1) } else {
+		if my < sb.Y1+h/2 { sb.scroll(sb.Value - sb.PgStep) } else { sb.scroll(sb.Value + sb.PgStep) }
+	}
+	return true
+}
+
+func (sb *ScrollBar) scroll(v int) {
+	if v < sb.Min { v = sb.Min }
+	if v > sb.Max { v = sb.Max }
+	if v != sb.Value && sb.OnScroll != nil { sb.OnScroll(v) }
 }

@@ -556,26 +556,26 @@ func TestVMenu_Navigation(t *testing.T) {
 	m.SetPosition(0, 0, 10, 5)
 
 	// Initial selection at 0
-	if m.selectPos != 0 {
-		t.Errorf("Initial selection: expected 0, got %d", m.selectPos)
+	if m.SelectPos != 0 {
+		t.Errorf("Initial selection: expected 0, got %d", m.SelectPos)
 	}
 
 	// 1. Down -> should skip separator (index 1) and go to "Two" (index 2)
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
-	if m.selectPos != 2 {
-		t.Errorf("Down: expected index 2, got %d", m.selectPos)
+	if m.SelectPos != 2 {
+		t.Errorf("Down: expected index 2, got %d", m.SelectPos)
 	}
 
 	// 2. Up -> should skip separator and go back to 0
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
-	if m.selectPos != 0 {
-		t.Errorf("Up: expected index 0, got %d", m.selectPos)
+	if m.SelectPos != 0 {
+		t.Errorf("Up: expected index 0, got %d", m.SelectPos)
 	}
 
 	// 3. End -> should go to last item (2)
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_END})
-	if m.selectPos != 2 {
-		t.Errorf("End: expected index 2, got %d", m.selectPos)
+	if m.SelectPos != 2 {
+		t.Errorf("End: expected index 2, got %d", m.SelectPos)
 	}
 }
 
@@ -753,18 +753,18 @@ func TestVMenu_SeparatorNavigation(t *testing.T) {
 	m.AddItem(MenuItem{Text: "Two"})
 
 	// 1. Initial pos is 0
-	if m.selectPos != 0 { t.Fatal("Start pos should be 0") }
+	if m.SelectPos != 0 { t.Fatal("Start pos should be 0") }
 
 	// 2. Down from 0 should land on 2 (skipping separator at 1)
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
-	if m.selectPos != 2 {
-		t.Errorf("Separator not skipped during Down: got pos %d, want 2", m.selectPos)
+	if m.SelectPos != 2 {
+		t.Errorf("Separator not skipped during Down: got pos %d, want 2", m.SelectPos)
 	}
 
 	// 3. Up from 2 should land on 0
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
-	if m.selectPos != 0 {
-		t.Errorf("Separator not skipped during Up: got pos %d, want 0", m.selectPos)
+	if m.SelectPos != 0 {
+		t.Errorf("Separator not skipped during Up: got pos %d, want 0", m.SelectPos)
 	}
 }
 func TestMenuBar_SubMenuActivation(t *testing.T) {
