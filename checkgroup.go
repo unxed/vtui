@@ -87,12 +87,29 @@ func (cg *CheckGroup) DisplayObject(scr *ScreenBuf) {
 }
 
 func (cg *CheckGroup) ProcessKey(e *vtinput.InputEvent) bool {
-	if !e.KeyDown { return false }
+	if !e.KeyDown {
+		return false
+	}
 
 	newIdx, moved := gridNav(cg.focusIdx, len(cg.Items), cg.Columns, e.VirtualKeyCode)
 	if moved {
 		cg.focusIdx = newIdx
 		return true
+	}
+
+	// Boundary navigation logic: only exit the group if at the absolute start/end
+	if e.VirtualKeyCode == vtinput.VK_UP || e.VirtualKeyCode == vtinput.VK_DOWN ||
+		e.VirtualKeyCode == vtinput.VK_LEFT || e.VirtualKeyCode == vtinput.VK_RIGHT {
+		movingBack := e.VirtualKeyCode == vtinput.VK_UP || e.VirtualKeyCode == vtinput.VK_LEFT
+		movingForward := e.VirtualKeyCode == vtinput.VK_DOWN || e.VirtualKeyCode == vtinput.VK_RIGHT
+
+		if movingBack && cg.focusIdx == 0 {
+			return false // Exit to previous control
+		}
+		if movingForward && cg.focusIdx == len(cg.Items)-1 {
+			return false // Exit to next control
+		}
+		return true // Stay in group (swallow the key)
 	}
 
 	switch e.VirtualKeyCode {

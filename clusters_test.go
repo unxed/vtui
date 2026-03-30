@@ -27,19 +27,77 @@ func TestRadioGroup_Navigation(t *testing.T) {
 }
 
 func TestRadioGroup_MultiColumn(t *testing.T) {
+	// 3 items, 2 cols:
+	// 0 1
+	// 2
 	rg := NewRadioGroup(0, 0, 2, []string{"A", "B", "C"})
-	// Grid is 2x2:
-	// A B
-	// C
 
 	rg.Selected = 0
-	// 1. Right to B
+	// 1. Right to B (index 1)
 	rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT})
-	if rg.Selected != 1 { t.Errorf("Right nav failed, got %d", rg.Selected) }
+	if rg.Selected != 1 {
+		t.Errorf("Right nav failed, got %d", rg.Selected)
+	}
 
-	// 2. Down from B to nothing? Should snap to C (last item) if out of bounds on the row below
+	// 2. Down from B (index 1). There is nothing below B, and it's the last column.
+	// According to the "exit only at absolute boundaries" rule, it should be swallowed
+	// because index 1 is not the last element of the group (index 2 is).
+	handled := rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
+	if !handled {
+		t.Error("VK_DOWN at index 1 should be swallowed (not absolute end of group)")
+	}
+}
+
+func TestRadioGroup_SnakeNavigation(t *testing.T) {
+	// 4 items, 2 cols:
+	// 0 1
+	// 2 3
+	rg := NewRadioGroup(0, 0, 2, []string{"0", "1", "2", "3"})
+
+	// 1. Down from 2 (bottom of col 0) to 1 (top of col 1)
+	rg.Selected = 2
 	rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
-	if rg.Selected != 2 { t.Errorf("Down snap failed, got %d", rg.Selected) }
+	if rg.Selected != 1 {
+		t.Errorf("Snake Down failed: expected 1, got %d", rg.Selected)
+	}
+
+	// 2. Up from 1 (top of col 1) back to 2 (bottom of col 0)
+	rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP})
+	if rg.Selected != 2 {
+		t.Errorf("Snake Up failed: expected 2, got %d", rg.Selected)
+	}
+}
+
+func TestRadioGroup_BoundarySwallowing(t *testing.T) {
+	// 3 items: 0, 1, 2
+	rg := NewRadioGroup(0, 0, 1, []string{"0", "1", "2"})
+
+	// At index 1, ANY arrow should be swallowed
+	rg.Selected = 1
+	arrows := []uint16{vtinput.VK_UP, vtinput.VK_DOWN, vtinput.VK_LEFT, vtinput.VK_RIGHT}
+	for _, a := range arrows {
+		if !rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: a}) {
+			t.Errorf("Arrow %d should be swallowed at index 1", a)
+		}
+	}
+
+	// At index 0, UP and LEFT should NOT be swallowed (exit to prev)
+	rg.Selected = 0
+	if rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP}) {
+		t.Error("VK_UP at index 0 should not be handled")
+	}
+	if rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT}) {
+		t.Error("VK_LEFT at index 0 should not be handled")
+	}
+
+	// At index 2, DOWN and RIGHT should NOT be swallowed (exit to next)
+	rg.Selected = 2
+	if rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN}) {
+		t.Error("VK_DOWN at index 2 should not be handled")
+	}
+	if rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT}) {
+		t.Error("VK_RIGHT at index 2 should not be handled")
+	}
 }
 
 func TestCheckGroup_Toggle(t *testing.T) {
