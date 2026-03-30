@@ -797,7 +797,7 @@ func TestMenuBar_SubMenuActivation(t *testing.T) {
 	subMenu := FrameManager.frames[len(FrameManager.frames)-1].(*VMenu)
 
 	// 2. Select the second item ("Save") in the submenu
-	subMenu.SetSelectPos(1, 1)
+	subMenu.SetSelectPos(1)
 	subMenu.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
 
 	if !commandFired {

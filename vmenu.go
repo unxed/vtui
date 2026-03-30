@@ -41,6 +41,10 @@ func NewVMenu(title string) *VMenu {
 		items: []MenuItem{},
 	}
 	m.canFocus = true
+	m.Wrap = true
+	m.IsSelectable = func(i int) bool {
+		return i >= 0 && i < len(m.items) && !m.items[i].Separator
+	}
 	m.ScrollBar = NewScrollBar(0, 0, 0)
 	m.ScrollBar.OnScroll = func(v int) { m.TopPos = v }
 	return m
@@ -61,7 +65,13 @@ func (m *VMenu) SetPosition(x1, y1, x2, y2 int) {
 func (m *VMenu) AddItem(item MenuItem) {
 	m.items = append(m.items, item)
 	m.ItemCount = len(m.items)
-	if len(m.items) == 1 { m.SetSelectPos(0, 1) }
+	if len(m.items) == 1 {
+		if m.items[0].Separator {
+			m.SelectPos = 0
+		} else {
+			m.SetSelectPos(0)
+		}
+	}
 }
 
 // AddSeparator adds a separator line.
@@ -71,28 +81,6 @@ func (m *VMenu) AddSeparator() {
 }
 
 func (m *VMenu) GetItemCount() int { return len(m.items) }
-
-// SetSelectPos sets the currently selected item, skipping separators.
-func (m *VMenu) SetSelectPos(pos int, direct int) {
-	if m.ItemCount == 0 { return }
-	newPos := pos
-	if newPos < 0 { newPos = m.ItemCount - 1 }
-	if newPos >= m.ItemCount { newPos = 0 }
-
-	if m.items[newPos].Separator {
-		if direct == 0 { direct = 1 }
-		searchPos := newPos
-		for i := 0; i < m.ItemCount; i++ {
-			if !m.items[searchPos].Separator {
-				newPos = searchPos
-				break
-			}
-			searchPos += direct
-			if searchPos < 0 { searchPos = m.ItemCount - 1 } else if searchPos >= m.ItemCount { searchPos = 0 }
-		}
-	}
-	m.ListViewer.SetSelectPos(newPos)
-}
 
 // ProcessKey processes navigation keys.
 func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
@@ -112,12 +100,12 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		}
 		if m.OnSelect != nil { m.OnSelect(m.SelectPos) }
 		m.SetExitCode(m.SelectPos); return true
-	case vtinput.VK_UP: m.SetSelectPos(m.SelectPos-1, -1); return true
-	case vtinput.VK_DOWN: m.SetSelectPos(m.SelectPos+1, 1); return true
-	case vtinput.VK_HOME: m.SetSelectPos(0, 1); return true
-	case vtinput.VK_END: m.SetSelectPos(m.ItemCount-1, -1); return true
-	case vtinput.VK_PRIOR: m.SetSelectPos(m.SelectPos-m.ViewHeight, -1); return true
-	case vtinput.VK_NEXT: m.SetSelectPos(m.SelectPos+m.ViewHeight, 1); return true
+	case vtinput.VK_UP: m.MoveRelative(-1); return true
+	case vtinput.VK_DOWN: m.MoveRelative(1); return true
+	case vtinput.VK_HOME: m.SetSelectPos(0); return true
+	case vtinput.VK_END: m.SetSelectPos(m.ItemCount-1); return true
+	case vtinput.VK_PRIOR: m.MoveRelative(-m.ViewHeight); return true
+	case vtinput.VK_NEXT: m.MoveRelative(m.ViewHeight); return true
 	}
 	if e.Char != 0 {
 		charLower := unicode.ToLower(e.Char)
@@ -126,7 +114,7 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 			_, hk, _ := ParseAmpersandString(item.Text)
 			if hk == charLower {
 				if FrameManager.DisabledCommands.IsDisabled(item.Command) { return true }
-				m.SetSelectPos(i, 1)
+				m.SetSelectPos(i)
 				if m.OnSelect != nil { m.OnSelect(i) }
 				m.SetExitCode(i)
 				if item.Command != 0 { FrameManager.EmitCommand(item.Command, item.UserData) }
@@ -180,7 +168,7 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 	if m.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
 
 	if e.WheelDirection != 0 {
-		if e.WheelDirection > 0 { m.SetSelectPos(m.SelectPos-1, -1) } else { m.SetSelectPos(m.SelectPos+1, 1) }
+		if e.WheelDirection > 0 { m.MoveRelative(-1) } else { m.MoveRelative(1) }
 		return true
 	}
 
@@ -197,7 +185,7 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 		
 		clickedIdx := m.TopPos + (my - m.Y1 - 1)
 		if mx >= m.X1 && mx < m.X2 && clickedIdx >= 0 && clickedIdx < m.ItemCount && !m.items[clickedIdx].Separator {
-			m.SetSelectPos(clickedIdx, 1)
+			m.SetSelectPos(clickedIdx)
 			if m.OnSelect != nil { m.OnSelect(clickedIdx) }
 			m.SetExitCode(clickedIdx)
 			return true
@@ -304,5 +292,3 @@ func (m *VMenu) SetFocus(f bool) {
 	DebugLog("  VMenu(%s): SetFocus(%v)", m.title, f)
 	m.focused = f
 }
-
-// `RunesToCharInfo` and `StringToCharInfo` are now in `runewidth.go`

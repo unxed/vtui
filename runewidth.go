@@ -68,33 +68,30 @@ func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharI
 	return res, hk
 }
 
-func StringToCharInfo(s string, attr uint64) []CharInfo {
-	var res []CharInfo
-	res = FillCharInfo(res, []byte(s), attr)
-	return res
+// SanitizeRune ensures the rune is printable and handles its visual width.
+func SanitizeRune(r rune) (rune, int) {
+	if r < 0x20 || r == 0x7F {
+		return '·', 1
+	}
+	w := runewidth.RuneWidth(r)
+	if w <= 0 {
+		return r, 1 // Visible placeholder for zero-width/invalid
+	}
+	return r, w
 }
 
-// FillCharInfo fills a slice of CharInfo with data from a byte slice without extra allocations.
-// It grows the target slice if necessary.
+func StringToCharInfo(s string, attr uint64) []CharInfo {
+	return FillCharInfo(nil, []byte(s), attr)
+}
+
 func FillCharInfo(target []CharInfo, data []byte, attr uint64) []CharInfo {
 	target = target[:0]
 	for len(data) > 0 {
 		r, size := utf8.DecodeRune(data)
 		data = data[size:]
 
-		// Sanitize control characters to prevent terminal cursor corruption
-		if r < 0x20 || r == 0x7F {
-			r = '·' // Use middle dot for control chars
-		}
-
-		w := 1
-		if r >= 0x7F {
-			w = runewidth.RuneWidth(r)
-		}
-		if w <= 0 {
-			w = 1 // Ensure even zero-width chars are visible in binary files
-		}
-		target = append(target, CharInfo{Char: uint64(r), Attributes: attr})
+		sr, w := SanitizeRune(r)
+		target = append(target, CharInfo{Char: uint64(sr), Attributes: attr})
 		for i := 1; i < w; i++ {
 			target = append(target, CharInfo{Char: WideCharFiller, Attributes: attr})
 		}

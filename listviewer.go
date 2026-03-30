@@ -4,10 +4,13 @@ import "github.com/unxed/vtinput"
 
 // ListViewer is a mixin for handling list navigation logic (analogous to TListViewer).
 type ListViewer struct {
-	TopPos    int
-	SelectPos int
-	ItemCount int
-	ViewHeight int
+	TopPos      int
+	SelectPos   int
+	ItemCount   int
+	ViewHeight  int
+	Wrap        bool
+	// Callback to check if an item is selectable (e.g. not a separator)
+	IsSelectable func(int) bool
 }
 
 func (lv *ListViewer) EnsureVisible() {
@@ -35,8 +38,49 @@ func (lv *ListViewer) SetSelectPos(pos int) {
 
 // MoveRelative shifts the selection by delta and updates TopPos.
 func (lv *ListViewer) MoveRelative(delta int) bool {
+	if lv.ItemCount == 0 {
+		return false
+	}
 	oldPos := lv.SelectPos
-	lv.SetSelectPos(lv.SelectPos + delta)
+	newPos := oldPos
+
+	step := 1
+	if delta < 0 {
+		step = -1
+	}
+	absDelta := delta
+	if absDelta < 0 {
+		absDelta = -absDelta
+	}
+
+	// Move one 'selectable' unit at a time
+	for i := 0; i < absDelta; i++ {
+		testPos := newPos
+		found := false
+		// Internal loop to skip unselectable items
+		for j := 0; j < lv.ItemCount; j++ {
+			testPos += step
+			if testPos < 0 {
+				if lv.Wrap { testPos = lv.ItemCount - 1 } else { testPos = 0; break }
+			}
+			if testPos >= lv.ItemCount {
+				if lv.Wrap { testPos = 0 } else { testPos = lv.ItemCount - 1; break }
+			}
+			if lv.IsSelectable == nil || lv.IsSelectable(testPos) {
+				newPos = testPos
+				found = true
+				break
+			}
+			if !lv.Wrap && (testPos <= 0 || testPos >= lv.ItemCount-1) {
+				break
+			}
+		}
+		if !found {
+			break
+		}
+	}
+
+	lv.SetSelectPos(newPos)
 	return lv.SelectPos != oldPos
 }
 
