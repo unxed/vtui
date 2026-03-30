@@ -100,6 +100,7 @@ type frameManager struct {
 	OnRender       func(scr *ScreenBuf)
 
 	// Global standard UI components
+	DisabledCommands CommandSet
 	MenuBar    *MenuBar
 	StatusLine *StatusLine
 	KeyBar     *KeyBar
@@ -403,6 +404,10 @@ func (fm *frameManager) PostTask(task func()) {
 // EmitCommand broadcasts a command starting from the top-most frame
 // and going down the stack until a frame handles it. (Turbo Vision style)
 func (fm *frameManager) EmitCommand(cmd int, args any) bool {
+	if fm.DisabledCommands.IsDisabled(cmd) {
+		DebugLog("COMMAND: %d is DISABLED, ignoring", cmd)
+		return false
+	}
 	DebugLog("COMMAND: Emitting %d", cmd)
 	// First, if MenuBar is active, give it a chance
 	activeMenu := fm.GetActiveMenuBar()

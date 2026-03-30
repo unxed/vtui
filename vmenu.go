@@ -128,14 +128,14 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		// to background frames (e.g. MenuBar). If we are a widget, bubble up.
 		return FrameManager.GetTopFrame() == Frame(m)
 	case vtinput.VK_RETURN:
-		DebugLog("VMENU: Return pressed at %d", m.selectPos)
-		// Turbo Vision style: emit command BEFORE setting exit code
 		if m.selectPos >= 0 && m.selectPos < len(m.items) {
-			if cmd := m.items[m.selectPos].Command; cmd != 0 {
-				DebugLog("VMENU: Emitting command %d", cmd)
-				FrameManager.EmitCommand(cmd, m.items[m.selectPos].UserData)
-			} else {
-				DebugLog("VMENU: No command attached to item %d", m.selectPos)
+			item := m.items[m.selectPos]
+			if !item.Separator && FrameManager.DisabledCommands.IsDisabled(item.Command) {
+				return true // Swallow key but do nothing
+			}
+
+			if item.Command != 0 {
+				FrameManager.EmitCommand(item.Command, item.UserData)
 			}
 		}
 
@@ -163,17 +163,22 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 	if e.Char != 0 {
 		charLower := unicode.ToLower(e.Char)
 		for i, item := range m.items {
-			if item.Separator { continue }
+			if item.Separator {
+				continue
+			}
 			_, hk, _ := ParseAmpersandString(item.Text)
 			if hk == charLower {
+				if FrameManager.DisabledCommands.IsDisabled(item.Command) {
+					return true // Hotkey for disabled item ignored
+				}
 				m.SetSelectPos(i, 1)
 				if m.OnSelect != nil {
 					m.OnSelect(i)
 				}
 				m.SetExitCode(i)
 
-				if cmd := m.items[i].Command; cmd != 0 {
-					FrameManager.EmitCommand(cmd, m.items[i].UserData)
+				if item.Command != 0 {
+					FrameManager.EmitCommand(item.Command, item.UserData)
 				}
 				return true
 			}
@@ -325,8 +330,13 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 		}
 
 		item := m.items[itemIdx]
+		isDisabled := !item.Separator && FrameManager.DisabledCommands.IsDisabled(item.Command)
+
 		attr := colText
-		if itemIdx == m.selectPos {
+		if isDisabled {
+			// Gray out the text by halving RGB values
+			attr = SetRGBFore(attr, GetRGBFore(attr)/2)
+		} else if itemIdx == m.selectPos {
 			attr = colSel
 		}
 

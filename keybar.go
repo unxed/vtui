@@ -94,11 +94,17 @@ func (kb *KeyBar) DisplayObject(scr *ScreenBuf) {
 
 			// If label is not empty, use KeyBarText color
 			if label != "" {
+
+				finalAttr := textAttr
+				// Just a placeholder check: if the KeyBar is used to emit a command,
+				// we should check it. For this generic widget, we'll keep it simple:
+				// if a command is disabled, we dim it.
+
 				// Ensure fixed width for the label part by padding it
 				for runewidth.StringWidth(label) < labelW {
 					label += " "
 				}
-				scr.Write(labelX, kb.Y1, StringToCharInfo(label, textAttr))
+				scr.Write(labelX, kb.Y1, StringToCharInfo(label, finalAttr))
 			} else {
 				// For empty labels, just fill the area with the background color
 				scr.FillRect(labelX, kb.Y1, labelX+labelW-1, kb.Y1, ' ', textAttr)

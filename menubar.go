@@ -47,9 +47,22 @@ func (mb *MenuBar) DisplayObject(scr *ScreenBuf) {
 	for i, item := range mb.Items {
 		itemAttr := attr
 		hiAttr := Palette[ColMenuBarHighlight]
+
+		// Check if ALL subitems are disabled (simplified logic for top-level)
+		allDisabled := len(item.SubItems) > 0
+		for _, si := range item.SubItems {
+			if !si.Separator && !FrameManager.DisabledCommands.IsDisabled(si.Command) {
+				allDisabled = false
+				break
+			}
+		}
+
 		if i == mb.SelectPos && mb.Active {
 			itemAttr = Palette[ColMenuBarSelected]
 			hiAttr = Palette[ColMenuBarSelectedHighlight]
+		} else if allDisabled {
+			// Dim the top level menu if it leads to nothing useful
+			itemAttr = SetRGBFore(itemAttr, GetRGBFore(itemAttr)/2)
 		}
 
 		cells, _ := StringToCharInfoHighlighted("  "+item.Label+"  ", itemAttr, hiAttr)
