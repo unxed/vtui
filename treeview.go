@@ -164,7 +164,7 @@ func (t *TreeView) DisplayObject(scr *ScreenBuf) {
 				}
 			}
 
-			marker := "    "
+			marker := " "
 			if len(fn.node.Children) > 0 {
 				if fn.node.Expanded {
 					marker = "[-] "
