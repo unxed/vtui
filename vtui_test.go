@@ -282,9 +282,10 @@ func TestVMenu_Callbacks(t *testing.T) {
 		t.Error("OnClose callback was not triggered on Escape")
 	}
 }
+
 func TestVMenu_F10_ClosesMenu(t *testing.T) {
 	m := NewVMenu("Test")
-	m.ProcessKey(&vtinput.InputEvent{
+	handled := m.ProcessKey(&vtinput.InputEvent{
 		Type:           vtinput.KeyEventType,
 		KeyDown:        true,
 		VirtualKeyCode: vtinput.VK_F10,
@@ -292,6 +293,12 @@ func TestVMenu_F10_ClosesMenu(t *testing.T) {
 
 	if !m.IsDone() || m.exitCode != -1 {
 		t.Error("F10 should close the VMenu with exitCode -1")
+	}
+	
+	// In the test, FrameManager is empty, so GetTopFrame() != m. 
+	// The key should NOT be swallowed.
+	if handled {
+		t.Error("VMenu widget should NOT swallow F10 (it should bubble up)")
 	}
 }
 

@@ -124,7 +124,9 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		}
 	case vtinput.VK_ESCAPE, vtinput.VK_F10:
 		m.SetExitCode(-1)
-		return true
+		// If we are pushed as a Frame, we handle the key to prevent bubbling
+		// to background frames (e.g. MenuBar). If we are a widget, bubble up.
+		return FrameManager.GetTopFrame() == Frame(m)
 	case vtinput.VK_RETURN:
 		DebugLog("VMENU: Return pressed at %d", m.selectPos)
 		// Turbo Vision style: emit command BEFORE setting exit code
