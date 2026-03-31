@@ -36,43 +36,10 @@ const (
 	CmMenuLeft      = 302
 	CmMenuRight     = 303
 	CmMenuClose     = 304
+	CmFileChanged   = 305
 )
+var nextDynamicID = 10000
 
-var (
-	callbackMap    = make(map[int]any)
-	nextDynamicCmd = 50000
-)
-
-// BindCallback creates a unique dynamic command ID mapped to a parameter-less function.
-func BindCallback(fn func()) int {
-	cmd := nextDynamicCmd
-	nextDynamicCmd++
-	callbackMap[cmd] = fn
-	return cmd
-}
-
-// BindCallbackArg creates a unique dynamic command ID mapped to a parameterized function.
-func BindCallbackArg(fn func(any)) int {
-	cmd := nextDynamicCmd
-	nextDynamicCmd++
-	callbackMap[cmd] = fn
-	return cmd
-}
-
-// TryExecuteCallback attempts to intercept and execute a dynamically generated command.
-func TryExecuteCallback(cmd int, args any) bool {
-	if fn, ok := callbackMap[cmd]; ok {
-		if f, ok := fn.(func()); ok {
-			f()
-			return true
-		}
-		if f, ok := fn.(func(any)); ok {
-			f(args)
-			return true
-		}
-	}
-	return false
-}
 
 // CommandSet is a collection of command IDs, used to enable/disable groups of actions.
 type CommandSet struct {

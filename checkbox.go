@@ -14,9 +14,6 @@ type Checkbox struct {
 	ChangeCommand int
 }
 
-func (cb *Checkbox) SetOnChange(fn func(int)) {
-	cb.ChangeCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
-}
 
 func NewCheckbox(x, y int, text string, threeState bool) *Checkbox {
 	cb := &Checkbox{

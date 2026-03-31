@@ -55,9 +55,6 @@ type RadioGroup struct {
 	colWidths     []int
 }
 
-func (rg *RadioGroup) SetOnChange(fn func(int)) {
-	rg.ChangeCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
-}
 
 func NewRadioGroup(x, y, cols int, items []string) *RadioGroup {
 	rg := &RadioGroup{Items: items}

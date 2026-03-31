@@ -20,13 +20,6 @@ type ListBox struct {
 	ScrollBar   *ScrollBar
 }
 
-func (lb *ListBox) SetOnChange(fn func(int)) {
-	lb.ChangeCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
-}
-
-func (lb *ListBox) SetOnAction(fn func(int)) {
-	lb.ActionCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
-}
 
 func NewListBox(x, y, w, h int, items []string) *ListBox {
 	lb := &ListBox{
@@ -43,7 +36,12 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 	lb.canFocus = true
 	lb.SetPosition(x, y, x+w-1, y+h-1)
 	lb.ScrollBar = NewScrollBar(x+w-1, y, h)
-	lb.ScrollBar.SetOnScroll(func(v int) { lb.TopPos = v })
+	lb.ScrollBar.SetOwner(lb)
+	lb.ScrollBar.ScrollCommand = lb.AddCallback(func(args any) {
+		if v, ok := args.(int); ok {
+			lb.TopPos = v
+		}
+	})
 	return lb
 }
 

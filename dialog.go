@@ -41,6 +41,9 @@ func NewDialog(x1, y1, x2, y2 int, title string) *Dialog {
 	d := &Dialog{
 		BaseWindow: *NewBaseWindow(x1, y1, x2, y2, title),
 	}
+	// Re-link the root group to the actual Dialog pointer
+	d.rootGroup.SetOwner(d)
+	d.frame.SetOwner(d)
 	return d
 }
 

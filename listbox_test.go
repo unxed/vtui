@@ -56,9 +56,9 @@ func TestListBox_OnChange(t *testing.T) {
 	called := false
 	newIdx := -1
 	lb := NewListBox(0, 0, 10, 5, []string{"A", "B", "C"})
-	lb.SetOnChange(func(idx int) {
+	lb.ChangeCommand = lb.AddCallback(func(args any) {
 		called = true
-		newIdx = idx
+		newIdx = args.(int)
 	})
 
 	// Down to index 1

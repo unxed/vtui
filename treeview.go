@@ -52,13 +52,6 @@ type TreeView struct {
 	ScrollBar *ScrollBar
 }
 
-func (t *TreeView) SetOnSelect(fn func(*TreeNode)) {
-	t.SelectCommand = BindCallbackArg(func(args any) { fn(args.(*TreeNode)) })
-}
-
-func (t *TreeView) SetOnAction(fn func(*TreeNode)) {
-	t.ActionCommand = BindCallbackArg(func(args any) { fn(args.(*TreeNode)) })
-}
 
 func NewTreeView(x, y, w, h int, root *TreeNode) *TreeView {
 	tv := &TreeView{
@@ -72,7 +65,12 @@ func NewTreeView(x, y, w, h int, root *TreeNode) *TreeView {
 	tv.canFocus = true
 	tv.SetPosition(x, y, x+w-1, y+h-1)
 	tv.ScrollBar = NewScrollBar(tv.X2, tv.Y1, h)
-	tv.ScrollBar.SetOnScroll(func(v int) { tv.TopPos = v })
+	tv.ScrollBar.SetOwner(tv)
+	tv.ScrollBar.ScrollCommand = tv.AddCallback(func(args any) {
+		if v, ok := args.(int); ok {
+			tv.TopPos = v
+		}
+	})
 	tv.Flatten()
 	return tv
 }

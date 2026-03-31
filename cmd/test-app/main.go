@@ -125,7 +125,7 @@ func showShowcaseDialog() {
 
 	// Bottom: Close button
 	btnClose := vtui.NewButton(x+23, y+15, "&Close")
-	btnClose.SetOnClick(func() { dlg.Close() })
+	btnClose.Command = dlg.AddCommand(func() { dlg.Close() })
 	dlg.AddItem(btnClose)
 
 	vtui.FrameManager.Push(dlg)
@@ -199,7 +199,7 @@ func main() {
 	cmdEdit.History = []string{"git status", "go build", "rm -rf /", "ls -la"}
 	cmdEdit.ShowHistoryButton = true
 	cmdEdit.SetHelp("edit")
-	cmdEdit.SetOnAction(func() {
+	cmdEdit.ActionCommand = dlg.AddCommand(func() {
 		text := cmdEdit.GetText()
 		if text != "" {
 			cmdEdit.AddHistory(text)
@@ -251,29 +251,29 @@ func main() {
 
 	// BOTTOM: Buttons
 	btnOk := vtui.NewButton(x1+16, y1+25, "&Ok")
-	btnOk.SetOnClick(func() { dlg.SetExitCode(0); desktop.SetExitCode(0) })
+	btnOk.Command = dlg.AddCommand(func() { dlg.SetExitCode(0); desktop.SetExitCode(0) })
 	btnOk.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnMsg := vtui.NewButton(x1+28, y1+25, "Show &Msg")
-	btnMsg.SetOnClick(func() {
+	btnMsg.Command = dlg.AddCommand(func() {
 		vtui.ShowMessage(" MessageBox ", "Resizing is enabled!\nGrab the bottom-right corner.", []string{"&Got it"})
 	})
 	btnMsg.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnDir := vtui.NewButton(x1+40, y1+25, "&Dir")
-	btnDir.SetOnClick(func() {
+	btnDir.Command = dlg.AddCommand(func() {
 		vtui.SelectDirDialog(" Choose Directory ", ".", &localVFS{path: "."})
 	})
 	btnDir.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnFile := vtui.NewButton(x1+48, y1+25, "&File")
-	btnFile.SetOnClick(func() {
+	btnFile.Command = dlg.AddCommand(func() {
 		vtui.SelectFileDialog(" Open File ", ".", &localVFS{path: "."})
 	})
 	btnFile.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnInp := vtui.NewButton(x1+56, y1+25, "&Inp")
-	btnInp.SetOnClick(func() {
+	btnInp.Command = dlg.AddCommand(func() {
 		vtui.InputBox(" Question ", "What is your name?", "Explorer", func(s string) {
 			vtui.ShowMessage(" Reply ", "Hello, "+s+"!", []string{"&Hi"})
 		})

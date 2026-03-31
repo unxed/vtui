@@ -30,9 +30,6 @@ type VMenu struct {
 	ScrollBar     *ScrollBar
 }
 
-func (m *VMenu) SetOnSelect(fn func(int)) {
-	m.SelectCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
-}
 
 // NewVMenu creates a new vertical menu instance.
 func NewVMenu(title string) *VMenu {
@@ -47,7 +44,12 @@ func NewVMenu(title string) *VMenu {
 		return i >= 0 && i < len(m.items) && !m.items[i].Separator
 	}
 	m.ScrollBar = NewScrollBar(0, 0, 0)
-	m.ScrollBar.SetOnScroll(func(v int) { m.TopPos = v })
+	m.ScrollBar.SetOwner(m)
+	m.ScrollBar.ScrollCommand = m.AddCallback(func(args any) {
+		if v, ok := args.(int); ok {
+			m.TopPos = v
+		}
+	})
 	return m
 }
 
@@ -56,7 +58,12 @@ func (m *VMenu) SetPosition(x1, y1, x2, y2 int) {
 	m.ViewHeight = y2 - y1 - 1
 	if m.ScrollBar == nil {
 		m.ScrollBar = NewScrollBar(m.X2, m.Y1+1, m.ViewHeight)
-		m.ScrollBar.SetOnScroll(func(v int) { m.TopPos = v })
+		m.ScrollBar.SetOwner(m)
+		m.ScrollBar.ScrollCommand = m.AddCallback(func(args any) {
+			if v, ok := args.(int); ok {
+				m.TopPos = v
+			}
+		})
 	} else {
 		m.ScrollBar.SetPosition(m.X2, m.Y1+1, m.X2, m.Y2-1)
 	}

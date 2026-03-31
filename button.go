@@ -11,9 +11,6 @@ type Button struct {
 	Command int
 }
 
-func (b *Button) SetOnClick(fn func()) {
-	b.Command = BindCallback(fn)
-}
 
 func NewButton(x, y int, text string) *Button {
 	// Buttons in Far always look like "[ Text ]"

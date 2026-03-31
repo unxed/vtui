@@ -787,7 +787,7 @@ func TestMenuBar_SubMenuActivation(t *testing.T) {
 	}
 
 	commandFired := false
-	mb.Items[0].SubItems[1].Command = BindCallback(func() {
+	mb.Items[0].SubItems[1].Command = mb.AddCommand(func() {
 		commandFired = true
 	})
 

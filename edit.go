@@ -43,9 +43,6 @@ func NewEdit(x, y, width int, defaultText string) *Edit {
 	return e
 }
 
-func (e *Edit) SetOnAction(fn func()) {
-	e.ActionCommand = BindCallback(fn)
-}
 
 func (e *Edit) Show(scr *ScreenBuf) {
 	e.ScreenObject.Show(scr)
@@ -402,10 +399,13 @@ func (e *Edit) OpenHistory() {
 
 	menu.SetPosition(e.X1, y, e.X1+w-1, y+h-1)
 
-	menu.SetOnSelect(func(idx int) {
-		e.SetText(e.History[idx])
-		e.SetFocus(true)
-		e.clearFlag = false
+	menu.SetOwner(e)
+	menu.SelectCommand = e.AddCallback(func(args any) {
+		if idx, ok := args.(int); ok {
+			e.SetText(e.History[idx])
+			e.SetFocus(true)
+			e.clearFlag = false
+		}
 	})
 
 	FrameManager.Push(menu)

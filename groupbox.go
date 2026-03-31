@@ -20,6 +20,8 @@ func NewGroupBox(x1, y1, x2, y2 int, title string) *GroupBox {
 	}
 	// The GroupBox itself handles position, the inner group is relative
 	gb.ScreenObject.SetPosition(x1, y1, x2, y2)
+	// We don't call gb.Group.SetOwner(gb) here because GroupBox IS the Group.
+	// Its owner will be set when the GroupBox itself is added to a Dialog.
 	return gb
 }
 

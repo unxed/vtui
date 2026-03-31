@@ -38,6 +38,8 @@ func NewBaseWindow(x1, y1, x2, y2 int, title string) *BaseWindow {
 	}
 	// The root group lives inside the frame
 	bw.rootGroup = NewGroup(x1+1, y1+1, x2-x1-1, y2-y1-1)
+	// Important: we don't set owner here yet, because BaseWindow is often
+	// embedded in Dialog/Window and copied. We set it in NewDialog/NewWindow.
 	bw.rootGroup.WrapFocus = true
 	bw.SetPosition(x1, y1, x2, y2)
 	bw.lastW = x2 - x1 + 1
@@ -94,11 +96,6 @@ func (bw *BaseWindow) Show(scr *ScreenBuf) {
 func (bw *BaseWindow) ProcessKey(e *vtinput.InputEvent) bool {
 	if e.Type == vtinput.FocusEventType {
 		bw.SetFocus(e.SetFocus)
-		GlobalEvents.Publish(Event{
-			Type:   EvFocus,
-			Sender: bw,
-			Data:   e.SetFocus,
-		})
 		return true
 	}
 

@@ -37,6 +37,11 @@ func (g *Group) GetFocusedItem() UIElement {
 // AddItem adds a UI element to the group.
 func (g *Group) AddItem(item UIElement) {
 	g.items = append(g.items, item)
+	// Set the group as the owner of the added item to enable command bubbling
+	item.SetPosition(item.GetPosition()) // Trigger potential internal updates
+	if so, ok := item.(interface{ SetOwner(CommandHandler) }); ok {
+		so.SetOwner(g)
+	}
 	if g.focusIdx == -1 && item.CanFocus() && !item.IsDisabled() {
 		g.focusIdx = len(g.items) - 1
 		item.SetFocus(true)

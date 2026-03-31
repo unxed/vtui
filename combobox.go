@@ -24,8 +24,11 @@ func NewComboBox(x, y, width int, items []string) *ComboBox {
 	}
 
 	// Set menu behavior
-	cb.Menu.SetOnSelect(func(idx int) {
-		cb.Edit.SetText(cb.Menu.items[idx].Text)
+	cb.Menu.SetOwner(cb)
+	cb.Menu.SelectCommand = cb.AddCallback(func(args any) {
+		if idx, ok := args.(int); ok {
+			cb.Edit.SetText(cb.Menu.items[idx].Text)
+		}
 	})
 
 	cb.SetPosition(x, y, x+width-1, y)

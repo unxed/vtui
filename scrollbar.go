@@ -124,13 +124,6 @@ type ScrollBar struct {
 	repeatAction int // -1, 1, -2, 2
 }
 
-func (sb *ScrollBar) SetOnScroll(fn func(int)) {
-	sb.ScrollCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
-}
-
-func (sb *ScrollBar) SetOnStep(fn func(int)) {
-	sb.StepCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
-}
 
 func NewScrollBar(x, y, h int) *ScrollBar {
 	sb := &ScrollBar{PgStep: h}

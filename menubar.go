@@ -157,9 +157,7 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 
 	m.SetPosition(x, mb.Y1+1, x+maxWidth-1, mb.Y1+1+m.GetItemCount()+1)
 
-	m.SetOnSelect(func(itmIdx int) {
-		mb.Active = false
-	})
+	m.SelectCommand = mb.AddCallback(func(args any) { mb.Active = false })
 
 	FrameManager.Push(m)
 }

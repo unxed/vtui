@@ -23,6 +23,8 @@ type ScreenObject struct {
 	hotkey         rune
 	Id             string
 	disabled       bool
+	callbacks      map[int]func(any)
+	nextCmd        int
 }
 
 // GetHotkey returns the assigned hotkey rune for the object.
@@ -35,6 +37,21 @@ func (so *ScreenObject) GetId() string {
 
 func (so *ScreenObject) SetId(id string) {
 	so.Id = id
+}
+// AddCallback generates a dynamic local command ID and binds it to a parameterized function.
+func (so *ScreenObject) AddCallback(fn func(any)) int {
+	if so.callbacks == nil {
+		so.callbacks = make(map[int]func(any))
+	}
+	cmd := nextDynamicID
+	nextDynamicID++
+	so.callbacks[cmd] = fn
+	return cmd
+}
+
+// AddCommand generates a dynamic local command ID and binds it to a parameter-less function.
+func (so *ScreenObject) AddCommand(fn func()) int {
+	return so.AddCallback(func(any) { fn() })
 }
 
 func (so *ScreenObject) SetOwner(owner CommandHandler) {
@@ -200,15 +217,19 @@ func (so *ScreenObject) GetMenuBar() *MenuBar {
 	return nil
 }
 // HandleCommand is the default implementation for command routing.
-// It bubbles the command up to the owner.
+// It intercepts locally registered callbacks or bubbles the command up to the owner.
 func (so *ScreenObject) HandleCommand(cmd int, args any) bool {
-	if TryExecuteCallback(cmd, args) {
-		return true
-	}
-	if so.owner != nil {
-		if so.owner.HandleCommand(cmd, args) {
+	if so.callbacks != nil {
+		if _, ok := so.callbacks[cmd]; ok {
+			DebugLog("CMD: [%p] Found local callback for ID %d", so, cmd)
+			so.callbacks[cmd](args)
 			return true
 		}
 	}
+	if so.owner != nil {
+		DebugLog("CMD: [%p] Bubbling ID %d to owner [%p]", so, cmd, so.owner)
+		return so.owner.HandleCommand(cmd, args)
+	}
+	DebugLog("CMD: [%p] ID %d dropped (no owner)", so, cmd)
 	return false
 }

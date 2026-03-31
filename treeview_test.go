@@ -205,7 +205,7 @@ func TestTreeView_FullCoverage(t *testing.T) {
 
 	// 6. Action (Enter/Space) on a leaf node
 	actionCalled := false
-	tvNav.SetOnAction(func(n *TreeNode) { actionCalled = true })
+	tvNav.ActionCommand = tvNav.AddCallback(func(args any) { actionCalled = true })
 	tvNav.SelectPos = 3 // Node 3 is Leaf 2.1
 	tvNav.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_SPACE})
 	if !actionCalled { t.Error("OnAction failed to trigger on leaf via Space") }

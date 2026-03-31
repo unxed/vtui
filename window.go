@@ -11,6 +11,9 @@ func NewWindow(x1, y1, x2, y2 int, title string) *Window {
 	}
 	w.ShowClose = true
 	w.ShowZoom = true
+	// Re-link the root group to the actual Window pointer
+	w.rootGroup.SetOwner(w)
+	w.frame.SetOwner(w)
 	return w
 }
 
