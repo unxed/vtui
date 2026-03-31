@@ -110,12 +110,11 @@ func DrawScrollBar(scr *ScreenBuf, x, y, length int, topItem, itemsCount int, at
 // ScrollBar is a standalone UIElement for scrolling (analogous to TScrollBar).
 type ScrollBar struct {
 	ScreenObject
-	Value    int
-	Min, Max int
-	PgStep   int
-	OnScroll func(int)
-	// OnStep is called for relative movements: -1 (Up), 1 (Down), -2 (PgUp), 2 (PgDown)
-	OnStep   func(int)
+	Value         int
+	Min, Max      int
+	PgStep        int
+	ScrollCommand int
+	StepCommand   int
 
 	isDragging   bool
 	dragStartVal int
@@ -123,6 +122,14 @@ type ScrollBar struct {
 
 	repeatTimer  *time.Timer
 	repeatAction int // -1, 1, -2, 2
+}
+
+func (sb *ScrollBar) SetOnScroll(fn func(int)) {
+	sb.ScrollCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
+}
+
+func (sb *ScrollBar) SetOnStep(fn func(int)) {
+	sb.StepCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
 }
 
 func NewScrollBar(x, y, h int) *ScrollBar {
@@ -222,13 +229,13 @@ func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
 func (sb *ScrollBar) triggerStep() {
 	switch sb.repeatAction {
 	case -1:
-		if sb.OnStep != nil { sb.OnStep(-1) } else { sb.scroll(sb.Value - 1) }
+		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, -1) } else { sb.scroll(sb.Value - 1) }
 	case 1:
-		if sb.OnStep != nil { sb.OnStep(1) } else { sb.scroll(sb.Value + 1) }
+		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, 1) } else { sb.scroll(sb.Value + 1) }
 	case -2:
-		if sb.OnStep != nil { sb.OnStep(-2) } else { sb.scroll(sb.Value - sb.PgStep) }
+		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, -2) } else { sb.scroll(sb.Value - sb.PgStep) }
 	case 2:
-		if sb.OnStep != nil { sb.OnStep(2) } else { sb.scroll(sb.Value + sb.PgStep) }
+		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, 2) } else { sb.scroll(sb.Value + sb.PgStep) }
 	}
 }
 
@@ -243,5 +250,5 @@ func (sb *ScrollBar) doRepeat() {
 func (sb *ScrollBar) scroll(v int) {
 	if v < sb.Min { v = sb.Min }
 	if v > sb.Max { v = sb.Max }
-	if v != sb.Value && sb.OnScroll != nil { sb.OnScroll(v) }
+	if v != sb.Value && sb.ScrollCommand != 0 { sb.HandleCommand(sb.ScrollCommand, v) }
 }

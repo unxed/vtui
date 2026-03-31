@@ -7,12 +7,8 @@ import (
 
 func TestRadioGroup_ProcessMouse(t *testing.T) {
 	rg := NewRadioGroup(0, 0, 2, []string{"A", "B", "C"})
-	// 0 1
-	// 2
-	// Widths: "( ) A " -> 6 chars
-
 	changed := false
-	rg.OnChange = func(idx int) { changed = true }
+	rg.SetOnChange(func(idx int) { changed = true })
 
 	// Click on B (index 1), Col 1, Row 0
 	// X1 is 0, Col 0 is 6 wide, so Col 1 starts at 6. Y is 0.

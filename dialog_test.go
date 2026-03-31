@@ -107,7 +107,7 @@ func TestDialog_NoDragWhenClickingElement(t *testing.T) {
 	d := NewDialog(0, 0, 10, 10, "No Drag")
 	clicked := false
 	btn := NewButton(1, 1, "Btn")
-	btn.OnClick = func() { clicked = true }
+	btn.SetOnClick(func() { clicked = true })
 	d.AddItem(btn)
 
 	// Click button at (1, 1)
@@ -535,11 +535,11 @@ func TestDialog_EnterTriggersFirstButton(t *testing.T) {
 	d.AddItem(edit)
 	
 	btnOk := NewButton(1, 3, "&Ok")
-	btnOk.OnClick = func() { okClicked = true }
+	btnOk.SetOnClick(func() { okClicked = true })
 	d.AddItem(btnOk)
-	
+
 	btnCancel := NewButton(10, 3, "&Cancel")
-	btnCancel.OnClick = func() { cancelClicked = true }
+	btnCancel.SetOnClick(func() { cancelClicked = true })
 	d.AddItem(btnCancel)
 	
 	// Ensure focus is on the edit field

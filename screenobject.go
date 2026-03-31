@@ -190,6 +190,9 @@ func (so *ScreenObject) GetMenuBar() *MenuBar {
 // HandleCommand is the default implementation for command routing.
 // It bubbles the command up to the owner.
 func (so *ScreenObject) HandleCommand(cmd int, args any) bool {
+	if TryExecuteCallback(cmd, args) {
+		return true
+	}
 	if so.owner != nil {
 		if so.owner.HandleCommand(cmd, args) {
 			return true

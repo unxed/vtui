@@ -192,7 +192,7 @@ func TestEdit_HistoryButtonClick(t *testing.T) {
 func TestEdit_OnAction(t *testing.T) {
 	e := NewEdit(0, 0, 10, "test")
 	called := false
-	e.OnAction = func() { called = true }
+	e.SetOnAction(func() { called = true })
 
 	// Simulate Enter
 	handled := e.ProcessKey(&vtinput.InputEvent{

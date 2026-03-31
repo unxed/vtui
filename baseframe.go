@@ -38,10 +38,7 @@ func (bf *BaseFrame) GetProgress() int       { return -1 }
 
 // HandleCommand in BaseFrame bubbles the command up to the owner (e.g., from a dialog to a plugin).
 func (bf *BaseFrame) HandleCommand(cmd int, args any) bool {
-	if bf.owner != nil {
-		return bf.owner.HandleCommand(cmd, args)
-	}
-	return false
+	return bf.ScreenObject.HandleCommand(cmd, args)
 }
 
 func (bf *BaseFrame) HandleBroadcast(cmd int, args any) bool {

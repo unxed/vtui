@@ -249,8 +249,10 @@ func (g *Group) ActivateHotkey(hk rune) bool {
 				g.setFocus(targetIdx)
 			}
 			// Trigger action for buttons/checkboxes
-			if _, isBtn := target.(*Button); isBtn {
-				target.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_SPACE})
+			if b, isBtn := target.(*Button); isBtn {
+				if b.Command != 0 {
+					g.HandleCommand(b.Command, nil)
+				}
 			} else if _, isChk := target.(*Checkbox); isChk {
 				target.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_SPACE})
 			} else if rb, isRad := target.(*RadioButton); isRad {
@@ -378,7 +380,7 @@ func (g *Group) GetData(record any) {
 func (g *Group) findFirstButton() *Button {
 	for _, item := range g.items {
 		if btn, ok := item.(*Button); ok {
-			if btn.OnClick != nil {
+			if btn.Command != 0 {
 				return btn
 			}
 		}

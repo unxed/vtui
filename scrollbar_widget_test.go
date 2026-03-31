@@ -10,7 +10,7 @@ func TestScrollBar_WidgetMouse(t *testing.T) {
 	sb := NewScrollBar(0, 0, 10) // height 10, Y: 0..9
 	sb.SetParams(5, 0, 20)
 	sb.SetVisible(true) // Required for internal hit-testing to pass
-	sb.OnScroll = func(v int) { val = v }
+	sb.SetOnScroll(func(v int) { val = v })
 
 	// 1. Click top arrow (Y=0)
 	sb.ProcessMouse(&vtinput.InputEvent{
@@ -47,7 +47,7 @@ func TestScrollBar_OnStep(t *testing.T) {
 	sb := NewScrollBar(0, 0, 10) // Y: 0..9
 	sb.SetParams(5, 0, 20)
 	sb.SetVisible(true)
-	sb.OnStep = func(s int) { stepVal = s }
+	sb.SetOnStep(func(s int) { stepVal = s })
 
 	// 1. Click Up Arrow (Y=0)
 	sb.ProcessMouse(&vtinput.InputEvent{
@@ -69,7 +69,7 @@ func TestScrollBar_Dragging(t *testing.T) {
 	sb := NewScrollBar(0, 0, 10) // Track length = 8 (1-8)
 	sb.SetParams(0, 0, 100)
 	sb.SetVisible(true)
-	sb.OnScroll = func(v int) { scrolledVal = v }
+	sb.SetOnScroll(func(v int) { scrolledVal = v })
 
 	// 1. Initial click on thumb (TopPos 0, thumb is at Y=1)
 	sb.ProcessMouse(&vtinput.InputEvent{

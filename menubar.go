@@ -9,16 +9,15 @@ import (
 type MenuBarItem struct {
 	Label    string
 	SubItems []MenuItem
+	Command  int
 }
 
 type MenuBar struct {
 	Bar
-	Items          []MenuBarItem
-	SelectPos      int
-	Active         bool
-	activeSubMenu  Frame
-	OnActivate     func(index int, subItems []MenuItem)
-	OnCommand      func(menuIdx, itemIdx int)
+	Items         []MenuBarItem
+	SelectPos     int
+	Active        bool
+	activeSubMenu Frame
 }
 
 func NewMenuBar(items []string) *MenuBar {
@@ -32,6 +31,24 @@ func NewMenuBar(items []string) *MenuBar {
 	return mb
 }
 
+func (mb *MenuBar) HandleCommand(cmd int, args any) bool {
+	switch cmd {
+	case CmMenuLeft:
+		newIdx := mb.SelectPos - 1
+		if newIdx < 0 { newIdx = len(mb.Items) - 1 }
+		mb.ActivateSubMenu(newIdx)
+		return true
+	case CmMenuRight:
+		newIdx := (mb.SelectPos + 1) % len(mb.Items)
+		mb.ActivateSubMenu(newIdx)
+		return true
+	case CmMenuClose:
+		mb.activeSubMenu = nil
+		mb.Active = false
+		return true
+	}
+	return mb.Bar.HandleCommand(cmd, args)
+}
 func (mb *MenuBar) Show(scr *ScreenBuf) {
 	mb.ScreenObject.Show(scr)
 	mb.DisplayObject(scr)
@@ -101,11 +118,9 @@ func (mb *MenuBar) closeSub() {
 func (mb *MenuBar) ActivateSubMenu(index int) {
 	mb.closeSub()
 	mb.SelectPos = index
-	
-	// If application provided a custom activator, use it
-	if mb.OnActivate != nil {
-		mb.OnActivate(index, mb.Items[index].SubItems)
-		return
+
+	if mb.Items[index].Command != 0 {
+		FrameManager.EmitCommand(mb.Items[index].Command, index)
 	}
 
 	items := mb.Items[index].SubItems
@@ -141,26 +156,9 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 
 	m.SetPosition(x, mb.Y1+1, x+maxWidth-1, mb.Y1+1+m.GetItemCount()+1)
 
-	m.OnLeft = func() {
-		newIdx := mb.SelectPos - 1
-		if newIdx < 0 { newIdx = len(mb.Items) - 1 }
-		mb.ActivateSubMenu(newIdx)
-	}
-	m.OnRight = func() {
-		newIdx := (mb.SelectPos + 1) % len(mb.Items)
-		mb.ActivateSubMenu(newIdx)
-	}
-	m.OnSelect = func(itmIdx int) {
+	m.SetOnSelect(func(itmIdx int) {
 		mb.Active = false
-		// Backward compatibility callback
-		if mb.OnCommand != nil {
-			mb.OnCommand(mb.SelectPos, itmIdx)
-		}
-		// The actual EmitCommand happens inside VMenu.ProcessKey now.
-	}
-	m.OnClose = func() {
-		mb.activeSubMenu = nil
-	}
+	})
 
 	FrameManager.Push(m)
 }

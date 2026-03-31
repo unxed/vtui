@@ -59,8 +59,8 @@ func TestSelectDirDialog_Navigation(t *testing.T) {
 	}
 
 	// Navigation logic check: clicking ".." (index 0)
-	if lb.OnChange != nil {
-		lb.OnChange(0)
+	if lb.ChangeCommand != 0 {
+		lb.HandleCommand(lb.ChangeCommand, 0)
 	}
 
 	// After going up from tmpDir, we should be in its parent
@@ -120,7 +120,9 @@ func TestInputBox_OkCallback(t *testing.T) {
 	if edit == nil || okBtn == nil { t.Fatal("Dialog structure missing components") }
 
 	edit.SetText("NewValue")
-	okBtn.OnClick()
+	if okBtn.Command != 0 {
+		dlg.HandleCommand(okBtn.Command, nil)
+	}
 
 	if received != "NewValue" {
 		t.Errorf("Expected 'NewValue', got '%s'", received)
@@ -162,7 +164,9 @@ func TestSelectFileDialog_Selection(t *testing.T) {
 	if fileIdx == -1 { t.Fatal("File not found in list") }
 
 	// Change selection to file
-	lb.OnChange(fileIdx)
+	if lb.ChangeCommand != 0 {
+		lb.HandleCommand(lb.ChangeCommand, fileIdx)
+	}
 
 	if fileEdit.GetText() != "dummy.txt" {
 		t.Errorf("File Edit not updated on selection. Got %q", fileEdit.GetText())

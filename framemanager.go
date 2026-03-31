@@ -430,6 +430,9 @@ func (fm *frameManager) PostTask(task func()) {
 // EmitCommand broadcasts a command starting from the top-most frame
 // and going down the stack until a frame handles it. (Turbo Vision style)
 func (fm *frameManager) EmitCommand(cmd int, args any) bool {
+	if TryExecuteCallback(cmd, args) {
+		return true
+	}
 	if fm.DisabledCommands.IsDisabled(cmd) {
 		DebugLog("COMMAND: %d is DISABLED, ignoring", cmd)
 		return false
@@ -581,9 +584,9 @@ func (fm *frameManager) showScreensMenu() {
 		menu.AddItem(MenuItem{Text: pre + tit + suf, UserData: i})
 	}
 
-	menu.OnSelect = func(idx int) {
+	menu.SetOnSelect(func(idx int) {
 		fm.SwitchScreen(idx)
-	}
+	})
 
 	menuH := len(fm.Screens) + 2
 	if menuH > 15 { menuH = 15 }

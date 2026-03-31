@@ -26,7 +26,9 @@ func TestShowMessage_Structure(t *testing.T) {
 	// Check that buttons return the correct ExitCode
 	for i := 0; i < 3; i++ {
 		btn := dlg.rootGroup.items[2+i].(*Button)
-		btn.OnClick()
+		if btn.Command != 0 {
+			dlg.HandleCommand(btn.Command, nil)
+		}
 		if dlg.ExitCode != i {
 			t.Errorf("Button %d failed to set exit code. Got %d", i, dlg.ExitCode)
 		}

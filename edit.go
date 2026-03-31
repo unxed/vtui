@@ -20,7 +20,7 @@ type Edit struct {
 	PasswordMode      bool // Mask text with '*'
 	ShowHistoryButton bool // Show a clickable [v] button
 	History           []string
-	OnAction          func()
+	ActionCommand     int
 	ColorTextIdx      int
 	Validator         Validator
 	ColorUnchangedIdx int
@@ -41,6 +41,10 @@ func NewEdit(x, y, width int, defaultText string) *Edit {
 	e.curPos = len(e.text)
 	e.SetPosition(x, y, x+width-1, y)
 	return e
+}
+
+func (e *Edit) SetOnAction(fn func()) {
+	e.ActionCommand = BindCallback(fn)
 }
 
 func (e *Edit) Show(scr *ScreenBuf) {
@@ -220,8 +224,8 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	switch event.VirtualKeyCode {
 
 	case vtinput.VK_RETURN:
-		if e.OnAction != nil {
-			e.OnAction()
+		if e.ActionCommand != 0 {
+			e.HandleCommand(e.ActionCommand, nil)
 			return true
 		}
 		return false
@@ -398,14 +402,11 @@ func (e *Edit) OpenHistory() {
 
 	menu.SetPosition(e.X1, y, e.X1+w-1, y+h-1)
 
-	menu.OnSelect = func(idx int) {
+	menu.SetOnSelect(func(idx int) {
 		e.SetText(e.History[idx])
 		e.SetFocus(true)
 		e.clearFlag = false
-	}
-	menu.OnClose = func() {
-		e.SetFocus(true)
-	}
+	})
 
 	FrameManager.Push(menu)
 }

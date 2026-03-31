@@ -9,15 +9,23 @@ import (
 type ListBox struct {
 	ScreenObject
 	ListViewer
-	Items      []string
-	OnChange   func(int)
-	OnAction   func(int)
+	Items         []string
+	ChangeCommand int
+	ActionCommand int
 
 	ColorTextIdx         int
 	MultiSelect bool
 	SelectedMap map[int]bool
 	ColorSelectedTextIdx int
 	ScrollBar   *ScrollBar
+}
+
+func (lb *ListBox) SetOnChange(fn func(int)) {
+	lb.ChangeCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
+}
+
+func (lb *ListBox) SetOnAction(fn func(int)) {
+	lb.ActionCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
 }
 
 func NewListBox(x, y, w, h int, items []string) *ListBox {
@@ -35,7 +43,7 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 	lb.canFocus = true
 	lb.SetPosition(x, y, x+w-1, y+h-1)
 	lb.ScrollBar = NewScrollBar(x+w-1, y, h)
-	lb.ScrollBar.OnScroll = func(v int) { lb.TopPos = v }
+	lb.ScrollBar.SetOnScroll(func(v int) { lb.TopPos = v })
 	return lb
 }
 
@@ -46,6 +54,7 @@ func (lb *ListBox) GetSelectedIndices() []int {
 	}
 	return res
 }
+
 func (lb *ListBox) Show(scr *ScreenBuf) {
 	lb.ScreenObject.Show(scr)
 	lb.DisplayObject(scr)
@@ -119,12 +128,12 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 		}
 	}
 	if e.VirtualKeyCode == vtinput.VK_RETURN {
-		if lb.OnAction != nil { lb.OnAction(lb.SelectPos) }
+		if lb.ActionCommand != 0 { lb.HandleCommand(lb.ActionCommand, lb.SelectPos) }
 		return true
 	}
 
 	if lb.HandleNavKey(e.VirtualKeyCode) {
-		if lb.OnChange != nil { lb.OnChange(lb.SelectPos) }
+		if lb.ChangeCommand != 0 { lb.HandleCommand(lb.ChangeCommand, lb.SelectPos) }
 		return true
 	}
 
@@ -146,7 +155,7 @@ func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
 		clickIdx := lb.TopPos + (int(e.MouseY) - lb.Y1)
 		if clickIdx >= 0 && clickIdx < len(lb.Items) {
 			lb.SelectPos = clickIdx
-			if lb.OnChange != nil { lb.OnChange(lb.SelectPos) }
+			if lb.ChangeCommand != 0 { lb.HandleCommand(lb.ChangeCommand, lb.SelectPos) }
 			return true
 		}
 	}

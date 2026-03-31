@@ -15,7 +15,9 @@ func TestComboBox_Selection(t *testing.T) {
 	}
 
 	// Simulate selecting the second item ("Two") in menu
-	cb.Menu.OnSelect(1)
+	if cb.Menu.SelectCommand != 0 {
+		cb.Menu.HandleCommand(cb.Menu.SelectCommand, 1)
+	}
 
 	if cb.Edit.GetText() != "Two" {
 		t.Errorf("Expected 'Two', got %q", cb.Edit.GetText())

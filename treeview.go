@@ -45,11 +45,19 @@ type TreeView struct {
 	ColorTreeLineIdx     int
 	ColorBoxIdx          int
 
-	OnSelect func(node *TreeNode)
-	OnAction func(node *TreeNode)
+	SelectCommand int
+	ActionCommand int
 
 	flatNodes []flatNode
 	ScrollBar *ScrollBar
+}
+
+func (t *TreeView) SetOnSelect(fn func(*TreeNode)) {
+	t.SelectCommand = BindCallbackArg(func(args any) { fn(args.(*TreeNode)) })
+}
+
+func (t *TreeView) SetOnAction(fn func(*TreeNode)) {
+	t.ActionCommand = BindCallbackArg(func(args any) { fn(args.(*TreeNode)) })
 }
 
 func NewTreeView(x, y, w, h int, root *TreeNode) *TreeView {
@@ -64,7 +72,7 @@ func NewTreeView(x, y, w, h int, root *TreeNode) *TreeView {
 	tv.canFocus = true
 	tv.SetPosition(x, y, x+w-1, y+h-1)
 	tv.ScrollBar = NewScrollBar(tv.X2, tv.Y1, h)
-	tv.ScrollBar.OnScroll = func(v int) { tv.TopPos = v }
+	tv.ScrollBar.SetOnScroll(func(v int) { tv.TopPos = v })
 	tv.Flatten()
 	return tv
 }
@@ -228,14 +236,14 @@ func (t *TreeView) ProcessKey(e *vtinput.InputEvent) bool {
 	case vtinput.VK_RETURN, vtinput.VK_SPACE:
 		if len(fn.node.Children) > 0 {
 			fn.node.Expanded = !fn.node.Expanded; t.Flatten()
-		} else if t.OnAction != nil {
-			t.OnAction(fn.node)
+		} else if t.ActionCommand != 0 {
+			t.HandleCommand(t.ActionCommand, fn.node)
 		}
 		return true
 	}
 
 	if t.HandleNavKey(e.VirtualKeyCode) {
-		if t.SelectPos != oldPos && t.OnSelect != nil { t.OnSelect(t.flatNodes[t.SelectPos].node) }
+		if t.SelectPos != oldPos && t.SelectCommand != 0 { t.HandleCommand(t.SelectCommand, t.flatNodes[t.SelectPos].node) }
 		return true
 	}
 	return false
@@ -264,7 +272,7 @@ func (t *TreeView) ProcessMouse(e *vtinput.InputEvent) bool {
 		if clickIdx >= 0 && clickIdx < len(t.flatNodes) {
 			t.SelectPos = clickIdx
 			t.EnsureVisible()
-			if t.OnSelect != nil { t.OnSelect(t.flatNodes[clickIdx].node) }
+			if t.SelectCommand != 0 { t.HandleCommand(t.SelectCommand, t.flatNodes[clickIdx].node) }
 			fn := t.flatNodes[clickIdx]
 			prefixWidth := fn.level*2 + map[bool]int{true: 0, false: 2}[fn.node == t.Root && t.ShowRoot]
 			if mx >= t.X1+prefixWidth && mx < t.X1+prefixWidth+3 && len(fn.node.Children) > 0 {

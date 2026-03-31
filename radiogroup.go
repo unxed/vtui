@@ -48,11 +48,15 @@ func gridNav(idx, count, cols int, vk uint16) (int, bool) {
 // RadioGroup is a cluster of radio buttons where only one can be selected.
 type RadioGroup struct {
 	ScreenObject
-	Items     []string
-	Selected  int
-	OnChange  func(int)
-	Columns   int
-	colWidths []int
+	Items         []string
+	Selected      int
+	ChangeCommand int
+	Columns       int
+	colWidths     []int
+}
+
+func (rg *RadioGroup) SetOnChange(fn func(int)) {
+	rg.ChangeCommand = BindCallbackArg(func(args any) { fn(args.(int)) })
 }
 
 func NewRadioGroup(x, y, cols int, items []string) *RadioGroup {
@@ -131,8 +135,8 @@ func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 	newIdx, moved := gridNav(rg.Selected, len(rg.Items), rg.Columns, e.VirtualKeyCode)
 	if moved {
 		rg.Selected = newIdx
-		if rg.OnChange != nil {
-			rg.OnChange(rg.Selected)
+		if rg.ChangeCommand != 0 {
+			rg.HandleCommand(rg.ChangeCommand, rg.Selected)
 		}
 		return true
 	}
@@ -163,7 +167,7 @@ func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 				_, hk, _ := ParseAmpersandString(itm)
 				if hk == unicode.ToLower(e.Char) {
 					rg.Selected = i
-					if rg.OnChange != nil { rg.OnChange(rg.Selected) }
+					if rg.ChangeCommand != 0 { rg.HandleCommand(rg.ChangeCommand, rg.Selected) }
 					return true
 				}
 			}
@@ -192,8 +196,8 @@ func (rg *RadioGroup) ProcessMouse(e *vtinput.InputEvent) bool {
 			if idx >= 0 && idx < len(rg.Items) {
 				if rg.Selected != idx {
 					rg.Selected = idx
-					if rg.OnChange != nil {
-						rg.OnChange(rg.Selected)
+					if rg.ChangeCommand != 0 {
+						rg.HandleCommand(rg.ChangeCommand, rg.Selected)
 					}
 				}
 				return true

@@ -75,7 +75,7 @@ func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 	t.canFocus = true
 	// Create scrollbar before SetPosition to ensure correct initial coordinates
 	t.ScrollBar = NewScrollBar(x+w-1, y, h)
-	t.ScrollBar.OnScroll = func(v int) { t.TopPos = v }
+	t.ScrollBar.SetOnScroll(func(v int) { t.TopPos = v })
 	t.SetPosition(x, y, x+w-1, y+h-1)
 	return t
 }

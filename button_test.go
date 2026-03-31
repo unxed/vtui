@@ -9,7 +9,7 @@ import (
 func TestButton_OnClick(t *testing.T) {
 	b := NewButton(0, 0, "OK")
 	clicked := false
-	b.OnClick = func() { clicked = true }
+	b.SetOnClick(func() { clicked = true })
 
 	// Test KeyDown Space
 	b.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_SPACE})

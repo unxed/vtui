@@ -287,38 +287,49 @@ func TestMenuBar_MouseEdgeCases(t *testing.T) {
 }
 
 func TestVMenu_Callbacks(t *testing.T) {
+	// With the new command system, VMenu emits CmMenuLeft, CmMenuRight, CmMenuClose.
 	m := NewVMenu("Test")
 	m.AddItem(MenuItem{Text: "Item"})
 
 	leftTriggered := false
 	rightTriggered := false
-	closeTriggered := false
 
-	m.OnLeft = func() { leftTriggered = true; m.SetExitCode(-1) }
-	m.OnRight = func() { rightTriggered = true; m.SetExitCode(-1) }
-	m.OnClose = func() { closeTriggered = true }
+	oldFm := FrameManager
+	localFm := &frameManager{}
+	localFm.Init(NewScreenBuf())
+	FrameManager = localFm
+	defer func() { FrameManager = oldFm }()
 
-	// 1. Test Left Arrow
+	mb := NewMenuBar([]string{"Left", "Right"})
+	mb.Active = true
+	mb.SelectPos = 1 // Start at Right
+	mb.SetSubMenu(m)
+	FrameManager.MenuBar = mb
+	FrameManager.Push(m)
+
+	// We can check if MenuBar responds to the emitted commands
+	// by examining mb.SelectPos
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT})
+	// After LEFT, MenuBar should have selected Item 0 (Left)
+	if mb.SelectPos == 0 {
+		leftTriggered = true
+	}
+
 	if !leftTriggered {
-		t.Error("OnLeft callback was not triggered")
-	}
-	if !m.IsDone() {
-		t.Error("Menu should be closed after switching via arrow")
+		t.Error("CmMenuLeft was not properly processed by MenuBar")
 	}
 
-	// 2. Test Right Arrow
-	m.ClearDone()
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT})
+	if mb.SelectPos == 1 {
+		rightTriggered = true
+	}
 	if !rightTriggered {
-		t.Error("OnRight callback was not triggered")
+		t.Error("CmMenuRight was not properly processed by MenuBar")
 	}
 
-	// 3. Test Escape (Close)
-	m.ClearDone()
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_ESCAPE})
-	if !closeTriggered {
-		t.Error("OnClose callback was not triggered on Escape")
+	if mb.Active {
+		t.Error("CmMenuClose was not properly processed by MenuBar on Escape")
 	}
 }
 
@@ -775,11 +786,9 @@ func TestMenuBar_SubMenuActivation(t *testing.T) {
 	}
 
 	commandFired := false
-	mb.OnCommand = func(menuIdx, itemIdx int) {
-		if menuIdx == 0 && itemIdx == 1 { // File -> Save
-			commandFired = true
-		}
-	}
+	mb.Items[0].SubItems[1].Command = BindCallback(func() {
+		commandFired = true
+	})
 
 	// Setup a local FrameManager to catch the pushed VMenu
 	oldFm := FrameManager
@@ -801,7 +810,7 @@ func TestMenuBar_SubMenuActivation(t *testing.T) {
 	subMenu.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
 
 	if !commandFired {
-		t.Error("SubMenu selection did not trigger MenuBar.OnCommand")
+		t.Error("SubMenu selection did not trigger MenuBar item command")
 	}
 	if mb.Active {
 		t.Error("MenuBar should deactivate after a command is executed")
@@ -874,6 +883,7 @@ func TestMenuBar_SubMenuCycling(t *testing.T) {
 		{Label: "Menu1", SubItems: []MenuItem{{Text: "Item1"}}},
 	}
 	mb.Active = true
+	localFm.MenuBar = mb
 
 	// 1. Activate first submenu
 	mb.ActivateSubMenu(0)
@@ -949,24 +959,17 @@ func TestMenuBar_SubMenuCleanup_Deep(t *testing.T) {
 }
 
 func TestVMenu_NavigationCallbacks(t *testing.T) {
+	// With the new architecture, VMenu doesn't have OnLeft/OnRight.
+	// It sends global CmMenuLeft/CmMenuRight commands.
+	// This test is now obsolete in its current form, but let's check
+	// that Esc closes the menu properly as that is still a "navigation" case.
 	m := NewVMenu("Test")
 	m.AddItem(MenuItem{Text: "Item"})
 
-	// Set callback that DOES NOT close the menu
-	m.OnLeft = func() {}
-
-	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT})
-
-	if m.IsDone() {
-		t.Error("VMenu closed on Left arrow, but callback didn't request it")
-	}
-
-	// Set callback that DOES close the menu
-	m.OnLeft = func() { m.SetExitCode(-1) }
-	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT})
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_ESCAPE})
 
 	if !m.IsDone() {
-		t.Error("VMenu should be closed when callback calls SetExitCode")
+		t.Error("VMenu should be closed on Escape")
 	}
 }
 
