@@ -4,8 +4,6 @@ package vtui
 type Window struct {
 	BaseWindow
 }
-// Dialog is a type alias for Window, maintained for compatibility with existing code.
-type Dialog = Window
 
 func NewWindow(x1, y1, x2, y2 int, title string) *Window {
 	w := &Window{

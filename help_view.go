@@ -125,7 +125,6 @@ func (hv *HelpView) Show(scr *ScreenBuf) {
 		}
 	}
 }
-
 func (hv *HelpView) renderLine(scr *ScreenBuf, x, y int, line string, width int, lineIdx int) {
 	isCentered := strings.HasPrefix(line, "^")
 	if isCentered { line = line[1:] }
@@ -133,11 +132,9 @@ func (hv *HelpView) renderLine(scr *ScreenBuf, x, y int, line string, width int,
 	var cells []CharInfo
 	currAttr := Palette[ColHelpText]
 
-	// State for parsing line-local formatting
 	inBold := false
 	inLink := false
 
-	// Find links for this line to handle selection highlighting
 	var lineLinks []int
 	for i, l := range hv.current.Links {
 		if l.Line == lineIdx { lineLinks = append(lineLinks, i) }
@@ -164,7 +161,6 @@ func (hv *HelpView) renderLine(scr *ScreenBuf, x, y int, line string, width int,
 				}
 				linkTriggerCount++
 			} else {
-				// End of link text, skip target (@... part)
 				for i+1 < len(runes) && runes[i] != '@' {
 					i++
 				}

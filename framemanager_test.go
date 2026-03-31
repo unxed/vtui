@@ -512,7 +512,6 @@ func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
 	mb := NewMenuBar([]string{"Options"})
 	fm.MenuBar = mb
 	mb.Active = true // Menu is "open"
-
 	dlg := NewDialog(0, 0, 10, 10, "Modal")
 	btn := NewButton(1, 1, "Ok")
 	okClicked := false

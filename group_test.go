@@ -47,7 +47,7 @@ func TestGroup_FocusCycle(t *testing.T) {
 }
 
 func TestGroup_Nested(t *testing.T) {
-	// Dialog -> GroupBox -> Button
+	// Window -> GroupBox -> Button
 	dlg := NewDialog(0, 0, 40, 20, "Nested Test")
 	outerEdit := NewEdit(1, 1, 10, "Outer")
 	dlg.AddItem(outerEdit)

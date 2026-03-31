@@ -2,14 +2,14 @@ package vtui
 
 import "github.com/mattn/go-runewidth"
 
-func ShowMessage(title string, text string, buttons []string) *Dialog {
+func ShowMessage(title string, text string, buttons []string) *Window {
 	dlg := createMessageDialog(title, text, buttons)
 	FrameManager.Push(dlg)
 	return dlg
 }
 
 // ShowMessageOn creates a message box targeted to a specific screen (via an anchor frame).
-func ShowMessageOn(anchor Frame, title string, text string, buttons []string) *Dialog {
+func ShowMessageOn(anchor Frame, title string, text string, buttons []string) *Window {
 	// 1. Create the dialog but DON'T push it yet via the generic FrameManager.Push
 	dlg := createMessageDialog(title, text, buttons)
 
@@ -19,7 +19,7 @@ func ShowMessageOn(anchor Frame, title string, text string, buttons []string) *D
 }
 
 // Internal helper to avoid code duplication
-func createMessageDialog(title string, text string, buttons []string) *Dialog {
+func createMessageDialog(title string, text string, buttons []string) *Window {
 	const maxDialogWidth = 60
 	const padding = 4
 

@@ -18,7 +18,7 @@ type VFSMinimal interface {
 }
 
 // SelectDirDialog creates a standard directory selection dialog.
-func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Dialog {
+func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 	width := 50
 	height := 18
 	scrW := FrameManager.GetScreenSize()
@@ -109,7 +109,7 @@ func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Dialog {
 }
 
 // SelectFileDialog creates a standard file selection dialog.
-func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Dialog {
+func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 	width := 55
 	height := 20
 	scrW := FrameManager.GetScreenSize()
@@ -214,7 +214,7 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Dialog 
 }
 
 // InputBox creates a simple one-line text input dialog.
-func InputBox(title, prompt, defaultText string, onOk func(string)) *Dialog {
+func InputBox(title, prompt, defaultText string, onOk func(string)) *Window {
 	width := 40
 	height := 8
 	scrW := FrameManager.GetScreenSize()

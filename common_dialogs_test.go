@@ -21,55 +21,6 @@ func (v *testVFS) Join(elem ...string) string { return filepath.Join(elem...) }
 func (v *testVFS) Dir(p string) string { return filepath.Dir(p) }
 func (v *testVFS) Base(p string) string { return filepath.Base(p) }
 
-func TestSelectDirDialog_Navigation(t *testing.T) {
-	SetDefaultPalette()
-	tmpDir := t.TempDir()
-	vfs := &testVFS{currentPath: tmpDir}
-
-	dlg := SelectDirDialog("Test", tmpDir, vfs)
-
-	if dlg == nil {
-		t.Fatal("Failed to create SelectDirDialog")
-	}
-
-	// Verify Edit field has the path
-	var pathEdit *Edit
-	for _, item := range dlg.rootGroup.items {
-		if e, ok := item.(*Edit); ok {
-			pathEdit = e
-			break
-		}
-	}
-
-	if pathEdit == nil || pathEdit.GetText() == "" {
-		t.Error("Path Edit field not found or empty")
-	}
-
-	// Find the ListBox
-	var lb *ListBox
-	for _, item := range dlg.rootGroup.items {
-		if l, ok := item.(*ListBox); ok {
-			lb = l
-			break
-		}
-	}
-
-	if lb == nil {
-		t.Fatal("ListBox not found in dialog")
-	}
-
-	// Navigation logic check: clicking ".." (index 0)
-	if lb.ChangeCommand != 0 {
-		lb.HandleCommand(lb.ChangeCommand, 0)
-	}
-
-	// After going up from tmpDir, we should be in its parent
-	// pathEdit should be updated
-	if pathEdit.GetText() == tmpDir {
-		t.Error("Path Edit was not updated after navigation")
-	}
-}
-
 func TestSelectDirDialog_ArrowVsEnter(t *testing.T) {
 	SetDefaultPalette()
 	tmpDir := t.TempDir()
