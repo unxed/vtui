@@ -29,12 +29,19 @@ func (d *Desktop) Show(scr *ScreenBuf) {
 
 // Desktop doesn't handle any specific keys, but could handle global hotkeys in the future.
 func (d *Desktop) ProcessKey(e *vtinput.InputEvent) bool {
-	// Global exit on Ctrl+Q for example
+	// Fallback exit keys when no other window is focused
 	if e.VirtualKeyCode == vtinput.VK_ESCAPE || e.VirtualKeyCode == vtinput.VK_F10 {
-		d.SetExitCode(-1)
-		return true
+		return FrameManager.EmitCommand(CmQuit, nil)
 	}
 	return false
+}
+
+func (d *Desktop) HandleCommand(cmd int, args any) bool {
+	if cmd == CmQuit {
+		FrameManager.Shutdown()
+		return true
+	}
+	return d.ScreenObject.HandleCommand(cmd, args)
 }
 
 func (d *Desktop) ProcessMouse(e *vtinput.InputEvent) bool {

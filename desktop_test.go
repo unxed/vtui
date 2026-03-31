@@ -7,21 +7,27 @@ import (
 )
 
 func TestDesktop_ExitKeys(t *testing.T) {
-	d := NewDesktop()
+	// Desktop uses global FrameManager.
+	oldScreens := FrameManager.Screens
+	defer func() { FrameManager.Screens = oldScreens }()
 
-	// F10 should set exit code to -1
-	d.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10})
-	if !d.IsDone() || d.exitCode != -1 {
-		t.Error("Desktop should exit with -1 on F10")
+	// 1. Test F10
+	FrameManager.Init(NewScreenBuf())
+	d1 := NewDesktop()
+	FrameManager.Push(d1)
+
+	d1.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10})
+	if !FrameManager.IsShutdown() {
+		t.Error("Desktop should trigger Shutdown on F10 via CmQuit")
 	}
 
-	// Reset state
-	d.done = false
-	d.exitCode = 0
-
-	// ESC should set exit code to -1
-	d.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_ESCAPE})
-	if !d.IsDone() || d.exitCode != -1 {
-		t.Error("Desktop should exit with -1 on ESC")
+	// 2. Test ESC (Re-init manager for fresh state)
+	FrameManager.Init(NewScreenBuf())
+	d2 := NewDesktop()
+	FrameManager.Push(d2)
+	
+	d2.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_ESCAPE})
+	if !FrameManager.IsShutdown() {
+		t.Error("Desktop should trigger Shutdown on ESC via CmQuit")
 	}
 }

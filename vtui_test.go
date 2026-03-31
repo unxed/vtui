@@ -303,6 +303,7 @@ func TestVMenu_Callbacks(t *testing.T) {
 	mb := NewMenuBar([]string{"Left", "Right"})
 	mb.Active = true
 	mb.SelectPos = 1 // Start at Right
+	m.SetOwner(mb)
 	mb.SetSubMenu(m)
 	FrameManager.MenuBar = mb
 	FrameManager.Push(m)

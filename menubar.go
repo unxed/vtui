@@ -127,6 +127,7 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 	if len(items) == 0 { return }
 
 	m := NewVMenu(mb.Items[index].Label)
+	m.SetOwner(mb)
 	mb.activeSubMenu = m
 	for _, itm := range items {
 		if itm.Separator {

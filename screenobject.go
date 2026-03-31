@@ -2,11 +2,18 @@ package vtui
 
 import "github.com/unxed/vtinput"
 
+// CommandHandler defines an object that can process or route commands.
+type CommandHandler interface {
+	HandleCommand(cmd int, args any) bool
+	IsLocked() bool
+	GetHelp() string
+}
+
 // ScreenObject is the base class for all visible UI elements,
 // analog of ScreenObject from scrobj.hpp.
 type ScreenObject struct {
 	X1, Y1, X2, Y2 int
-	owner          *ScreenObject
+	owner          CommandHandler
 	visible        bool
 	focused        bool
 	canFocus       bool
@@ -29,6 +36,11 @@ func (so *ScreenObject) GetId() string {
 func (so *ScreenObject) SetId(id string) {
 	so.Id = id
 }
+
+func (so *ScreenObject) SetOwner(owner CommandHandler) {
+	so.owner = owner
+}
+
 func (so *ScreenObject) SetGrowMode(gm GrowMode) {
 	so.growMode = gm
 }

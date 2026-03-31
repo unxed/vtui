@@ -241,12 +241,6 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.injectedEvents = make([]*vtinput.InputEvent, 0)
 	SetDefaultPalette()
 
-	// Подписываемся на глобальную команду закрытия приложения
-	GlobalEvents.Subscribe(EvCommand, func(e Event) {
-		if cmd, ok := e.Data.(int); ok && cmd == CmQuit {
-			fm.Shutdown()
-		}
-	})
 
 	fm.scr.ThemePalette = &ThemePalette
 

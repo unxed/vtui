@@ -8,7 +8,6 @@ import (
 type EventType string
 
 const (
-	EvCommand     EventType = "command"      // Команды типа cmQuit, cmSave
 	EvFocus       EventType = "focus"        // Изменение фокуса
 	EvWindowState EventType = "window_state" // Изменение состояния окна (resize, move, zoom)
 	EvFileChanged EventType = "file_changed"

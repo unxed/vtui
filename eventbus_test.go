@@ -11,13 +11,13 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 	received := false
 	var receivedData string
 
-	bus.Subscribe(EvCommand, func(e Event) {
+	bus.Subscribe(EvFocus, func(e Event) {
 		received = true
 		receivedData = e.Data.(string)
 	})
 
 	bus.Publish(Event{
-		Type: EvCommand,
+		Type: EvFocus,
 		Data: "HelloBus",
 	})
 
@@ -34,34 +34,16 @@ func TestEventBus_MultipleListeners(t *testing.T) {
 	count := 0
 
 	l := func(e Event) { count++ }
-	bus.Subscribe(EvCommand, l)
-	bus.Subscribe(EvCommand, l)
+	bus.Subscribe(EvFocus, l)
+	bus.Subscribe(EvFocus, l)
 
-	bus.Publish(Event{Type: EvCommand})
+	bus.Publish(Event{Type: EvFocus})
 
 	if count != 2 {
 		t.Errorf("Expected 2 handler calls, got %d", count)
 	}
 }
 
-func TestEventBus_Integration_cmQuit(t *testing.T) {
-	scr := NewScreenBuf()
-	scr.AllocBuf(10, 10)
-	fm := &frameManager{}
-	fm.Init(scr)
-
-	fm.Push(NewDesktop()) // Чтобы было что закрывать
-
-	// Публикуем команду выхода через шину
-	GlobalEvents.Publish(Event{
-		Type: EvCommand,
-		Data: CmQuit,
-	})
-
-	if len(fm.frames) != 0 {
-		t.Error("FrameManager failed to react to Global cmQuit command")
-	}
-}
 func TestCommandSet_Logic(t *testing.T) {
 	cs := NewCommandSet()
 	cmd := 100
