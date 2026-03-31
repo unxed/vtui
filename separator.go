@@ -40,4 +40,3 @@ func (s *Separator) DisplayObject(scr *ScreenBuf) {
 	scr.Write(s.X1, s.Y1, line)
 }
 
-func (s *Separator) CanFocus() bool { return false }

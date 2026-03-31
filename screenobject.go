@@ -106,7 +106,13 @@ func (so *ScreenObject) SetVisible(v bool) {
 
 // SetFocus sets or removes focus from the object.
 func (so *ScreenObject) SetFocus(f bool) {
-	so.focused = f
+	if so.focused != f {
+		so.focused = f
+		// Optional: Log focus changes only for focusable items to avoid spam
+		if so.canFocus {
+			DebugLog("FOCUS: [%p] set to %v (ID: %s)", so, f, so.Id)
+		}
+	}
 }
 
 // IsFocused returns the focus state of the object.

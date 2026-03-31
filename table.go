@@ -157,9 +157,6 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 	}
 }
 
-func (t *Table) SetFocus(f bool) {
-	t.focused = f
-}
 
 func (t *Table) drawRow(scr *ScreenBuf, y int, rowIdx int, attr uint64) {
 	headerOffset := 0

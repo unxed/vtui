@@ -47,10 +47,6 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 	scr.Write(b.X1, b.Y1, cells)
 }
 
-func (b *Button) SetFocus(f bool) {
-	DebugLog("  Button(%s): SetFocus(%v)", b.text, f)
-	b.focused = f
-}
 
 func (b *Button) ProcessKey(e *vtinput.InputEvent) bool {
 	if !e.KeyDown {

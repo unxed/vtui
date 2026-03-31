@@ -122,10 +122,6 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 	}
 }
 
-func (e *Edit) SetFocus(f bool) {
-	DebugLog("  Edit: SetFocus(%v)", f)
-	e.focused = f
-}
 // GetText returns the current content of the edit control as a string.
 func (e *Edit) GetText() string {
 	return string(e.text)

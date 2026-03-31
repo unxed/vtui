@@ -1,5 +1,7 @@
 package vtui
 
+import "github.com/unxed/vtinput"
+
 // Coord defines the coordinates in the console.
 type Coord struct {
 	X int16
@@ -38,3 +40,30 @@ const (
 	GrowAll    GrowMode = 0x0f
 	GrowRel    GrowMode = 0x10
 )
+// UIElement is the interface that all screen objects (widgets, frames, windows) implement.
+type UIElement interface {
+	GetPosition() (int, int, int, int)
+	SetPosition(int, int, int, int)
+	GetGrowMode() GrowMode
+	Show(scr *ScreenBuf)
+	Hide(scr *ScreenBuf)
+	SetFocus(bool)
+	IsFocused() bool
+	CanFocus() bool
+	IsDisabled() bool
+	SetDisabled(bool)
+	GetHotkey() rune
+	GetId() string
+	GetHelp() string
+	ProcessKey(e *vtinput.InputEvent) bool
+	ProcessMouse(e *vtinput.InputEvent) bool
+	HandleCommand(cmd int, args any) bool
+	HandleBroadcast(cmd int, args any) bool
+	Valid(cmd int) bool
+}
+
+// DataControl is an interface for UI elements that can store and return data.
+type DataControl interface {
+	SetData(value any)
+	GetData() any
+}

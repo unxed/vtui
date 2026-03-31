@@ -24,9 +24,6 @@ func NewStatusLine() *StatusLine {
 }
 
 func (sl *StatusLine) Show(scr *ScreenBuf) {
-	if sl.IsLocked() {
-		return
-	}
 	sl.ScreenObject.Show(scr)
 	sl.DisplayObject(scr)
 }

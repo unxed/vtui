@@ -48,10 +48,8 @@ func (gb *GroupBox) DisplayObject(scr *ScreenBuf) {
 	gb.Group.DisplayObject(scr)
 }
 
-// Override CanFocus for GroupBox itself. Focus is handled by its children.
+// CanFocus returns true if the groupbox contains at least one focusable child.
 func (gb *GroupBox) CanFocus() bool {
-	// A GroupBox can be a focus target if it contains focusable children.
-	// The changeFocus logic will handle this.
 	for _, item := range gb.items {
 		if item.CanFocus() && !item.IsDisabled() {
 			return true
@@ -59,4 +57,5 @@ func (gb *GroupBox) CanFocus() bool {
 	}
 	return false
 }
+
 

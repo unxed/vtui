@@ -296,7 +296,3 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	}
 }
 
-func (m *VMenu) SetFocus(f bool) {
-	DebugLog("  VMenu(%s): SetFocus(%v)", m.title, f)
-	m.focused = f
-}
