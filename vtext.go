@@ -34,10 +34,11 @@ func (vt *VText) Show(scr *ScreenBuf) {
 
 func (vt *VText) DisplayObject(scr *ScreenBuf) {
 	if !vt.IsVisible() { return }
+	attr := vt.ResolveColor(ColDialogText, ColDialogText)
+	if vt.Color != 0 && !vt.IsDisabled() { attr = vt.Color }
 
 	runes := []rune(vt.Content)
 	for i, r := range runes {
-		// Write each character on a new Y line
-		scr.Write(vt.X1, vt.Y1+i, StringToCharInfo(string(r), vt.Color))
+		scr.Write(vt.X1, vt.Y1+i, StringToCharInfo(string(r), attr))
 	}
 }

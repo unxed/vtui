@@ -136,7 +136,7 @@ func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 		if rg.OnChange != nil {
 			onClick = func() { rg.OnChange(rg.Selected) }
 		}
-		rg.FireAction(onClick, rg.Command, rg.Selected)
+		rg.FireAction(onClick, rg.Selected)
 		return true
 	}
 
@@ -170,7 +170,7 @@ func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 				if rg.OnChange != nil {
 					onClick = func() { rg.OnChange(rg.Selected) }
 				}
-				rg.FireAction(onClick, rg.Command, rg.Selected)
+				rg.FireAction(onClick, rg.Selected)
 					return true
 				}
 			}
@@ -203,7 +203,7 @@ func (rg *RadioGroup) ProcessMouse(e *vtinput.InputEvent) bool {
 					if rg.OnChange != nil {
 						onClick = func() { rg.OnChange(rg.Selected) }
 					}
-					rg.FireAction(onClick, rg.Command, rg.Selected)
+					rg.FireAction(onClick, rg.Selected)
 				}
 				return true
 			}

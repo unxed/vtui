@@ -28,8 +28,9 @@ func TestScreenObject_FireAction(t *testing.T) {
 	clicked := false
 	owner.commandHandled = false
 	onClick := func() { clicked = true }
+	so.Command = 123
 
-	handled := so.FireAction(onClick, 123, nil)
+	handled := so.FireAction(onClick, nil)
 
 	if !handled {
 		t.Error("FireAction should return true when OnClick is handled")
@@ -44,8 +45,9 @@ func TestScreenObject_FireAction(t *testing.T) {
 	// 2. Test Command bubbling
 	clicked = false
 	owner.commandHandled = false
+	so.Command = 456
 
-	handled = so.FireAction(nil, 456, "test_args")
+	handled = so.FireAction(nil, "test_args")
 
 	if !handled {
 		t.Error("FireAction should return true when command is handled by owner")
@@ -62,7 +64,8 @@ func TestScreenObject_FireAction(t *testing.T) {
 
 	// 3. Test no action
 	owner.commandHandled = false
-	handled = so.FireAction(nil, 0, nil)
+	so.Command = 0
+	handled = so.FireAction(nil, nil)
 	if handled {
 		t.Error("FireAction should return false when there is nothing to do")
 	}

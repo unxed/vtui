@@ -48,17 +48,15 @@ func (b *Button) ProcessKey(e *vtinput.InputEvent) bool {
 		return false
 	}
 	if e.VirtualKeyCode == vtinput.VK_RETURN || e.VirtualKeyCode == vtinput.VK_SPACE {
-		return b.FireAction(b.OnClick, b.Command, nil)
+		return b.FireAction(b.OnClick, nil)
 	}
 	return false
 }
 
 func (b *Button) ProcessMouse(e *vtinput.InputEvent) bool {
-	if b.IsDisabled() {
-		return false
-	}
+	if b.IsDisabled() { return false }
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-		return b.FireAction(b.OnClick, b.Command, nil)
+		return b.FireAction(b.OnClick, nil)
 	}
 	return false
 }

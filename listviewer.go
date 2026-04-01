@@ -29,6 +29,13 @@ func (sv *ScrollView) InitScrollBar(owner CommandHandler) {
 		sv.TopPos = v
 	}
 }
+func (sv *ScrollView) GetContentWidth() int {
+	w := sv.X2 - sv.X1 + 1
+	if sv.ShowScrollBar && sv.ItemCount > sv.ViewHeight {
+		w--
+	}
+	return w
+}
 
 func (sv *ScrollView) SetPosition(x1, y1, x2, y2 int) {
 	sv.ScreenObject.SetPosition(x1, y1, x2, y2)

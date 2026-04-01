@@ -230,7 +230,7 @@ func (t *TreeView) ProcessKey(e *vtinput.InputEvent) bool {
 			if t.OnAction != nil {
 				onClick = func() { t.OnAction(fn.node) }
 			}
-			t.FireAction(onClick, t.Command, fn.node)
+			t.FireAction(onClick, fn.node)
 		}
 		return true
 	}

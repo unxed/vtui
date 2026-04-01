@@ -28,12 +28,9 @@ func (t *Text) Show(scr *ScreenBuf) {
 
 func (t *Text) DisplayObject(scr *ScreenBuf) {
 	if !t.IsVisible() { return }
-	attr := t.color
-	highAttr := Palette[ColDialogHighlightText]
-	if t.IsDisabled() {
-		attr = DimColor(attr)
-		highAttr = DimColor(highAttr)
-	}
+	attr, highAttr := t.ResolveColors(ColDialogText, ColDialogText, ColDialogHighlightText, ColDialogHighlightText)
+	if t.color != 0 && !t.IsDisabled() { attr = t.color }
+
 	p := NewPainter(scr)
 	p.DrawStringHighlighted(t.X1, t.Y1, t.content, attr, highAttr)
 }

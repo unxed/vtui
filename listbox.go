@@ -54,34 +54,24 @@ func (lb *ListBox) Show(scr *ScreenBuf) {
 func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 	if !lb.IsVisible() { return }
 
-	width := lb.X2 - lb.X1 + 1
-	if len(lb.Items) > lb.ViewHeight { width-- }
+	width := lb.GetContentWidth()
 	height := lb.Y2 - lb.Y1 + 1
-
-	colText := Palette[lb.ColorTextIdx]
-	colSel := Palette[lb.ColorSelectedTextIdx]
 
 	// 1. Elements rendering
 	for i := 0; i < height; i++ {
 		idx := lb.TopPos + i
 		currY := lb.Y1 + i
 
-		attr := colText
+		attr := lb.ResolveColor(lb.ColorTextIdx, lb.ColorSelectedTextIdx)
 		isSelected := lb.SelectedMap[idx]
 
 		if isSelected {
-			attr = Palette[ColDialogHighlightText]
-		}
-
-		if idx == lb.SelectPos && lb.IsFocused() {
-			if isSelected {
-				attr = Palette[ColDialogHighlightSelectedButton]
-			} else {
-				attr = colSel
-			}
-		}
-		if lb.IsDisabled() {
-			attr = DimColor(attr)
+			attr = lb.ResolveColor(ColDialogHighlightText, ColDialogHighlightSelectedButton)
+		} else if idx == lb.SelectPos && lb.IsFocused() {
+			// ResolveColor already handled this via the base/selected indices above
+		} else if idx == lb.SelectPos && !lb.IsFocused() {
+			// Keep it normal text if not focused
+			attr = lb.ResolveColor(lb.ColorTextIdx, lb.ColorTextIdx)
 		}
 
 		if idx < len(lb.Items) {
@@ -94,7 +84,7 @@ func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 				scr.FillRect(lb.X1+vLen, currY, lb.X1+width-1, currY, ' ', attr)
 			}
 		} else {
-			scr.FillRect(lb.X1, currY, lb.X1+width-1, currY, ' ', colText)
+			scr.FillRect(lb.X1, currY, lb.X1+width-1, currY, ' ', lb.ResolveColor(lb.ColorTextIdx, lb.ColorTextIdx))
 		}
 	}
 
