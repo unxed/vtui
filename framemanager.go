@@ -246,6 +246,9 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 
 	// Reset terminal palette to default to clear state from possible previous crashes
 	os.Stdout.WriteString("\x1b]104\x07")
+
+	// Set blinking underscore cursor shape
+	os.Stdout.WriteString("\x1b[3 q")
 }
 
 // Push adds a new frame to the top of the stack and assigns a number if it's non-modal.
