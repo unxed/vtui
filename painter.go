@@ -69,7 +69,27 @@ func (p *Painter) DrawString(x, y int, text string, attr uint64) {
 	p.scr.Write(x, y, StringToCharInfo(text, attr))
 }
 
+// DrawHighlightedText draws a pre-parsed string with a specific hotkey position.
+func (p *Painter) DrawHighlightedText(x, y int, cleanText string, hkPos int, normAttr, highAttr uint64) {
+	cells := make([]CharInfo, 0, len(cleanText))
+	currRuneIdx := 0
+	for _, r := range cleanText {
+		attr := normAttr
+		if currRuneIdx == hkPos {
+			attr = highAttr
+		}
+
+		sr, w := SanitizeRune(r)
+		cells = append(cells, CharInfo{Char: uint64(sr), Attributes: attr})
+		for j := 1; j < w; j++ {
+			cells = append(cells, CharInfo{Char: WideCharFiller, Attributes: attr})
+		}
+		currRuneIdx++
+	}
+	p.scr.Write(x, y, cells)
+}
 // DrawStringHighlighted draws a string, highlighting the character after the '&' symbol.
+// This is used for dynamic strings that are not stored in a ScreenObject.
 func (p *Painter) DrawStringHighlighted(x, y int, text string, normAttr, highAttr uint64) {
 	cells, _ := StringToCharInfoHighlighted(text, normAttr, highAttr)
 	p.scr.Write(x, y, cells)

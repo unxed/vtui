@@ -24,11 +24,25 @@ type ScreenObject struct {
 	Id             string
 	disabled       bool
 	Command        int
+	text           string
+	cleanText      string
+	hotkeyPos      int
 }
 
 // GetHotkey returns the assigned hotkey rune for the object.
 func (so *ScreenObject) GetHotkey() rune {
 	return so.hotkey
+}
+func (so *ScreenObject) SetText(s string) {
+	so.text = s
+	clean, hk, pos := ParseAmpersandString(s)
+	so.cleanText = clean
+	so.hotkey = hk
+	so.hotkeyPos = pos
+}
+
+func (so *ScreenObject) GetText() string {
+	return so.text
 }
 func (so *ScreenObject) GetId() string {
 	return so.Id

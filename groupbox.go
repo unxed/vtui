@@ -13,15 +13,13 @@ type GroupBox struct {
 func NewGroupBox(x1, y1, x2, y2 int, title string) *GroupBox {
 	gb := &GroupBox{
 		Group:              *NewGroup(x1+1, y1+1, x2-x1-1, y2-y1-1),
-		Title:              title,
 		ColorBoxIdx:        ColDialogBox,
 		ColorTitleIdx:      ColDialogHighlightText,
 		ColorBackgroundIdx: ColDialogText,
 	}
-	// The GroupBox itself handles position, the inner group is relative
-	gb.ScreenObject.SetPosition(x1, y1, x2, y2)
-	// We don't call gb.Group.SetOwner(gb) here because GroupBox IS the Group.
-	// Its owner will be set when the GroupBox itself is added to a Dialog.
+	// Use manual assignment to avoid 'visible = false' side effect of SetPosition in constructor
+	gb.X1, gb.Y1, gb.X2, gb.Y2 = x1, y1, x2, y2
+	gb.SetText(title)
 	return gb
 }
 
@@ -34,10 +32,9 @@ func (gb *GroupBox) DisplayObject(scr *ScreenBuf) {
 	if !gb.IsVisible() { return }
 	p := NewPainter(scr)
 
-	// GroupBox is typically transparent to the dialog background,
-	// so we don't call p.Fill() here, only draw the border and title.
 	p.DrawBox(gb.X1, gb.Y1, gb.X2, gb.Y2, Palette[gb.ColorBoxIdx], SingleBox)
-	p.DrawTitle(gb.X1, gb.Y1, gb.X2, gb.Title, Palette[gb.ColorTitleIdx])
+	// DrawTitle is also simplified now as it can use cleanText
+	p.DrawTitle(gb.X1, gb.Y1, gb.X2, gb.cleanText, Palette[gb.ColorTitleIdx])
 
 	gb.Group.DisplayObject(scr)
 }

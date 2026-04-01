@@ -1,8 +1,6 @@
 package vtui
 
-import (
-	"github.com/mattn/go-runewidth"
-)
+import "github.com/mattn/go-runewidth"
 
 // Text represents a simple static text label.
 type Text struct {
@@ -13,11 +11,12 @@ type Text struct {
 }
 
 func NewText(x, y int, content string, color uint64) *Text {
-	clean, hk, _ := ParseAmpersandString(content)
-	t := &Text{content: content, color: color}
-	t.hotkey = hk
-	vLen := runewidth.StringWidth(clean)
-	t.SetPosition(x, y, x+vLen-1, y)
+	t := &Text{color: color}
+	t.X1, t.Y1 = x, y
+	t.Y2 = y // Single line height
+	t.SetText(content)
+	// For simple labels, width is always text length
+	t.X2 = t.X1 + runewidth.StringWidth(t.cleanText) - 1
 	return t
 }
 
@@ -32,11 +31,7 @@ func (t *Text) DisplayObject(scr *ScreenBuf) {
 	if t.color != 0 && !t.IsDisabled() { attr = t.color }
 
 	p := NewPainter(scr)
-	p.DrawStringHighlighted(t.X1, t.Y1, t.content, attr, highAttr)
-}
-
-func (t *Text) SetText(text string) {
-	t.content = text
+	p.DrawHighlightedText(t.X1, t.Y1, t.cleanText, t.hotkeyPos, attr, highAttr)
 }
 func (t *Text) GetFocusLink() UIElement {
 	return t.FocusLink

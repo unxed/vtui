@@ -1,4 +1,5 @@
 package vtui
+
 import (
 	"github.com/unxed/vtinput"
 	"github.com/mattn/go-runewidth"
@@ -14,16 +15,14 @@ type Button struct {
 
 
 func NewButton(x, y int, text string) *Button {
-	// Buttons in Far always look like "[ Text ]"
-	fullText := string(UIStrings.ButtonBrackets[0]) + " " + text + " " + string(UIStrings.ButtonBrackets[1])
-	clean, hk, _ := ParseAmpersandString(fullText)
-	b := &Button{
-		text: fullText,
-	}
-	b.hotkey = hk
+	b := &Button{}
+	b.X1, b.Y1 = x, y
+	b.Y2 = y
 	b.canFocus = true
-	vLen := runewidth.StringWidth(clean)
-	b.SetPosition(x, y, x+vLen-1, y)
+	// Buttons in Far always look like "[ Text ]"
+	b.SetText(string(UIStrings.ButtonBrackets[0]) + " " + text + " " + string(UIStrings.ButtonBrackets[1]))
+	// Calculate width based on the parsed clean text
+	b.X2 = b.X1 + runewidth.StringWidth(b.cleanText) - 1
 	return b
 }
 
@@ -36,7 +35,7 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 	if !b.IsVisible() { return }
 	attr, highAttr := b.ResolveColors(ColDialogButton, ColDialogSelectedButton, ColDialogHighlightButton, ColDialogHighlightSelectedButton)
 	p := NewPainter(scr)
-	p.DrawStringHighlighted(b.X1, b.Y1, b.text, attr, highAttr)
+	p.DrawHighlightedText(b.X1, b.Y1, b.cleanText, b.hotkeyPos, attr, highAttr)
 }
 
 

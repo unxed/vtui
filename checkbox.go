@@ -16,16 +16,13 @@ type Checkbox struct {
 
 
 func NewCheckbox(x, y int, text string, threeState bool) *Checkbox {
-	cb := &Checkbox{
-		Text:       text,
-		ThreeState: threeState,
-	}
-	clean, hk, _ := ParseAmpersandString(text)
-	cb.hotkey = hk
+	cb := &Checkbox{ThreeState: threeState}
+	cb.X1, cb.Y1 = x, y
+	cb.Y2 = y
 	cb.canFocus = true
-	// Format: "[x] Text"
-	vLen := 4 + runewidth.StringWidth(clean)
-	cb.SetPosition(x, y, x+vLen-1, y)
+	cb.SetText(text)
+	// Prefix "[x] " is 4 columns wide
+	cb.X2 = cb.X1 + 4 + runewidth.StringWidth(cb.cleanText) - 1
 	return cb
 }
 
@@ -44,11 +41,14 @@ func (cb *Checkbox) DisplayObject(scr *ScreenBuf) {
 	case 1:
 		char = "x"
 	case 2:
-		char = "?" // Symbol for undefined state
+		char = "?"
 	}
 
 	p := NewPainter(scr)
-	p.DrawStringHighlighted(cb.X1, cb.Y1, "["+char+"] "+cb.Text, attr, highAttr)
+	prefix := "[" + char + "] "
+	p.DrawString(cb.X1, cb.Y1, prefix, attr)
+
+	p.DrawHighlightedText(cb.X1+runewidth.StringWidth(prefix), cb.Y1, cb.cleanText, cb.hotkeyPos, attr, highAttr)
 }
 
 func (cb *Checkbox) ProcessKey(e *vtinput.InputEvent) bool {
