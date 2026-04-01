@@ -125,7 +125,7 @@ func showShowcaseDialog() {
 
 	// Bottom: Close button
 	btnClose := vtui.NewButton(x+23, y+15, "&Close")
-	btnClose.Command = dlg.AddCommand(func() { dlg.Close() })
+	btnClose.OnClick = func() { dlg.Close() }
 	dlg.AddItem(btnClose)
 
 	vtui.FrameManager.Push(dlg)
@@ -199,13 +199,13 @@ func main() {
 	cmdEdit.History = []string{"git status", "go build", "rm -rf /", "ls -la"}
 	cmdEdit.ShowHistoryButton = true
 	cmdEdit.SetHelp("edit")
-	cmdEdit.ActionCommand = dlg.AddCommand(func() {
+	cmdEdit.OnAction = func() {
 		text := cmdEdit.GetText()
 		if text != "" {
 			cmdEdit.AddHistory(text)
 		}
 		vtui.ShowMessage(" Execute ", "Command added to history:\n"+text, []string{"&Ok"})
-	})
+	}
 	dlg.AddItem(vtui.NewLabel(x1+2, y1+9, "&Command:", cmdEdit))
 	dlg.AddItem(cmdEdit)
 
@@ -251,33 +251,33 @@ func main() {
 
 	// BOTTOM: Buttons
 	btnOk := vtui.NewButton(x1+16, y1+25, "&Ok")
-	btnOk.Command = dlg.AddCommand(func() { dlg.SetExitCode(0); desktop.SetExitCode(0) })
+	btnOk.OnClick = func() { dlg.SetExitCode(0); desktop.SetExitCode(0) }
 	btnOk.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnMsg := vtui.NewButton(x1+28, y1+25, "Show &Msg")
-	btnMsg.Command = dlg.AddCommand(func() {
+	btnMsg.OnClick = func() {
 		vtui.ShowMessage(" MessageBox ", "Resizing is enabled!\nGrab the bottom-right corner.", []string{"&Got it"})
-	})
+	}
 	btnMsg.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnDir := vtui.NewButton(x1+40, y1+25, "&Dir")
-	btnDir.Command = dlg.AddCommand(func() {
+	btnDir.OnClick = func() {
 		vtui.SelectDirDialog(" Choose Directory ", ".", &localVFS{path: "."})
-	})
+	}
 	btnDir.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnFile := vtui.NewButton(x1+48, y1+25, "&File")
-	btnFile.Command = dlg.AddCommand(func() {
+	btnFile.OnClick = func() {
 		vtui.SelectFileDialog(" Open File ", ".", &localVFS{path: "."})
-	})
+	}
 	btnFile.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	btnInp := vtui.NewButton(x1+56, y1+25, "&Inp")
-	btnInp.Command = dlg.AddCommand(func() {
+	btnInp.OnClick = func() {
 		vtui.InputBox(" Question ", "What is your name?", "Explorer", func(s string) {
 			vtui.ShowMessage(" Reply ", "Hello, "+s+"!", []string{"&Hi"})
 		})
-	})
+	}
 	btnInp.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 
 	dlg.AddItem(btnOk)

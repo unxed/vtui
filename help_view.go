@@ -27,11 +27,9 @@ func NewHelpView(engine *HelpEngine, startTopic string) *HelpView {
 	hv.rootGroup.SetOwner(hv)
 	hv.scrollBar = NewScrollBar(0, 0, 0)
 	hv.scrollBar.SetOwner(hv)
-	hv.scrollBar.ScrollCommand = hv.AddCallback(func(args any) {
-		if v, ok := args.(int); ok {
-			hv.scrollTop = v
-		}
-	})
+	hv.scrollBar.OnScroll = func(v int) {
+		hv.scrollTop = v
+	}
 	hv.scrollBar.PgStep = 10 // Default, will be updated in Show
 	hv.Modal = true
 	hv.ShowClose = true

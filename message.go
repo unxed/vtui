@@ -62,7 +62,7 @@ func createMessageDialog(title string, text string, buttons []string) *Window {
 		for i, b := range buttons {
 			btnID := i
 			btn := NewButton(currX, btnY, b)
-			btn.Command = dlg.AddCommand(func() { dlg.SetExitCode(btnID) })
+			btn.OnClick = func() { dlg.SetExitCode(btnID) }
 			dlg.AddItem(btn)
 			currX += runewidth.StringWidth(btn.text) + spacing
 		}

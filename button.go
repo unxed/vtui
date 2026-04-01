@@ -9,6 +9,7 @@ type Button struct {
 	ScreenObject
 	text    string
 	Command int
+	OnClick func()
 }
 
 
@@ -56,7 +57,10 @@ func (b *Button) ProcessKey(e *vtinput.InputEvent) bool {
 		return false
 	}
 	if e.VirtualKeyCode == vtinput.VK_RETURN || e.VirtualKeyCode == vtinput.VK_SPACE {
-		if b.Command != 0 {
+		DebugLog("DEBUG: Button [%s] received key %X (OnClick=%v, Cmd=%d)", b.text, e.VirtualKeyCode, b.OnClick != nil, b.Command)
+		if b.OnClick != nil {
+			b.OnClick()
+		} else if b.Command != 0 {
 			b.HandleCommand(b.Command, nil)
 		}
 		return true
@@ -69,7 +73,9 @@ func (b *Button) ProcessMouse(e *vtinput.InputEvent) bool {
 		return false
 	}
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-		if b.Command != 0 {
+		if b.OnClick != nil {
+			b.OnClick()
+		} else if b.Command != 0 {
 			b.HandleCommand(b.Command, nil)
 		}
 		return true

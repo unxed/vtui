@@ -123,11 +123,17 @@ func (bw *BaseWindow) ProcessKey(e *vtinput.InputEvent) bool {
 		return true
 	case vtinput.VK_RETURN:
 		// Fallback for Enter: trigger first button if a focused element didn't handle it
-		if btn := bw.rootGroup.findFirstButton(); btn != nil {
-			if btn.Command != 0 {
+		btn := bw.rootGroup.findFirstButton()
+		if btn != nil {
+			DebugLog("DEBUG: BaseWindow found button in rootGroup. Command=%d, HasOnClick=%v", btn.Command, btn.OnClick != nil)
+			if btn.OnClick != nil {
+				btn.OnClick()
+			} else if btn.Command != 0 {
 				bw.HandleCommand(btn.Command, nil)
 			}
 			return true
+		} else {
+			DebugLog("DEBUG: BaseWindow found NO buttons in rootGroup")
 		}
 	}
 

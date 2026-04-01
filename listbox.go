@@ -9,15 +9,16 @@ import (
 type ListBox struct {
 	ScreenObject
 	ListViewer
-	Items         []string
-	ChangeCommand int
-	ActionCommand int
+	Items    []string
+	Command  int
+	OnSelect func(int)
+	OnAction func(int)
 
 	ColorTextIdx         int
-	MultiSelect bool
-	SelectedMap map[int]bool
+	MultiSelect          bool
+	SelectedMap          map[int]bool
 	ColorSelectedTextIdx int
-	ScrollBar   *ScrollBar
+	ScrollBar            *ScrollBar
 }
 
 
@@ -37,11 +38,9 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 	lb.SetPosition(x, y, x+w-1, y+h-1)
 	lb.ScrollBar = NewScrollBar(x+w-1, y, h)
 	lb.ScrollBar.SetOwner(lb)
-	lb.ScrollBar.ScrollCommand = lb.AddCallback(func(args any) {
-		if v, ok := args.(int); ok {
-			lb.TopPos = v
-		}
-	})
+	lb.ScrollBar.OnScroll = func(v int) {
+		lb.TopPos = v
+	}
 	return lb
 }
 
@@ -126,12 +125,18 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 		}
 	}
 	if e.VirtualKeyCode == vtinput.VK_RETURN {
-		if lb.ActionCommand != 0 { lb.HandleCommand(lb.ActionCommand, lb.SelectPos) }
+		if lb.OnAction != nil {
+			lb.OnAction(lb.SelectPos)
+		} else if lb.Command != 0 {
+			lb.HandleCommand(lb.Command, lb.SelectPos)
+		}
 		return true
 	}
 
 	if lb.HandleNavKey(e.VirtualKeyCode) {
-		if lb.ChangeCommand != 0 { lb.HandleCommand(lb.ChangeCommand, lb.SelectPos) }
+		if lb.OnSelect != nil {
+			lb.OnSelect(lb.SelectPos)
+		}
 		return true
 	}
 
@@ -153,7 +158,9 @@ func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
 		clickIdx := lb.TopPos + (int(e.MouseY) - lb.Y1)
 		if clickIdx >= 0 && clickIdx < len(lb.Items) {
 			lb.SelectPos = clickIdx
-			if lb.ChangeCommand != 0 { lb.HandleCommand(lb.ChangeCommand, lb.SelectPos) }
+			if lb.OnSelect != nil {
+				lb.OnSelect(lb.SelectPos)
+			}
 			return true
 		}
 	}

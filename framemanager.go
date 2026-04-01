@@ -575,9 +575,9 @@ func (fm *frameManager) showScreensMenu() {
 		menu.AddItem(MenuItem{Text: pre + tit + suf, UserData: i})
 	}
 
-	menu.SelectCommand = menu.AddCallback(func(args any) {
-		fm.SwitchScreen(args.(int))
-	})
+	menu.OnAction = func(idx int) {
+		fm.SwitchScreen(menu.items[idx].UserData.(int))
+	}
 
 	menuH := len(fm.Screens) + 2
 	if menuH > 15 { menuH = 15 }

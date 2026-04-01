@@ -385,7 +385,7 @@ func (g *Group) GetData(record any) {
 func (g *Group) findFirstButton() *Button {
 	for _, item := range g.items {
 		if btn, ok := item.(*Button); ok {
-			if btn.Command != 0 {
+			if btn.OnClick != nil || btn.Command != 0 {
 				return btn
 			}
 		}

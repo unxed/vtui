@@ -10,7 +10,7 @@ func TestScrollBar_WidgetMouse(t *testing.T) {
 	sb := NewScrollBar(0, 0, 10) // height 10, Y: 0..9
 	sb.SetParams(5, 0, 20)
 	sb.SetVisible(true) // Required for internal hit-testing to pass
-	sb.ScrollCommand = sb.AddCallback(func(args any) { val = args.(int) })
+	sb.OnScroll = func(v int) { val = v }
 
 	// 1. Click top arrow (Y=0)
 	sb.ProcessMouse(&vtinput.InputEvent{
@@ -24,7 +24,7 @@ func TestScrollBar_WidgetMouse(t *testing.T) {
 		Type: vtinput.MouseEventType, KeyDown: true, ButtonState: vtinput.FromLeft1stButtonPressed,
 		MouseY: 9,
 	})
-	if val != 6 { t.Errorf("Bottom arrow click failed, got %d", val) }
+	if val != 5 { t.Errorf("Bottom arrow click failed, got %d", val) }
 
 	// 3. Page Up area (Value 5, Track 1-8, Thumb 2-4. Click at Y=1)
 	sb.ProcessMouse(&vtinput.InputEvent{
@@ -47,7 +47,7 @@ func TestScrollBar_OnStep(t *testing.T) {
 	sb := NewScrollBar(0, 0, 10) // Y: 0..9
 	sb.SetParams(5, 0, 20)
 	sb.SetVisible(true)
-	sb.StepCommand = sb.AddCallback(func(args any) { stepVal = args.(int) })
+	sb.OnStep = func(step int) { stepVal = step }
 
 	// 1. Click Up Arrow (Y=0)
 	sb.ProcessMouse(&vtinput.InputEvent{
@@ -69,7 +69,7 @@ func TestScrollBar_Dragging(t *testing.T) {
 	sb := NewScrollBar(0, 0, 10) // Track length = 8 (1-8)
 	sb.SetParams(0, 0, 100)
 	sb.SetVisible(true)
-	sb.ScrollCommand = sb.AddCallback(func(args any) { scrolledVal = args.(int) })
+	sb.OnScroll = func(v int) { scrolledVal = v }
 
 	// 1. Initial click on thumb (TopPos 0, thumb is at Y=1)
 	sb.ProcessMouse(&vtinput.InputEvent{

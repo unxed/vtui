@@ -45,8 +45,9 @@ type TreeView struct {
 	ColorTreeLineIdx     int
 	ColorBoxIdx          int
 
-	SelectCommand int
-	ActionCommand int
+	Command  int
+	OnSelect func(*TreeNode)
+	OnAction func(*TreeNode)
 
 	flatNodes []flatNode
 	ScrollBar *ScrollBar
@@ -66,11 +67,9 @@ func NewTreeView(x, y, w, h int, root *TreeNode) *TreeView {
 	tv.SetPosition(x, y, x+w-1, y+h-1)
 	tv.ScrollBar = NewScrollBar(tv.X2, tv.Y1, h)
 	tv.ScrollBar.SetOwner(tv)
-	tv.ScrollBar.ScrollCommand = tv.AddCallback(func(args any) {
-		if v, ok := args.(int); ok {
-			tv.TopPos = v
-		}
-	})
+	tv.ScrollBar.OnScroll = func(v int) {
+		tv.TopPos = v
+	}
 	tv.Flatten()
 	return tv
 }
@@ -234,14 +233,20 @@ func (t *TreeView) ProcessKey(e *vtinput.InputEvent) bool {
 	case vtinput.VK_RETURN, vtinput.VK_SPACE:
 		if len(fn.node.Children) > 0 {
 			fn.node.Expanded = !fn.node.Expanded; t.Flatten()
-		} else if t.ActionCommand != 0 {
-			t.HandleCommand(t.ActionCommand, fn.node)
+		} else {
+			if t.OnAction != nil {
+				t.OnAction(fn.node)
+			} else if t.Command != 0 {
+				t.HandleCommand(t.Command, fn.node)
+			}
 		}
 		return true
 	}
 
 	if t.HandleNavKey(e.VirtualKeyCode) {
-		if t.SelectPos != oldPos && t.SelectCommand != 0 { t.HandleCommand(t.SelectCommand, t.flatNodes[t.SelectPos].node) }
+		if t.SelectPos != oldPos && t.OnSelect != nil {
+			t.OnSelect(t.flatNodes[t.SelectPos].node)
+		}
 		return true
 	}
 	return false
@@ -270,7 +275,9 @@ func (t *TreeView) ProcessMouse(e *vtinput.InputEvent) bool {
 		if clickIdx >= 0 && clickIdx < len(t.flatNodes) {
 			t.SelectPos = clickIdx
 			t.EnsureVisible()
-			if t.SelectCommand != 0 { t.HandleCommand(t.SelectCommand, t.flatNodes[clickIdx].node) }
+			if t.OnSelect != nil {
+				t.OnSelect(t.flatNodes[clickIdx].node)
+			}
 			fn := t.flatNodes[clickIdx]
 			prefixWidth := fn.level*2 + map[bool]int{true: 0, false: 2}[fn.node == t.Root && t.ShowRoot]
 			if mx >= t.X1+prefixWidth && mx < t.X1+prefixWidth+3 && len(fn.node.Children) > 0 {

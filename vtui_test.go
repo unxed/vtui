@@ -781,15 +781,13 @@ func TestVMenu_SeparatorNavigation(t *testing.T) {
 }
 func TestMenuBar_SubMenuActivation(t *testing.T) {
 	mb := NewMenuBar(nil)
-	mb.Items = []MenuBarItem{
-		{Label: "File", SubItems: []MenuItem{{Text: "Open"}, {Text: "Save"}}},
-		{Label: "Edit", SubItems: []MenuItem{{Text: "Undo"}}},
-	}
 
 	commandFired := false
-	mb.Items[0].SubItems[1].Command = mb.AddCommand(func() {
-		commandFired = true
-	})
+
+	mb.Items = []MenuBarItem{
+		{Label: "File", SubItems: []MenuItem{{Text: "Open"}, {Text: "Save", OnClick: func() { commandFired = true }}}},
+		{Label: "Edit", SubItems: []MenuItem{{Text: "Undo"}}},
+	}
 
 	// Setup a local FrameManager to catch the pushed VMenu
 	oldFm := FrameManager

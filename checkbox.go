@@ -8,10 +8,11 @@ import (
 // Checkbox represents a flag with 2 or 3 states.
 type Checkbox struct {
 	ScreenObject
-	Text          string
-	State         int  // 0 - Unchecked, 1 - Checked, 2 - Undefined (3-state)
-	ThreeState    bool // Enable support for the third state
-	ChangeCommand int
+	Text       string
+	State      int  // 0 - Unchecked, 1 - Checked, 2 - Undefined (3-state)
+	ThreeState bool // Enable support for the third state
+	Command    int
+	OnChange   func(int)
 }
 
 
@@ -90,8 +91,10 @@ func (cb *Checkbox) Toggle() {
 			cb.State = 0
 		}
 	}
-	if cb.ChangeCommand != 0 {
-		cb.HandleCommand(cb.ChangeCommand, cb.State)
+	if cb.OnChange != nil {
+		cb.OnChange(cb.State)
+	} else if cb.Command != 0 {
+		cb.HandleCommand(cb.Command, cb.State)
 	}
 }
 

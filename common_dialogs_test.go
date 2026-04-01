@@ -71,8 +71,8 @@ func TestInputBox_OkCallback(t *testing.T) {
 	if edit == nil || okBtn == nil { t.Fatal("Dialog structure missing components") }
 
 	edit.SetText("NewValue")
-	if okBtn.Command != 0 {
-		dlg.HandleCommand(okBtn.Command, nil)
+	if okBtn.OnClick != nil {
+		okBtn.OnClick()
 	}
 
 	if received != "NewValue" {
@@ -115,8 +115,8 @@ func TestSelectFileDialog_Selection(t *testing.T) {
 	if fileIdx == -1 { t.Fatal("File not found in list") }
 
 	// Change selection to file
-	if lb.ChangeCommand != 0 {
-		lb.HandleCommand(lb.ChangeCommand, fileIdx)
+	if lb.OnSelect != nil {
+		lb.OnSelect(fileIdx)
 	}
 
 	if fileEdit.GetText() != "dummy.txt" {

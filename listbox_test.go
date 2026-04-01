@@ -56,10 +56,10 @@ func TestListBox_OnChange(t *testing.T) {
 	called := false
 	newIdx := -1
 	lb := NewListBox(0, 0, 10, 5, []string{"A", "B", "C"})
-	lb.ChangeCommand = lb.AddCallback(func(args any) {
+	lb.OnSelect = func(idx int) {
 		called = true
-		newIdx = args.(int)
-	})
+		newIdx = idx
+	}
 
 	// Down to index 1
 	lb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})

@@ -38,7 +38,6 @@ const (
 	CmMenuClose     = 304
 	CmFileChanged   = 305
 )
-var nextDynamicID = 10000
 
 
 // CommandSet is a collection of command IDs, used to enable/disable groups of actions.

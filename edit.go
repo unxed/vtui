@@ -20,7 +20,8 @@ type Edit struct {
 	PasswordMode      bool // Mask text with '*'
 	ShowHistoryButton bool // Show a clickable [v] button
 	History           []string
-	ActionCommand     int
+	Command           int
+	OnAction          func()
 	ColorTextIdx      int
 	Validator         Validator
 	ColorUnchangedIdx int
@@ -217,8 +218,11 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	switch event.VirtualKeyCode {
 
 	case vtinput.VK_RETURN:
-		if e.ActionCommand != 0 {
-			e.HandleCommand(e.ActionCommand, nil)
+		if e.OnAction != nil {
+			e.OnAction()
+			return true
+		} else if e.Command != 0 {
+			e.HandleCommand(e.Command, nil)
 			return true
 		}
 		return false
@@ -396,13 +400,11 @@ func (e *Edit) OpenHistory() {
 	menu.SetPosition(e.X1, y, e.X1+w-1, y+h-1)
 
 	menu.SetOwner(e)
-	menu.SelectCommand = e.AddCallback(func(args any) {
-		if idx, ok := args.(int); ok {
-			e.SetText(e.History[idx])
-			e.SetFocus(true)
-			e.clearFlag = false
-		}
-	})
+	menu.OnAction = func(idx int) {
+		e.SetText(e.History[idx])
+		e.SetFocus(true)
+		e.clearFlag = false
+	}
 
 	FrameManager.Push(menu)
 }

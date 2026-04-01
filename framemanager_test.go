@@ -515,7 +515,7 @@ func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
 	dlg := NewDialog(0, 0, 10, 10, "Modal")
 	btn := NewButton(1, 1, "Ok")
 	okClicked := false
-	btn.Command = dlg.AddCommand(func() { okClicked = true })
+	btn.OnClick = func() { okClicked = true }
 	dlg.AddItem(btn)
 	fm.Push(dlg) // Modal dialog appears OVER the active menu
 

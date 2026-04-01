@@ -110,11 +110,11 @@ func DrawScrollBar(scr *ScreenBuf, x, y, length int, topItem, itemsCount int, at
 // ScrollBar is a standalone UIElement for scrolling (analogous to TScrollBar).
 type ScrollBar struct {
 	ScreenObject
-	Value         int
-	Min, Max      int
-	PgStep        int
-	ScrollCommand int
-	StepCommand   int
+	Value    int
+	Min, Max int
+	PgStep   int
+	OnScroll func(int)
+	OnStep   func(int)
 
 	isDragging   bool
 	dragStartVal int
@@ -222,13 +222,13 @@ func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
 func (sb *ScrollBar) triggerStep() {
 	switch sb.repeatAction {
 	case -1:
-		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, -1) } else { sb.scroll(sb.Value - 1) }
+		if sb.OnStep != nil { sb.OnStep(-1) } else { sb.scroll(sb.Value - 1) }
 	case 1:
-		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, 1) } else { sb.scroll(sb.Value + 1) }
+		if sb.OnStep != nil { sb.OnStep(1) } else { sb.scroll(sb.Value + 1) }
 	case -2:
-		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, -2) } else { sb.scroll(sb.Value - sb.PgStep) }
+		if sb.OnStep != nil { sb.OnStep(-2) } else { sb.scroll(sb.Value - sb.PgStep) }
 	case 2:
-		if sb.StepCommand != 0 { sb.HandleCommand(sb.StepCommand, 2) } else { sb.scroll(sb.Value + sb.PgStep) }
+		if sb.OnStep != nil { sb.OnStep(2) } else { sb.scroll(sb.Value + sb.PgStep) }
 	}
 }
 
@@ -243,5 +243,10 @@ func (sb *ScrollBar) doRepeat() {
 func (sb *ScrollBar) scroll(v int) {
 	if v < sb.Min { v = sb.Min }
 	if v > sb.Max { v = sb.Max }
-	if v != sb.Value && sb.ScrollCommand != 0 { sb.HandleCommand(sb.ScrollCommand, v) }
+	if v != sb.Value {
+		sb.Value = v
+		if sb.OnScroll != nil {
+			sb.OnScroll(v)
+		}
+	}
 }

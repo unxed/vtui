@@ -13,6 +13,7 @@ type MenuItem struct {
 	Text      string
 	Shortcut  string // Optional right-aligned hotkey hint (e.g. "F3")
 	Command   int    // TV-style Command ID to emit when selected
+	OnClick   func() // Closure called when selected
 	UserData  any
 	Separator bool
 }
@@ -21,13 +22,14 @@ type MenuItem struct {
 type VMenu struct {
 	ScreenObject
 	ListViewer
-	title         string
-	items         []MenuItem
-	done          bool
-	exitCode      int
-	SelectCommand int
-	HideShadow    bool
-	ScrollBar     *ScrollBar
+	title      string
+	items      []MenuItem
+	done       bool
+	exitCode   int
+	Command    int
+	OnAction   func(int)
+	HideShadow bool
+	ScrollBar  *ScrollBar
 }
 
 
@@ -45,11 +47,9 @@ func NewVMenu(title string) *VMenu {
 	}
 	m.ScrollBar = NewScrollBar(0, 0, 0)
 	m.ScrollBar.SetOwner(m)
-	m.ScrollBar.ScrollCommand = m.AddCallback(func(args any) {
-		if v, ok := args.(int); ok {
-			m.TopPos = v
-		}
-	})
+	m.ScrollBar.OnScroll = func(v int) {
+		m.TopPos = v
+	}
 	return m
 }
 
@@ -59,11 +59,9 @@ func (m *VMenu) SetPosition(x1, y1, x2, y2 int) {
 	if m.ScrollBar == nil {
 		m.ScrollBar = NewScrollBar(m.X2, m.Y1+1, m.ViewHeight)
 		m.ScrollBar.SetOwner(m)
-		m.ScrollBar.ScrollCommand = m.AddCallback(func(args any) {
-			if v, ok := args.(int); ok {
-				m.TopPos = v
-			}
-		})
+		m.ScrollBar.OnScroll = func(v int) {
+			m.TopPos = v
+		}
 	} else {
 		m.ScrollBar.SetPosition(m.X2, m.Y1+1, m.X2, m.Y2-1)
 	}
@@ -104,9 +102,17 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		if m.SelectPos >= 0 && m.SelectPos < m.ItemCount {
 			item := m.items[m.SelectPos]
 			if !item.Separator && FrameManager.DisabledCommands.IsDisabled(item.Command) { return true }
-			if item.Command != 0 { FrameManager.EmitCommand(item.Command, item.UserData) }
+			if item.OnClick != nil {
+				item.OnClick()
+			} else if item.Command != 0 {
+				FrameManager.EmitCommand(item.Command, item.UserData)
+			}
 		}
-		if m.SelectCommand != 0 { m.HandleCommand(m.SelectCommand, m.SelectPos) }
+		if m.OnAction != nil {
+			m.OnAction(m.SelectPos)
+		} else if m.Command != 0 {
+			m.HandleCommand(m.Command, m.SelectPos)
+		}
 		m.SetExitCode(m.SelectPos); return true
 	case vtinput.VK_UP: m.MoveRelative(-1); return true
 	case vtinput.VK_DOWN: m.MoveRelative(1); return true
@@ -123,9 +129,17 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 			if hk == charLower {
 				if FrameManager.DisabledCommands.IsDisabled(item.Command) { return true }
 				m.SetSelectPos(i)
-				if m.SelectCommand != 0 { m.HandleCommand(m.SelectCommand, i) }
+				if m.OnAction != nil {
+					m.OnAction(i)
+				} else if m.Command != 0 {
+					m.HandleCommand(m.Command, i)
+				}
 				m.SetExitCode(i)
-				if item.Command != 0 { FrameManager.EmitCommand(item.Command, item.UserData) }
+				if item.OnClick != nil {
+					item.OnClick()
+				} else if item.Command != 0 {
+					FrameManager.EmitCommand(item.Command, item.UserData)
+				}
 				return true
 			}
 		}
@@ -194,7 +208,11 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 		clickedIdx := m.TopPos + (my - m.Y1 - 1)
 		if mx >= m.X1 && mx < m.X2 && clickedIdx >= 0 && clickedIdx < m.ItemCount && !m.items[clickedIdx].Separator {
 			m.SetSelectPos(clickedIdx)
-			if m.SelectCommand != 0 { m.HandleCommand(m.SelectCommand, clickedIdx) }
+			if m.OnAction != nil {
+				m.OnAction(clickedIdx)
+			} else if m.Command != 0 {
+				m.HandleCommand(m.Command, clickedIdx)
+			}
 			m.SetExitCode(clickedIdx)
 			return true
 		}

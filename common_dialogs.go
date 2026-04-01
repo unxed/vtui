@@ -47,8 +47,7 @@ func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 	lb := NewListBox(x1+2, y1+4, width-4, height-8, items)
 	dlg.AddItem(lb)
 
-	lb.ChangeCommand = dlg.AddCallback(func(args any) {
-		idx := args.(int)
+	lb.OnSelect = func(idx int) {
 		if idx < 0 || idx >= len(items) { return }
 		selected := items[idx]
 		var previewPath string
@@ -58,10 +57,9 @@ func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 			previewPath = vfs.Join(vfs.GetPath(), selected)
 		}
 		pathEdit.SetText(previewPath)
-	})
+	}
 
-	lb.ActionCommand = dlg.AddCallback(func(args any) {
-		idx := args.(int)
+	lb.OnAction = func(idx int) {
 		if idx < 0 || idx >= len(items) { return }
 		selected := items[idx]
 		oldPath := vfs.GetPath()
@@ -94,14 +92,14 @@ func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 			lb.EnsureVisible()
 			pathEdit.SetText(vfs.GetPath())
 		}
-	})
+	}
 
 	btnOk := NewButton(x1+10, y1+height-2, "&Ok")
-	btnOk.Command = dlg.AddCommand(func() { dlg.SetExitCode(1) })
+	btnOk.OnClick = func() { dlg.SetExitCode(1) }
 	dlg.AddItem(btnOk)
 
 	btnCancel := NewButton(x1+width-20, y1+height-2, "&Cancel")
-	btnCancel.Command = dlg.AddCommand(func() { dlg.SetExitCode(-1) })
+	btnCancel.OnClick = func() { dlg.SetExitCode(-1) }
 	dlg.AddItem(btnCancel)
 
 	FrameManager.Push(dlg)
@@ -159,17 +157,15 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window 
 	fileEdit := NewEdit(x1+8, y1+height-4, width-11, "")
 	dlg.AddItem(fileEdit)
 
-	lb.ChangeCommand = dlg.AddCallback(func(args any) {
-		idx := args.(int)
+	lb.OnSelect = func(idx int) {
 		if idx < 0 || idx >= len(items) { return }
 		selected := items[idx]
 		if !isDirMap[selected] {
 			fileEdit.SetText(selected)
 		}
-	})
+	}
 
-	lb.ActionCommand = dlg.AddCallback(func(args any) {
-		idx := args.(int)
+	lb.OnAction = func(idx int) {
 		if idx < 0 || idx >= len(items) { return }
 		selected := items[idx]
 		oldPath := vfs.GetPath()
@@ -199,14 +195,14 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window 
 			// Selecting a file via Enter
 			dlg.SetExitCode(1)
 		}
-	})
+	}
 
 	btnOk := NewButton(x1+width/2-12, y1+height-2, "&Ok")
-	btnOk.Command = dlg.AddCommand(func() { dlg.SetExitCode(1) })
+	btnOk.OnClick = func() { dlg.SetExitCode(1) }
 	dlg.AddItem(btnOk)
 
 	btnCancel := NewButton(x1+width/2+2, y1+height-2, "&Cancel")
-	btnCancel.Command = dlg.AddCommand(func() { dlg.SetExitCode(-1) })
+	btnCancel.OnClick = func() { dlg.SetExitCode(-1) }
 	dlg.AddItem(btnCancel)
 
 	FrameManager.Push(dlg)
@@ -230,14 +226,14 @@ func InputBox(title, prompt, defaultText string, onOk func(string)) *Window {
 	dlg.AddItem(edit)
 
 	btnOk := NewButton(x1+8, y1+5, "&Ok")
-	btnOk.Command = dlg.AddCommand(func() {
+	btnOk.OnClick = func() {
 		if onOk != nil { onOk(edit.GetText()) }
 		dlg.SetExitCode(1)
-	})
+	}
 	dlg.AddItem(btnOk)
 
 	btnCancel := NewButton(x1+width-18, y1+5, "&Cancel")
-	btnCancel.Command = dlg.AddCommand(func() { dlg.SetExitCode(-1) })
+	btnCancel.OnClick = func() { dlg.SetExitCode(-1) }
 	dlg.AddItem(btnCancel)
 
 	FrameManager.Push(dlg)
