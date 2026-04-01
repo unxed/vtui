@@ -7,9 +7,10 @@ import (
 // Button represents an interactive button.
 type Button struct {
 	ScreenObject
-	text    string
-	Command int
-	OnClick func()
+	text      string
+	Command   int
+	OnClick   func()
+	IsDefault bool
 }
 
 
@@ -34,16 +35,7 @@ func (b *Button) Show(scr *ScreenBuf) {
 
 func (b *Button) DisplayObject(scr *ScreenBuf) {
 	if !b.IsVisible() { return }
-	attr := Palette[ColDialogButton]
-	highAttr := Palette[ColDialogHighlightButton]
-	if b.IsFocused() {
-		attr = Palette[ColDialogSelectedButton]
-		highAttr = Palette[ColDialogHighlightSelectedButton]
-	}
-	if b.IsDisabled() {
-		attr = DimColor(attr)
-		highAttr = DimColor(highAttr)
-	}
+	attr, highAttr := b.ResolveColors(ColDialogButton, ColDialogSelectedButton, ColDialogHighlightButton, ColDialogHighlightSelectedButton)
 	cells, _ := StringToCharInfoHighlighted(b.text, attr, highAttr)
 	scr.Write(b.X1, b.Y1, cells)
 }

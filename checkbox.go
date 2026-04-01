@@ -38,16 +38,7 @@ func (cb *Checkbox) Show(scr *ScreenBuf) {
 func (cb *Checkbox) DisplayObject(scr *ScreenBuf) {
 	if !cb.IsVisible() { return }
 
-	attr := Palette[ColDialogText]
-	highAttr := Palette[ColDialogHighlightText]
-	if cb.IsFocused() {
-		attr = Palette[ColDialogSelectedButton]
-		highAttr = Palette[ColDialogHighlightSelectedButton]
-	}
-	if cb.IsDisabled() {
-		attr = DimColor(attr)
-		highAttr = DimColor(highAttr)
-	}
+	attr, highAttr := cb.ResolveColors(ColDialogText, ColDialogSelectedButton, ColDialogHighlightText, ColDialogHighlightSelectedButton)
 
 	char := " "
 	switch cb.State {

@@ -33,16 +33,7 @@ func (rb *RadioButton) Show(scr *ScreenBuf) {
 func (rb *RadioButton) DisplayObject(scr *ScreenBuf) {
 	if !rb.IsVisible() { return }
 
-	attr := Palette[ColDialogText]
-	highAttr := Palette[ColDialogHighlightText]
-	if rb.IsFocused() {
-		attr = Palette[ColDialogSelectedButton]
-		highAttr = Palette[ColDialogHighlightSelectedButton]
-	}
-	if rb.IsDisabled() {
-		attr = DimColor(attr)
-		highAttr = DimColor(highAttr)
-	}
+	attr, highAttr := rb.ResolveColors(ColDialogText, ColDialogSelectedButton, ColDialogHighlightText, ColDialogHighlightSelectedButton)
 
 	state := "( ) "
 	if rb.Selected {

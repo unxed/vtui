@@ -382,15 +382,32 @@ func (g *Group) GetData(record any) {
 	}
 }
 
-func (g *Group) findFirstButton() *Button {
-	for _, item := range g.items {
-		if btn, ok := item.(*Button); ok {
-			if btn.OnClick != nil || btn.Command != 0 {
-				return btn
+// FindDefaultButton recursively searches for a button marked as IsDefault,
+// falling back to the first actionable button if none is strictly default.
+func (g *Group) FindDefaultButton() *Button {
+	var firstBtn *Button
+	var search func(grp *Group) *Button
+
+	search = func(grp *Group) *Button {
+		for _, item := range grp.items {
+			if btn, ok := item.(*Button); ok && !btn.IsDisabled() {
+				if btn.IsDefault { return btn }
+				if firstBtn == nil && (btn.OnClick != nil || btn.Command != 0) {
+					firstBtn = btn
+				}
+			} else if subGrp, ok := item.(*Group); ok {
+				if b := search(subGrp); b != nil && b.IsDefault { return b }
+			} else if gb, ok := item.(*GroupBox); ok {
+				if b := search(&gb.Group); b != nil && b.IsDefault { return b }
 			}
 		}
+		return nil
 	}
-	return nil
+
+	if def := search(g); def != nil {
+		return def
+	}
+	return firstBtn
 }
 
 // HandleBroadcast propagates broadcast events to all children.

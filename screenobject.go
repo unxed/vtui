@@ -205,6 +205,22 @@ func (so *ScreenObject) GetKeyLabels() *KeySet {
 func (so *ScreenObject) GetMenuBar() *MenuBar {
 	return nil
 }
+// ResolveColor simplifies selecting the right palette index based on focus and disabled states.
+func (so *ScreenObject) ResolveColor(normIdx, selIdx int) uint64 {
+	attr := Palette[normIdx]
+	if so.IsFocused() {
+		attr = Palette[selIdx]
+	}
+	if so.IsDisabled() {
+		return DimColor(attr)
+	}
+	return attr
+}
+
+// ResolveColors resolves both base and highlight colors simultaneously.
+func (so *ScreenObject) ResolveColors(normIdx, selNormIdx, highIdx, selHighIdx int) (uint64, uint64) {
+	return so.ResolveColor(normIdx, selNormIdx), so.ResolveColor(highIdx, selHighIdx)
+}
 // HandleCommand is the default implementation for command routing.
 // It bubbles the command up to the owner.
 func (so *ScreenObject) HandleCommand(cmd int, args any) bool {
