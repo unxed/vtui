@@ -5,10 +5,6 @@ const (
 	IsFgRGB             uint64 = 0x0100 // Flag: Foreground is 24-bit RGB. If false, it's an 8-bit index.
 	IsBgRGB             uint64 = 0x0200 // Flag: Background is 24-bit RGB. If false, it's an 8-bit index.
 
-	// Deprecated aliases for compatibility
-	ForegroundTrueColor = IsFgRGB
-	BackgroundTrueColor = IsBgRGB
-
 	ForegroundIntensity uint64 = 0x0008 // Retained for SGR Bold style
 	BackgroundIntensity uint64 = 0x0080 // Retained for style flags
 
@@ -19,6 +15,10 @@ const (
 	CommonLvbStrikeout  uint64 = 0x2000 // Strikeout.
 	CommonLvbReverse    uint64 = 0x4000 // Reverse fore/back ground attribute.
 	CommonLvbUnderscore uint64 = 0x8000 // Underscore.
+
+	// Deprecated aliases for compatibility
+	ForegroundTrueColor = IsFgRGB
+	BackgroundTrueColor = IsBgRGB
 )
 
 // GetRGBFore extracts 24-bit RGB text color from attributes (bits 16-39).

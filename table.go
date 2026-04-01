@@ -249,40 +249,26 @@ func (t *Table) formatCell(text string, width int, align Alignment) string {
 
 func (t *Table) ProcessKey(e *vtinput.InputEvent) bool {
 	if !e.KeyDown || t.IsDisabled() { return false }
-	switch e.VirtualKeyCode {
-	case vtinput.VK_LEFT:
-		if t.CellSelection {
+
+	if t.CellSelection {
+		switch e.VirtualKeyCode {
+		case vtinput.VK_LEFT:
 			if t.SelectCol > 0 { t.SelectCol--; return true }
 			if t.MoveRelative(-1) { t.SelectCol = len(t.Columns) - 1; return true }
-		}
-	case vtinput.VK_RIGHT:
-		if t.CellSelection {
+		case vtinput.VK_RIGHT:
 			if t.SelectCol < len(t.Columns)-1 { t.SelectCol++; return true }
 			if t.MoveRelative(1) { t.SelectCol = 0; return true }
 		}
 	}
+
 	return t.HandleNavKey(e.VirtualKeyCode)
 }
 
 func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 	if t.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
-	if t.ProcessMouseScroll(e) { return true }
+	if t.HandleMouseScroll(e) { return true }
 
 	headerOffset := map[bool]int{true: 1, false: 0}[t.ShowHeader]
-
-	if e.WheelDirection != 0 {
-		if e.WheelDirection > 0 {
-			if t.TopPos > 0 {
-				t.TopPos--
-				return true
-			}
-		} else {
-			if t.TopPos < len(t.Rows)-t.ViewHeight {
-				t.TopPos++
-				return true
-			}
-		}
-	}
 
 	if e.ButtonState != 0 && e.KeyDown {
 		clickIdx := t.TopPos + (int(e.MouseY) - t.Y1 - headerOffset)

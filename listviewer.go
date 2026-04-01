@@ -38,9 +38,18 @@ func (lv *ListViewer) DrawScrollBar(scr *ScreenBuf) {
 	}
 }
 
-func (lv *ListViewer) ProcessMouseScroll(e *vtinput.InputEvent) bool {
+func (lv *ListViewer) HandleMouseScroll(e *vtinput.InputEvent) bool {
 	if lv.ShowScrollBar && lv.ScrollBar != nil && lv.ScrollBar.ProcessMouse(e) {
 		return true
+	}
+	if e.WheelDirection != 0 {
+		if e.WheelDirection > 0 && lv.TopPos > 0 {
+			lv.TopPos--
+			return true
+		} else if e.WheelDirection < 0 && lv.TopPos < lv.ItemCount - lv.ViewHeight {
+			lv.TopPos++
+			return true
+		}
 	}
 	return false
 }
@@ -117,7 +126,6 @@ func (lv *ListViewer) MoveRelative(delta int) bool {
 }
 
 func (lv *ListViewer) HandleNavKey(vk uint16) bool {
-	oldPos := lv.SelectPos
 	switch vk {
 	case vtinput.VK_UP:
 		lv.MoveRelative(-1)
@@ -134,5 +142,5 @@ func (lv *ListViewer) HandleNavKey(vk uint16) bool {
 	default:
 		return false
 	}
-	return lv.SelectPos != oldPos
+	return true
 }

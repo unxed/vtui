@@ -104,13 +104,12 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 			}
 		}
 		return true // Consume Enter on separators
-	case vtinput.VK_UP: m.MoveRelative(-1); return true
-	case vtinput.VK_DOWN: m.MoveRelative(1); return true
-	case vtinput.VK_HOME: m.SetSelectPos(0); return true
-	case vtinput.VK_END: m.SetSelectPos(m.ItemCount-1); return true
-	case vtinput.VK_PRIOR: m.MoveRelative(-m.ViewHeight); return true
-	case vtinput.VK_NEXT: m.MoveRelative(m.ViewHeight); return true
 	}
+
+	if m.HandleNavKey(e.VirtualKeyCode) {
+		return true
+	}
+
 	if e.Char != 0 {
 		charLower := unicode.ToLower(e.Char)
 		for i, item := range m.items {
@@ -177,12 +176,11 @@ func (m *VMenu) ClearDone() {
 func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 	if m.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
 
-	if m.ProcessMouseScroll(e) { return true }
-
 	if e.WheelDirection != 0 {
 		if e.WheelDirection > 0 { m.MoveRelative(-1) } else { m.MoveRelative(1) }
 		return true
 	}
+	if m.HandleMouseScroll(e) { return true }
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)

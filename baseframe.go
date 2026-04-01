@@ -36,14 +36,3 @@ func (bf *BaseFrame) ResizeConsole(w, h int) {}
 func (bf *BaseFrame) GetTitle() string       { return "" }
 func (bf *BaseFrame) GetProgress() int       { return -1 }
 
-// HandleCommand in BaseFrame bubbles the command up to the owner (e.g., from a dialog to a plugin).
-func (bf *BaseFrame) HandleCommand(cmd int, args any) bool {
-	return bf.ScreenObject.HandleCommand(cmd, args)
-}
-
-func (bf *BaseFrame) HandleBroadcast(cmd int, args any) bool {
-	return bf.ScreenObject.HandleBroadcast(cmd, args)
-}
-func (bf *BaseFrame) Valid(cmd int) bool {
-	return bf.ScreenObject.Valid(cmd)
-}

@@ -112,17 +112,14 @@ func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 	if !e.KeyDown || lb.IsDisabled() { return false }
 
-	if e.VirtualKeyCode == vtinput.VK_SPACE || e.VirtualKeyCode == vtinput.VK_INSERT {
+	switch e.VirtualKeyCode {
+	case vtinput.VK_SPACE, vtinput.VK_INSERT:
 		if lb.MultiSelect {
 			lb.SelectedMap[lb.SelectPos] = !lb.SelectedMap[lb.SelectPos]
-			if e.VirtualKeyCode == vtinput.VK_INSERT && lb.SelectPos < len(lb.Items)-1 {
-				lb.SelectPos++
-				lb.EnsureVisible()
-			}
+			if e.VirtualKeyCode == vtinput.VK_INSERT { lb.MoveRelative(1) }
 			return true
 		}
-	}
-	if e.VirtualKeyCode == vtinput.VK_RETURN {
+	case vtinput.VK_RETURN:
 		if lb.OnAction != nil {
 			lb.OnAction(lb.SelectPos)
 		} else if lb.Command != 0 {
@@ -132,9 +129,7 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 
 	if lb.HandleNavKey(e.VirtualKeyCode) {
-		if lb.OnSelect != nil {
-			lb.OnSelect(lb.SelectPos)
-		}
+		if lb.OnSelect != nil { lb.OnSelect(lb.SelectPos) }
 		return true
 	}
 
@@ -144,13 +139,8 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 
 func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
 	if lb.IsDisabled() { return false }
-	if lb.ProcessMouseScroll(e) { return true }
+	if lb.HandleMouseScroll(e) { return true }
 
-	if e.WheelDirection != 0 {
-		if e.WheelDirection > 0 && lb.TopPos > 0 { lb.TopPos-- }
-		if e.WheelDirection < 0 && lb.TopPos < len(lb.Items)-lb.ViewHeight { lb.TopPos++ }
-		return true
-	}
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		clickIdx := lb.TopPos + (int(e.MouseY) - lb.Y1)
 		if clickIdx >= 0 && clickIdx < len(lb.Items) {
