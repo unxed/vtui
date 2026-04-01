@@ -39,8 +39,7 @@ type MultiColSelectableRow interface {
 
 // Table is a generic control for displaying tabular data.
 type Table struct {
-	ScreenObject
-	ListViewer
+	ScrollView
 	Columns        []TableColumn
 	Rows           []TableRow
 	SelectCol      int
@@ -85,15 +84,7 @@ func (t *Table) SetRows(rows []TableRow) {
 	} else if t.SelectPos < 0 {
 		t.SelectPos = 0
 	}
-	t.updateViewHeight()
 	t.EnsureVisible()
-}
-
-func (t *Table) updateViewHeight() {
-	h := t.Y2 - t.Y1 + 1
-	if t.ShowHeader { h-- }
-	if h < 0 { h = 0 }
-	t.ViewHeight = h
 }
 
 func (t *Table) Show(scr *ScreenBuf) {
@@ -268,11 +259,9 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 	if t.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
 	if t.HandleMouseScroll(e) { return true }
 
-	headerOffset := map[bool]int{true: 1, false: 0}[t.ShowHeader]
-
 	if e.ButtonState != 0 && e.KeyDown {
-		clickIdx := t.TopPos + (int(e.MouseY) - t.Y1 - headerOffset)
-		if int(e.MouseY) >= t.Y1+headerOffset && int(e.MouseY) <= t.Y2 && clickIdx >= 0 && clickIdx < len(t.Rows) {
+		clickIdx := t.GetClickIndex(int(e.MouseY))
+		if clickIdx != -1 && int(e.MouseY) >= t.Y1+t.MarginTop && int(e.MouseY) <= t.Y2 {
 			t.SelectPos = clickIdx
 			if t.CellSelection {
 				currX := t.X1
@@ -292,8 +281,6 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 }
 
 func (t *Table) SetPosition(x1, y1, x2, y2 int) {
-	t.ScreenObject.SetPosition(x1, y1, x2, y2)
-	t.updateViewHeight()
-	startY := t.Y1 + map[bool]int{true: 1, false: 0}[t.ShowHeader]
-	t.UpdateScrollBar(t.X2, startY, t.Y2 - startY + 1)
+	t.MarginTop = map[bool]int{true: 1, false: 0}[t.ShowHeader]
+	t.ScrollView.SetPosition(x1, y1, x2, y2)
 }

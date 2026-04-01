@@ -36,8 +36,7 @@ type flatNode struct {
 
 // TreeView displays hierarchical data in an expandable tree structure.
 type TreeView struct {
-	ScreenObject
-	ListViewer
+	ScrollView
 	Root                 *TreeNode
 	ShowRoot             bool
 	ColorTextIdx         int
@@ -70,11 +69,6 @@ func NewTreeView(x, y, w, h int, root *TreeNode) *TreeView {
 	return tv
 }
 
-func (t *TreeView) SetPosition(x1, y1, x2, y2 int) {
-	t.ScreenObject.SetPosition(x1, y1, x2, y2)
-	t.ViewHeight = y2 - y1 + 1
-	t.UpdateScrollBar(x2, y1, t.ViewHeight)
-}
 // Flatten rebuilds the internal flat list of visible nodes based on expansion state.
 func (t *TreeView) Flatten() {
 	t.flatNodes = nil
@@ -107,7 +101,7 @@ func (t *TreeView) Flatten() {
 	}
 
 	t.ItemCount = len(t.flatNodes)
-	t.ViewHeight = t.Y2 - t.Y1 + 1
+	// Ensure ViewHeight is updated in case ItemCount relies on it, though SetPosition handles it.
 	if t.SelectPos >= t.ItemCount { t.SelectPos = t.ItemCount - 1 }
 	if t.SelectPos < 0 { t.SelectPos = 0 }
 	t.EnsureVisible()
@@ -257,8 +251,8 @@ func (t *TreeView) ProcessMouse(e *vtinput.InputEvent) bool {
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
-		clickIdx := t.TopPos + (my - t.Y1)
-		if clickIdx >= 0 && clickIdx < len(t.flatNodes) {
+		clickIdx := t.GetClickIndex(my)
+		if clickIdx != -1 {
 			t.SelectPos = clickIdx
 			t.EnsureVisible()
 			if t.OnSelect != nil {

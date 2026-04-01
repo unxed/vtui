@@ -20,8 +20,7 @@ type MenuItem struct {
 
 // VMenu implements a vertical menu with navigation support.
 type VMenu struct {
-	ScreenObject
-	ListViewer
+	ScrollView
 	title      string
 	items      []MenuItem
 	done       bool
@@ -45,14 +44,10 @@ func NewVMenu(title string) *VMenu {
 		return i >= 0 && i < len(m.items) && !m.items[i].Separator
 	}
 	m.ShowScrollBar = true
+	m.MarginTop = 1
+	m.MarginBottom = 1
 	m.InitScrollBar(m)
 	return m
-}
-
-func (m *VMenu) SetPosition(x1, y1, x2, y2 int) {
-	m.ScreenObject.SetPosition(x1, y1, x2, y2)
-	m.ViewHeight = y2 - y1 - 1
-	m.UpdateScrollBar(m.X2, m.Y1+1, m.ViewHeight)
 }
 
 // AddItem adds a new item to the menu.
@@ -184,9 +179,9 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
-		
-		clickedIdx := m.TopPos + (my - m.Y1 - 1)
-		if mx >= m.X1 && mx < m.X2 && clickedIdx >= 0 && clickedIdx < m.ItemCount && !m.items[clickedIdx].Separator {
+
+		clickedIdx := m.GetClickIndex(my)
+		if mx >= m.X1 && mx < m.X2 && clickedIdx != -1 && !m.items[clickedIdx].Separator {
 			m.SetSelectPos(clickedIdx)
 			item := m.items[clickedIdx]
 			if FrameManager.DisabledCommands.IsDisabled(item.Command) {

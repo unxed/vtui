@@ -7,8 +7,7 @@ import (
 
 // ListBox represents a list of strings for selection within a dialog.
 type ListBox struct {
-	ScreenObject
-	ListViewer
+	ScrollView
 	Items    []string
 	Command  int
 	OnSelect func(int)
@@ -40,11 +39,6 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 	return lb
 }
 
-func (lb *ListBox) SetPosition(x1, y1, x2, y2 int) {
-	lb.ScreenObject.SetPosition(x1, y1, x2, y2)
-	lb.ViewHeight = y2 - y1 + 1
-	lb.UpdateScrollBar(x2, y1, lb.ViewHeight)
-}
 func (lb *ListBox) GetSelectedIndices() []int {
 	var res []int
 	for i := range lb.Items {
@@ -142,8 +136,8 @@ func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
 	if lb.HandleMouseScroll(e) { return true }
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-		clickIdx := lb.TopPos + (int(e.MouseY) - lb.Y1)
-		if clickIdx >= 0 && clickIdx < len(lb.Items) {
+		clickIdx := lb.GetClickIndex(int(e.MouseY))
+		if clickIdx != -1 {
 			lb.SelectPos = clickIdx
 			if lb.OnSelect != nil {
 				lb.OnSelect(lb.SelectPos)

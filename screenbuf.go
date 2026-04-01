@@ -134,39 +134,27 @@ func (s *ScreenBuf) ApplyShadow(x1, y1, x2, y2 int) {
 		offset := y*s.width + x1
 		for x := 0; x <= x2-x1; x++ {
 			attr := s.buf[offset+x].Attributes
+			
+			var bg uint32
 			if attr&IsBgRGB != 0 {
-				bg := GetRGBBack(attr)
-				r, g, b := (bg>>16)&0xFF, (bg>>8)&0xFF, bg&0xFF
-				attr = SetRGBBack(attr, (r/2)<<16|(g/2)<<8|(b/2))
+				bg = GetRGBBack(attr)
 			} else {
 				idx := GetIndexBack(attr)
-				var bg uint32
-				if s.ThemePalette != nil {
-					bg = s.ThemePalette[idx]
-				} else {
-					bg = XTerm256Palette[idx]
-				}
-				r, g, b := (bg>>16)&0xFF, (bg>>8)&0xFF, bg&0xFF
-				attr = SetRGBBack(attr, (r/2)<<16|(g/2)<<8|(b/2))
+				if s.ThemePalette != nil { bg = s.ThemePalette[idx] } else { bg = XTerm256Palette[idx] }
 			}
-
+			
+			var fg uint32
 			if attr&IsFgRGB != 0 {
-				fg := GetRGBFore(attr)
-				r, g, b := (fg>>16)&0xFF, (fg>>8)&0xFF, fg&0xFF
-				attr = SetRGBFore(attr, (r/2)<<16|(g/2)<<8|(b/2))
+				fg = GetRGBFore(attr)
 			} else {
 				idx := GetIndexFore(attr)
-				var fg uint32
-				if s.ThemePalette != nil {
-					fg = s.ThemePalette[idx]
-				} else {
-					fg = XTerm256Palette[idx]
-				}
-				r, g, b := (fg>>16)&0xFF, (fg>>8)&0xFF, fg&0xFF
-				attr = SetRGBFore(attr, (r/2)<<16|(g/2)<<8|(b/2))
+				if s.ThemePalette != nil { fg = s.ThemePalette[idx] } else { fg = XTerm256Palette[idx] }
 			}
-
-			s.buf[offset+x].Attributes = attr
+			
+			bg = ((bg>>16&0xFF)/2)<<16 | ((bg>>8&0xFF)/2)<<8 | ((bg&0xFF)/2)
+			fg = ((fg>>16&0xFF)/2)<<16 | ((fg>>8&0xFF)/2)<<8 | ((fg&0xFF)/2)
+			
+			s.buf[offset+x].Attributes = SetRGBBoth(attr, fg, bg)
 		}
 	}
 }
@@ -205,16 +193,7 @@ func (s *ScreenBuf) Write(x, y int, text []CharInfo) {
 	offset := y*s.width + x
 	if s.OverlayMode && s.ThemePalette != nil {
 		for i, ci := range text {
-			attr := ci.Attributes
-			if attr&IsFgRGB == 0 {
-				idx := GetIndexFore(attr)
-				attr = SetRGBFore(attr, s.ThemePalette[idx])
-			}
-			if attr&IsBgRGB == 0 {
-				idx := GetIndexBack(attr)
-				attr = SetRGBBack(attr, s.ThemePalette[idx])
-			}
-			s.buf[offset+i] = CharInfo{Char: ci.Char, Attributes: attr}
+			s.buf[offset+i] = CharInfo{Char: ci.Char, Attributes: s.resolveAttr(ci.Attributes)}
 		}
 	} else {
 		copy(s.buf[offset:], text)
@@ -223,6 +202,20 @@ func (s *ScreenBuf) Write(x, y int, text []CharInfo) {
 	// Comparison optimization will happen in Flush().
 }
 
+// resolveAttr applies OverlayMode palette resolution to the given attribute.
+func (s *ScreenBuf) resolveAttr(attr uint64) uint64 {
+	if s.OverlayMode && s.ThemePalette != nil {
+		if attr&IsFgRGB == 0 {
+			idx := GetIndexFore(attr)
+			attr = SetRGBFore(attr, s.ThemePalette[idx])
+		}
+		if attr&IsBgRGB == 0 {
+			idx := GetIndexBack(attr)
+			attr = SetRGBBack(attr, s.ThemePalette[idx])
+		}
+	}
+	return attr
+}
 // ApplyColor applies specified attributes to a rectangular area.
 func (s *ScreenBuf) ApplyColor(x1, y1, x2, y2 int, attributes uint64) {
 	s.mu.Lock()
@@ -240,17 +233,7 @@ func (s *ScreenBuf) ApplyColor(x1, y1, x2, y2 int, attributes uint64) {
 	if y2 > clip.Y2 { y2 = clip.Y2 }
 	if x1 > x2 || y1 > y2 { return }
 
-	if s.OverlayMode && s.ThemePalette != nil {
-		if attributes&IsFgRGB == 0 {
-			idx := GetIndexFore(attributes)
-			attributes = SetRGBFore(attributes, s.ThemePalette[idx])
-		}
-		if attributes&IsBgRGB == 0 {
-			idx := GetIndexBack(attributes)
-			attributes = SetRGBBack(attributes, s.ThemePalette[idx])
-		}
-	}
-
+	attributes = s.resolveAttr(attributes)
 	for y := y1; y <= y2; y++ {
 		offset := y*s.width + x1
 		for x := 0; x <= x2-x1; x++ {
@@ -270,16 +253,7 @@ func (s *ScreenBuf) FillRect(x1, y1, x2, y2 int, char rune, attributes uint64) {
 	if x2 > clip.X2 { x2 = clip.X2 }
 	if y2 > clip.Y2 { y2 = clip.Y2 }
 	if x1 > x2 || y1 > y2 { return }
-	if s.OverlayMode && s.ThemePalette != nil {
-		if attributes&IsFgRGB == 0 {
-			idx := GetIndexFore(attributes)
-			attributes = SetRGBFore(attributes, s.ThemePalette[idx])
-		}
-		if attributes&IsBgRGB == 0 {
-			idx := GetIndexBack(attributes)
-			attributes = SetRGBBack(attributes, s.ThemePalette[idx])
-		}
-	}
+	attributes = s.resolveAttr(attributes)
 	cell := CharInfo{Char: uint64(char), Attributes: attributes}
 	for y := y1; y <= y2; y++ {
 		offset := y*s.width + x1

@@ -2,87 +2,99 @@ package vtui
 
 import "github.com/unxed/vtinput"
 
-// ListViewer is a mixin for handling list navigation logic (analogous to TListViewer).
-type ListViewer struct {
+// ScrollView provides standardized scrolling, positioning, and hit-testing
+// for list-based UI elements. It embeds ScreenObject.
+type ScrollView struct {
+	ScreenObject
 	TopPos      int
 	SelectPos   int
 	ItemCount   int
 	ViewHeight  int
 	Wrap        bool
-	// Callback to check if an item is selectable (e.g. not a separator)
 	IsSelectable func(int) bool
 
 	ShowScrollBar bool
 	ScrollBar     *ScrollBar
+
+	MarginTop    int
+	MarginBottom int
+	MarginLeft   int
+	MarginRight  int
 }
 
-func (lv *ListViewer) InitScrollBar(owner CommandHandler) {
-	lv.ScrollBar = NewScrollBar(0, 0, 0)
-	lv.ScrollBar.SetOwner(owner)
-	lv.ScrollBar.OnScroll = func(v int) {
-		lv.TopPos = v
+func (sv *ScrollView) InitScrollBar(owner CommandHandler) {
+	sv.ScrollBar = NewScrollBar(0, 0, 0)
+	sv.ScrollBar.SetOwner(owner)
+	sv.ScrollBar.OnScroll = func(v int) {
+		sv.TopPos = v
 	}
 }
 
-func (lv *ListViewer) UpdateScrollBar(x, y, h int) {
-	if lv.ScrollBar != nil {
-		lv.ScrollBar.SetPosition(x, y, x, y+h-1)
-		lv.ScrollBar.PgStep = h
+func (sv *ScrollView) SetPosition(x1, y1, x2, y2 int) {
+	sv.ScreenObject.SetPosition(x1, y1, x2, y2)
+	sv.ViewHeight = (y2 - y1 + 1) - sv.MarginTop - sv.MarginBottom
+	if sv.ViewHeight < 0 {
+		sv.ViewHeight = 0
+	}
+	if sv.ScrollBar != nil {
+		sy := y1 + sv.MarginTop
+		sv.ScrollBar.SetPosition(x2-sv.MarginRight, sy, x2-sv.MarginRight, sy+sv.ViewHeight-1)
+		sv.ScrollBar.PgStep = sv.ViewHeight
 	}
 }
 
-func (lv *ListViewer) DrawScrollBar(scr *ScreenBuf) {
-	if lv.ShowScrollBar && lv.ScrollBar != nil && lv.ItemCount > lv.ViewHeight && lv.ViewHeight > 0 {
-		lv.ScrollBar.SetParams(lv.TopPos, 0, lv.ItemCount-lv.ViewHeight)
-		lv.ScrollBar.Show(scr)
+func (sv *ScrollView) DrawScrollBar(scr *ScreenBuf) {
+	if sv.ShowScrollBar && sv.ScrollBar != nil && sv.ItemCount > sv.ViewHeight && sv.ViewHeight > 0 {
+		sv.ScrollBar.SetParams(sv.TopPos, 0, sv.ItemCount-sv.ViewHeight)
+		sv.ScrollBar.Show(scr)
 	}
 }
 
-func (lv *ListViewer) HandleMouseScroll(e *vtinput.InputEvent) bool {
-	if lv.ShowScrollBar && lv.ScrollBar != nil && lv.ScrollBar.ProcessMouse(e) {
+func (sv *ScrollView) HandleMouseScroll(e *vtinput.InputEvent) bool {
+	if sv.ShowScrollBar && sv.ScrollBar != nil && sv.ScrollBar.ProcessMouse(e) {
 		return true
 	}
 	if e.WheelDirection != 0 {
-		if e.WheelDirection > 0 && lv.TopPos > 0 {
-			lv.TopPos--
+		if e.WheelDirection > 0 && sv.TopPos > 0 {
+			sv.TopPos--
 			return true
-		} else if e.WheelDirection < 0 && lv.TopPos < lv.ItemCount - lv.ViewHeight {
-			lv.TopPos++
+		} else if e.WheelDirection < 0 && sv.TopPos < sv.ItemCount - sv.ViewHeight {
+			sv.TopPos++
 			return true
 		}
 	}
 	return false
 }
 
-func (lv *ListViewer) EnsureVisible() {
-	if lv.ViewHeight <= 0 { return }
-	if lv.SelectPos < lv.TopPos {
-		lv.TopPos = lv.SelectPos
-	} else if lv.SelectPos >= lv.TopPos+lv.ViewHeight {
-		lv.TopPos = lv.SelectPos - lv.ViewHeight + 1
+func (sv *ScrollView) EnsureVisible() {
+	if sv.ViewHeight <= 0 { return }
+	if sv.SelectPos < sv.TopPos {
+		sv.TopPos = sv.SelectPos
+	} else if sv.SelectPos >= sv.TopPos+sv.ViewHeight {
+		sv.TopPos = sv.SelectPos - sv.ViewHeight + 1
 	}
-	if lv.TopPos < 0 { lv.TopPos = 0 }
+	if sv.TopPos < 0 { sv.TopPos = 0 }
 }
 
 // SetSelectPos manually sets the selection index and updates TopPos to keep it visible.
-func (lv *ListViewer) SetSelectPos(pos int) {
-	if lv.ItemCount == 0 {
-		lv.SelectPos = 0
-		lv.TopPos = 0
+func (sv *ScrollView) SetSelectPos(pos int) {
+	if sv.ItemCount == 0 {
+		sv.SelectPos = 0
+		sv.TopPos = 0
 		return
 	}
 	if pos < 0 { pos = 0 }
-	if pos >= lv.ItemCount { pos = lv.ItemCount - 1 }
-	lv.SelectPos = pos
-	lv.EnsureVisible()
+	if pos >= sv.ItemCount { pos = sv.ItemCount - 1 }
+	sv.SelectPos = pos
+	sv.EnsureVisible()
 }
 
 // MoveRelative shifts the selection by delta and updates TopPos.
-func (lv *ListViewer) MoveRelative(delta int) bool {
-	if lv.ItemCount == 0 {
+func (sv *ScrollView) MoveRelative(delta int) bool {
+	if sv.ItemCount == 0 {
 		return false
 	}
-	oldPos := lv.SelectPos
+	oldPos := sv.SelectPos
 	newPos := oldPos
 
 	step := 1
@@ -99,20 +111,20 @@ func (lv *ListViewer) MoveRelative(delta int) bool {
 		testPos := newPos
 		found := false
 		// Internal loop to skip unselectable items
-		for j := 0; j < lv.ItemCount; j++ {
+		for j := 0; j < sv.ItemCount; j++ {
 			testPos += step
 			if testPos < 0 {
-				if lv.Wrap { testPos = lv.ItemCount - 1 } else { testPos = 0; break }
+				if sv.Wrap { testPos = sv.ItemCount - 1 } else { testPos = 0; break }
 			}
-			if testPos >= lv.ItemCount {
-				if lv.Wrap { testPos = 0 } else { testPos = lv.ItemCount - 1; break }
+			if testPos >= sv.ItemCount {
+				if sv.Wrap { testPos = 0 } else { testPos = sv.ItemCount - 1; break }
 			}
-			if lv.IsSelectable == nil || lv.IsSelectable(testPos) {
+			if sv.IsSelectable == nil || sv.IsSelectable(testPos) {
 				newPos = testPos
 				found = true
 				break
 			}
-			if !lv.Wrap && (testPos <= 0 || testPos >= lv.ItemCount-1) {
+			if !sv.Wrap && (testPos <= 0 || testPos >= sv.ItemCount-1) {
 				break
 			}
 		}
@@ -121,26 +133,38 @@ func (lv *ListViewer) MoveRelative(delta int) bool {
 		}
 	}
 
-	lv.SetSelectPos(newPos)
-	return lv.SelectPos != oldPos
+	sv.SetSelectPos(newPos)
+	return sv.SelectPos != oldPos
 }
 
-func (lv *ListViewer) HandleNavKey(vk uint16) bool {
+func (sv *ScrollView) HandleNavKey(vk uint16) bool {
 	switch vk {
 	case vtinput.VK_UP:
-		lv.MoveRelative(-1)
+		sv.MoveRelative(-1)
 	case vtinput.VK_DOWN:
-		lv.MoveRelative(1)
+		sv.MoveRelative(1)
 	case vtinput.VK_PRIOR:
-		lv.MoveRelative(-lv.ViewHeight)
+		sv.MoveRelative(-sv.ViewHeight)
 	case vtinput.VK_NEXT:
-		lv.MoveRelative(lv.ViewHeight)
+		sv.MoveRelative(sv.ViewHeight)
 	case vtinput.VK_HOME:
-		lv.SetSelectPos(0)
+		sv.SetSelectPos(0)
 	case vtinput.VK_END:
-		lv.SetSelectPos(lv.ItemCount - 1)
+		sv.SetSelectPos(sv.ItemCount - 1)
 	default:
 		return false
 	}
 	return true
+}
+
+// GetClickIndex returns the data index that was clicked, or -1 if invalid
+func (sv *ScrollView) GetClickIndex(my int) int {
+	relY := my - (sv.Y1 + sv.MarginTop)
+	if relY >= 0 && relY < sv.ViewHeight {
+		idx := sv.TopPos + relY
+		if idx >= 0 && idx < sv.ItemCount {
+			return idx
+		}
+	}
+	return -1
 }
