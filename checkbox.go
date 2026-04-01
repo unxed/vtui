@@ -11,7 +11,6 @@ type Checkbox struct {
 	Text       string
 	State      int  // 0 - Unchecked, 1 - Checked, 2 - Undefined (3-state)
 	ThreeState bool // Enable support for the third state
-	Command    int
 	OnChange   func(int)
 }
 

@@ -23,6 +23,7 @@ type ScreenObject struct {
 	hotkey         rune
 	Id             string
 	disabled       bool
+	Command        int
 }
 
 // GetHotkey returns the assigned hotkey rune for the object.
@@ -39,6 +40,10 @@ func (so *ScreenObject) SetId(id string) {
 
 func (so *ScreenObject) SetOwner(owner CommandHandler) {
 	so.owner = owner
+}
+
+func (so *ScreenObject) GetOwner() CommandHandler {
+	return so.owner
 }
 
 func (so *ScreenObject) SetGrowMode(gm GrowMode) {

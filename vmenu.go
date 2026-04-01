@@ -25,7 +25,6 @@ type VMenu struct {
 	items      []MenuItem
 	done       bool
 	exitCode   int
-	Command    int
 	OnAction   func(int)
 	HideShadow bool
 }

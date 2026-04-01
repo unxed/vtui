@@ -50,7 +50,6 @@ type RadioGroup struct {
 	ScreenObject
 	Items     []string
 	Selected  int
-	Command   int
 	OnChange  func(int)
 	Columns   int
 	colWidths []int

@@ -52,6 +52,8 @@ type UIElement interface {
 	CanFocus() bool
 	IsDisabled() bool
 	SetDisabled(bool)
+	SetOwner(CommandHandler)
+	GetOwner() CommandHandler
 	GetHotkey() rune
 	GetId() string
 	GetHelp() string

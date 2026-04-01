@@ -9,7 +9,6 @@ import (
 type ListBox struct {
 	ScrollView
 	Items    []string
-	Command  int
 	OnSelect func(int)
 	OnAction func(int)
 

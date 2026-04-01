@@ -44,7 +44,6 @@ type TreeView struct {
 	ColorTreeLineIdx     int
 	ColorBoxIdx          int
 
-	Command  int
 	OnSelect func(*TreeNode)
 	OnAction func(*TreeNode)
 

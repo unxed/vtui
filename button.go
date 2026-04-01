@@ -8,7 +8,6 @@ import (
 type Button struct {
 	ScreenObject
 	text      string
-	Command   int
 	OnClick   func()
 	IsDefault bool
 }
