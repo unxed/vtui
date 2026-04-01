@@ -144,18 +144,19 @@ func TestGridSnakeNavigation(t *testing.T) {
 	// 0 1
 	// 2 3
 	// 4
-	//items := []string{"0", "1", "2", "3", "4"}
-	
+	items := []string{"0", "1", "2", "3", "4"}
+	count := len(items)
+
 	// Right from col 1 (idx 1) -> idx 2 (row 1 start)
-	idx, ok := gridNav(1, 5, 2, vtinput.VK_RIGHT)
+	idx, ok := gridNav(1, count, 2, vtinput.VK_RIGHT)
 	if !ok || idx != 2 { t.Errorf("Snake Right row 0 fail: %d", idx) }
 
 	// Down from bottom of col 0 (idx 4) -> idx 1 (col 1 top)
-	idx, ok = gridNav(4, 5, 2, vtinput.VK_DOWN)
+	idx, ok = gridNav(4, count, 2, vtinput.VK_DOWN)
 	if !ok || idx != 1 { t.Errorf("Snake Down col 0 fail: %d", idx) }
-	
+
 	// Left from idx 2 (row 1 start) -> idx 1 (row 0 end)
-	idx, ok = gridNav(2, 5, 2, vtinput.VK_LEFT)
+	idx, ok = gridNav(2, count, 2, vtinput.VK_LEFT)
 	if !ok || idx != 1 { t.Errorf("Snake Left row 1 fail: %d", idx) }
 }
 func TestCheckGroup_SnakeNavigation(t *testing.T) {
