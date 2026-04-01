@@ -19,9 +19,12 @@ type Edit struct {
 	clearFlag         bool // If true, first input will clear the text
 	PasswordMode      bool // Mask text with '*'
 	ShowHistoryButton bool // Show a clickable [v] button
-	History           []string
-	Command           int
-	OnAction          func()
+	History            []string
+	HistoryPos         int
+	HistoryLimit       int
+	DeduplicateHistory bool
+	Command            int
+	OnAction           func()
 	ColorTextIdx      int
 	Validator         Validator
 	ColorUnchangedIdx int
@@ -30,13 +33,16 @@ type Edit struct {
 
 func NewEdit(x, y, width int, defaultText string) *Edit {
 	e := &Edit{
-		text:              []rune(defaultText),
-		selStart:          -1,
-		selAnchor:         -1,
-		clearFlag:         false,
-		ColorTextIdx:      ColDialogEdit,
-		ColorUnchangedIdx: ColDialogEditUnchanged,
-		ColorSelectedIdx:  ColDialogEditSelected,
+		text:               []rune(defaultText),
+		HistoryPos:         -1,
+		selStart:           -1,
+		selAnchor:          -1,
+		clearFlag:          false,
+		ColorTextIdx:       ColDialogEdit,
+		ColorUnchangedIdx:  ColDialogEditUnchanged,
+		ColorSelectedIdx:   ColDialogEditSelected,
+		HistoryLimit:       32,
+		DeduplicateHistory: true,
 	}
 	e.canFocus = true
 	e.curPos = len(e.text)
@@ -407,18 +413,51 @@ func (e *Edit) OpenHistory() {
 
 // AddHistory adds a string to the beginning of the history, removing duplicates.
 func (e *Edit) AddHistory(text string) {
-	if text == "" { return }
-	newHist := make([]string, 0, len(e.History)+1)
-	newHist = append(newHist, text)
-	for _, h := range e.History {
-		if h != text {
-			newHist = append(newHist, h)
+	if text == "" {
+		return
+	}
+
+	if e.DeduplicateHistory {
+		newHist := make([]string, 0, len(e.History)+1)
+		newHist = append(newHist, text)
+		for _, h := range e.History {
+			if h != text {
+				newHist = append(newHist, h)
+			}
 		}
+		e.History = newHist
+	} else {
+		// Shell-like behavior: only prevent consecutive duplicates
+		if len(e.History) > 0 && e.History[0] == text {
+			return
+		}
+		e.History = append([]string{text}, e.History...)
 	}
-	if len(newHist) > 32 {
-		newHist = newHist[:32]
+
+	limit := e.HistoryLimit
+	if limit <= 0 {
+		limit = 32 // Fallback to a sane default
 	}
-	e.History = newHist
+	if len(e.History) > limit {
+		e.History = e.History[:limit]
+	}
+}
+func (e *Edit) HistoryUp() {
+	if len(e.History) == 0 { return }
+	if e.HistoryPos < len(e.History)-1 {
+		e.HistoryPos++
+		e.SetText(e.History[e.HistoryPos])
+	}
+}
+
+func (e *Edit) HistoryDown() {
+	if e.HistoryPos > 0 {
+		e.HistoryPos--
+		e.SetText(e.History[e.HistoryPos])
+	} else if e.HistoryPos == 0 {
+		e.HistoryPos = -1
+		e.SetText("")
+	}
 }
 
 func (e *Edit) ProcessMouse(ev *vtinput.InputEvent) bool {
