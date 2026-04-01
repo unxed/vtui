@@ -194,8 +194,7 @@ func (mb *MenuBar) ProcessKey(e *vtinput.InputEvent) bool {
 		if e.Char != 0 {
 			charLower := unicode.ToLower(e.Char)
 			for i, item := range mb.Items {
-				_, hk, _ := ParseAmpersandString(item.Label)
-				if hk == charLower {
+				if ExtractHotkey(item.Label) == charLower {
 					mb.ActivateSubMenu(i)
 					return true
 				}
@@ -208,8 +207,7 @@ func (mb *MenuBar) ProcessKey(e *vtinput.InputEvent) bool {
 	if alt && e.Char != 0 {
 		charLower := unicode.ToLower(e.Char)
 		for i, item := range mb.Items {
-			_, hk, _ := ParseAmpersandString(item.Label)
-			if hk == charLower {
+			if ExtractHotkey(item.Label) == charLower {
 				mb.Active = true
 				mb.ActivateSubMenu(i)
 				return true

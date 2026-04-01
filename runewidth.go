@@ -12,12 +12,36 @@ import (
 // is occupied by the right half of a full-width character (like CJK or Emoji).
 const WideCharFiller = ^uint64(0)
 
+// ExtractHotkey quickly finds the hotkey rune in a string without allocating memory.
+func ExtractHotkey(s string) rune {
+	idx := 0
+	for {
+		i := strings.IndexByte(s[idx:], '&')
+		if i == -1 {
+			return 0
+		}
+		idx += i
+		if idx+1 < len(s) {
+			if s[idx+1] == '&' {
+				idx += 2
+				continue
+			}
+			r, _ := utf8.DecodeRuneInString(s[idx+1:])
+			return unicode.ToLower(r)
+		}
+		return 0
+	}
+}
 // StringToCharInfo converts a string into a slice of CharInfo cells,
 // correctly handling double-width characters by inserting WideCharFillers.
 // It currently ignores zero-width characters to keep cell alignment strict.
 // ParseAmpersandString parses a string with ampersands, removes utility &,
 // processes && as &, and returns the clean string, the hotkey, and its position (in runes).
 func ParseAmpersandString(s string) (clean string, hotkey rune, hotkeyPos int) {
+	if strings.IndexByte(s, '&') == -1 {
+		return s, 0, -1
+	}
+
 	var sb strings.Builder
 	hotkeyPos = -1
 	runeCount := 0

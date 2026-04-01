@@ -71,11 +71,7 @@ func (f fileRow) GetCellText(col int) string {
 }
 
 func showShowcaseDialog() {
-	w := vtui.FrameManager.GetScreenSize()
-	h := 25
-
-	dlg := vtui.NewDialog(0, 0, 56, 18, " UI Showcase ")
-	dlg.Center(w, h)
+	dlg := vtui.NewCenteredDialog(56, 18, " UI Showcase ")
 	dlg.ShowClose = true
 
 	x, y := dlg.X1, dlg.Y1

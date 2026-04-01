@@ -59,3 +59,23 @@ func TestParseAmpersandString_DoubleAmpersand(t *testing.T) {
 		t.Errorf("Wrong hotkey position: expected 7, got %d", pos)
 	}
 }
+func TestExtractHotkey(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected rune
+	}{
+		{"Save &As && Exit", 'a'},
+		{"Fish && &Chips", 'c'},
+		{"No Hotkey", 0},
+		{"&Start", 's'},
+		{"Trailing &", 0},
+		{"&&", 0},
+	}
+
+	for _, tt := range tests {
+		got := ExtractHotkey(tt.input)
+		if got != tt.expected {
+			t.Errorf("ExtractHotkey(%q): expected %c, got %c", tt.input, tt.expected, got)
+		}
+	}
+}

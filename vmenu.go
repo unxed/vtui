@@ -105,8 +105,7 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		charLower := unicode.ToLower(e.Char)
 		for i, item := range m.items {
 			if item.Separator { continue }
-			_, hk, _ := ParseAmpersandString(item.Text)
-			if hk == charLower {
+			if ExtractHotkey(item.Text) == charLower {
 				if FrameManager.DisabledCommands.IsDisabled(item.Command) {
 					return true
 				}

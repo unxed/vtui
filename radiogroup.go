@@ -45,6 +45,52 @@ func gridNav(idx, count, cols int, vk uint16) (int, bool) {
 	return idx, false
 }
 
+// calcGridColWidths calculates column widths for grid-based UI groups.
+func calcGridColWidths(cols int, items []string) []int {
+	widths := make([]int, cols)
+	for i, itm := range items {
+		c := i % cols
+		clean, _, _ := ParseAmpersandString(itm)
+		w := 6 + runewidth.StringWidth(clean) // 4 for prefix + 2 padding
+		if w > widths[c] {
+			widths[c] = w
+		}
+	}
+	return widths
+}
+
+// getGridIndexFromMouse maps a mouse click coordinate to a grid index.
+func getGridIndexFromMouse(x1, y1, mx, my, columns int, colWidths []int) int {
+	row := my - y1
+	col := 0
+	cx := x1
+	for c := 0; c < columns; c++ {
+		if mx >= cx && mx < cx+colWidths[c] {
+			col = c
+			break
+		}
+		cx += colWidths[c]
+	}
+	return row*columns + col
+}
+// handleGridBoundaryNav determines if a navigation key should be swallowed
+// or allowed to pass through for exiting the group.
+func handleGridBoundaryNav(vk uint16, currentIndex, itemCount int) bool {
+	if vk == vtinput.VK_UP || vk == vtinput.VK_DOWN ||
+		vk == vtinput.VK_LEFT || vk == vtinput.VK_RIGHT {
+		movingBack := vk == vtinput.VK_UP || vk == vtinput.VK_LEFT
+		movingForward := vk == vtinput.VK_DOWN || vk == vtinput.VK_RIGHT
+
+		if movingBack && currentIndex == 0 {
+			return false // Exit to previous control
+		}
+		if movingForward && currentIndex == itemCount-1 {
+			return false // Exit to next control
+		}
+		return true // Stay in group (swallow the key)
+	}
+	return false
+}
 // RadioGroup is a cluster of radio buttons where only one can be selected.
 type RadioGroup struct {
 	ScreenObject
@@ -63,14 +109,7 @@ func NewRadioGroup(x, y, cols int, items []string) *RadioGroup {
 	rg.Columns = cols
 
 	rows := (len(items) + cols - 1) / cols
-	rg.colWidths = make([]int, cols)
-
-	for i, itm := range items {
-		c := i % cols
-		clean, _, _ := ParseAmpersandString(itm)
-		w := 6 + runewidth.StringWidth(clean) // 4 for prefix + 2 padding
-		if w > rg.colWidths[c] { rg.colWidths[c] = w }
-	}
+	rg.colWidths = calcGridColWidths(cols, items)
 
 	totalW := 0
 	for _, w := range rg.colWidths { totalW += w }
@@ -87,16 +126,7 @@ func (rg *RadioGroup) Show(scr *ScreenBuf) {
 func (rg *RadioGroup) DisplayObject(scr *ScreenBuf) {
 	if !rg.IsVisible() { return }
 
-	attr := Palette[ColDialogText]
-	highAttr := Palette[ColDialogHighlightText]
-	if rg.IsFocused() {
-		attr = Palette[ColDialogSelectedButton]
-		highAttr = Palette[ColDialogHighlightSelectedButton]
-	}
-	if rg.IsDisabled() {
-		attr = DimColor(attr)
-		highAttr = DimColor(highAttr)
-	}
+	attr, highAttr := rg.ResolveColors(ColDialogText, ColDialogSelectedButton, ColDialogHighlightText, ColDialogHighlightSelectedButton)
 
 	p := NewPainter(scr)
 	for i, itm := range rg.Items {
@@ -140,19 +170,8 @@ func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 		return true
 	}
 
-	// Boundary navigation logic: only exit the group if at the absolute start/end
-	if e.VirtualKeyCode == vtinput.VK_UP || e.VirtualKeyCode == vtinput.VK_DOWN ||
-		e.VirtualKeyCode == vtinput.VK_LEFT || e.VirtualKeyCode == vtinput.VK_RIGHT {
-		movingBack := e.VirtualKeyCode == vtinput.VK_UP || e.VirtualKeyCode == vtinput.VK_LEFT
-		movingForward := e.VirtualKeyCode == vtinput.VK_DOWN || e.VirtualKeyCode == vtinput.VK_RIGHT
-
-		if movingBack && rg.Selected == 0 {
-			return false // Exit to previous control
-		}
-		if movingForward && rg.Selected == len(rg.Items)-1 {
-			return false // Exit to next control
-		}
-		return true // Stay in group (swallow the key)
+	if handleGridBoundaryNav(e.VirtualKeyCode, rg.Selected, len(rg.Items)) {
+		return true
 	}
 
 	switch e.VirtualKeyCode {
@@ -161,10 +180,10 @@ func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 
 	if e.Char != 0 {
+		hkChar := unicode.ToLower(e.Char)
 		{
 			for i, itm := range rg.Items {
-				_, hk, _ := ParseAmpersandString(itm)
-				if hk == unicode.ToLower(e.Char) {
+				if ExtractHotkey(itm) == hkChar {
 					rg.Selected = i
 				var onClick func()
 				if rg.OnChange != nil {
@@ -185,17 +204,7 @@ func (rg *RadioGroup) ProcessMouse(e *vtinput.InputEvent) bool {
 	if e.Type == vtinput.MouseEventType && e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
 		if rg.HitTest(mx, my) {
-			row := my - rg.Y1
-			col := 0
-			cx := rg.X1
-			for c := 0; c < rg.Columns; c++ {
-				if mx >= cx && mx < cx+rg.colWidths[c] {
-					col = c
-					break
-				}
-				cx += rg.colWidths[c]
-			}
-			idx := row*rg.Columns + col
+			idx := getGridIndexFromMouse(rg.X1, rg.Y1, mx, my, rg.Columns, rg.colWidths)
 			if idx >= 0 && idx < len(rg.Items) {
 				if rg.Selected != idx {
 					rg.Selected = idx

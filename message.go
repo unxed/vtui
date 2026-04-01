@@ -43,11 +43,8 @@ func createMessageDialog(title string, text string, buttons []string) *Window {
 	dlgHeight := len(lines) + 4
 	if len(buttons) > 0 { dlgHeight += 2 }
 
-	scrWidth := FrameManager.GetScreenSize()
-	x1 := (scrWidth - dlgWidth) / 2
-	y1 := 6
-
-	dlg := NewDialog(x1, y1, x1+dlgWidth-1, y1+dlgHeight-1, title)
+	dlg := NewCenteredDialog(dlgWidth, dlgHeight, title)
+	x1, y1 := dlg.X1, dlg.Y1
 	for i, l := range lines {
 		lineW := runewidth.StringWidth(l)
 		offX := (dlgWidth - lineW) / 2

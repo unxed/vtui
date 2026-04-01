@@ -2,7 +2,6 @@ package vtui
 
 import (
 	"github.com/unxed/vtinput"
-	"github.com/mattn/go-runewidth"
 	"unicode"
 )
 
@@ -41,15 +40,8 @@ func NewCheckGroup(x, y, cols int, items []string) *CheckGroup {
 	cg.Columns = cols
 	
 	rows := (len(items) + cols - 1) / cols
-	cg.colWidths = make([]int, cols)
-	
-	for i, itm := range items {
-		c := i % cols
-		clean, _, _ := ParseAmpersandString(itm)
-		w := 6 + runewidth.StringWidth(clean) // 4 for prefix + 2 padding
-		if w > cg.colWidths[c] { cg.colWidths[c] = w }
-	}
-	
+	cg.colWidths = calcGridColWidths(cols, items)
+
 	totalW := 0
 	for _, w := range cg.colWidths { totalW += w }
 	
@@ -104,19 +96,8 @@ func (cg *CheckGroup) ProcessKey(e *vtinput.InputEvent) bool {
 		return true
 	}
 
-	// Boundary navigation logic: only exit the group if at the absolute start/end
-	if e.VirtualKeyCode == vtinput.VK_UP || e.VirtualKeyCode == vtinput.VK_DOWN ||
-		e.VirtualKeyCode == vtinput.VK_LEFT || e.VirtualKeyCode == vtinput.VK_RIGHT {
-		movingBack := e.VirtualKeyCode == vtinput.VK_UP || e.VirtualKeyCode == vtinput.VK_LEFT
-		movingForward := e.VirtualKeyCode == vtinput.VK_DOWN || e.VirtualKeyCode == vtinput.VK_RIGHT
-
-		if movingBack && cg.focusIdx == 0 {
-			return false // Exit to previous control
-		}
-		if movingForward && cg.focusIdx == len(cg.Items)-1 {
-			return false // Exit to next control
-		}
-		return true // Stay in group (swallow the key)
+	if handleGridBoundaryNav(e.VirtualKeyCode, cg.focusIdx, len(cg.Items)) {
+		return true
 	}
 
 	switch e.VirtualKeyCode {
@@ -128,8 +109,7 @@ func (cg *CheckGroup) ProcessKey(e *vtinput.InputEvent) bool {
 	if e.Char != 0 {
 		hkChar := unicode.ToLower(e.Char)
 		for i, itm := range cg.Items {
-			_, hk, _ := ParseAmpersandString(itm)
-			if hk == hkChar {
+			if ExtractHotkey(itm) == hkChar {
 				cg.focusIdx = i
 				cg.States[i] = !cg.States[i]
 				return true
@@ -145,17 +125,7 @@ func (cg *CheckGroup) ProcessMouse(e *vtinput.InputEvent) bool {
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
 		if cg.HitTest(mx, my) {
-			row := my - cg.Y1
-			col := 0
-			cx := cg.X1
-			for c := 0; c < cg.Columns; c++ {
-				if mx >= cx && mx < cx+cg.colWidths[c] {
-					col = c
-					break
-				}
-				cx += cg.colWidths[c]
-			}
-			idx := row*cg.Columns + col
+			idx := getGridIndexFromMouse(cg.X1, cg.Y1, mx, my, cg.Columns, cg.colWidths)
 			if idx >= 0 && idx < len(cg.Items) {
 				cg.focusIdx = idx
 				cg.States[idx] = !cg.States[idx]

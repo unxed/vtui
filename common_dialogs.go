@@ -21,11 +21,9 @@ type VFSMinimal interface {
 func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 	width := 50
 	height := 18
-	scrW := FrameManager.GetScreenSize()
-	x1 := (scrW - width) / 2
-	y1 := 4
 
-	dlg := NewDialog(x1, y1, x1+width-1, y1+height-1, title)
+	dlg := NewCenteredDialog(width, height, title)
+	x1, y1 := dlg.X1, dlg.Y1
 	dlg.ShowClose = true
 
 	pathEdit := NewEdit(x1+2, y1+2, width-4, initialPath)
@@ -110,11 +108,9 @@ func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 	width := 55
 	height := 20
-	scrW := FrameManager.GetScreenSize()
-	x1 := (scrW - width) / 2
-	y1 := 3
 
-	dlg := NewDialog(x1, y1, x1+width-1, y1+height-1, title)
+	dlg := NewCenteredDialog(width, height, title)
+	x1, y1 := dlg.X1, dlg.Y1
 	dlg.ShowClose = true
 
 	// 1. Current Path Preview
@@ -213,11 +209,9 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window 
 func InputBox(title, prompt, defaultText string, onOk func(string)) *Window {
 	width := 40
 	height := 8
-	scrW := FrameManager.GetScreenSize()
-	x1 := (scrW - width) / 2
-	y1 := 8
 
-	dlg := NewDialog(x1, y1, x1+width-1, y1+height-1, title)
+	dlg := NewCenteredDialog(width, height, title)
+	x1, y1 := dlg.X1, dlg.Y1
 	dlg.ShowClose = true
 
 	edit := NewEdit(x1+2, y1+3, width-4, defaultText)
