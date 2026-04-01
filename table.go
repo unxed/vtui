@@ -261,7 +261,7 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 
 	if e.ButtonState != 0 && e.KeyDown {
 		clickIdx := t.GetClickIndex(int(e.MouseY))
-		if clickIdx != -1 && int(e.MouseY) >= t.Y1+t.MarginTop && int(e.MouseY) <= t.Y2 {
+		if clickIdx != -1 {
 			t.SelectPos = clickIdx
 			if t.CellSelection {
 				currX := t.X1

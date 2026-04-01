@@ -38,6 +38,7 @@ type Frame interface {
 	HandleCommand(cmd int, args any) bool // Turbo Vision style command routing
 	HandleBroadcast(cmd int, args any) bool
 	Valid(cmd int) bool
+	HitTest(x, y int) bool
 
 	// MDI Methods
 	GetMenuBar() *MenuBar
@@ -1006,10 +1007,13 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 					break
 				}
 
+				// Account for shadow dimensions in the hit test (+2 X, +1 Y)
 				x1, y1, x2, y2 := f.GetPosition()
-				if mx >= x1 && mx <= x2+2 && my >= y1 && my <= y2+1 {
-					DebugLog("FM: Hit-test SUCCESS for frame %d type %d. Pos: (%d,%d)-(%d,%d)", i, f.GetType(), x1, y1, x2, y2)
-					// Click is within this frame (or its shadow)
+				hitShadow := f.HasShadow() && mx >= x1 && mx <= x2+2 && my >= y1 && my <= y2+1
+
+				if f.HitTest(mx, my) || hitShadow {
+					DebugLog("FM: Hit-test SUCCESS for frame %d type %d", i, f.GetType())
+
 					if i != len(fm.frames)-1 {
 						// Try to bring it to front before passing the event
 						if fm.RequestFocus(f) {

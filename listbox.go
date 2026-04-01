@@ -132,7 +132,7 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 
 
 func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
-	if lb.IsDisabled() { return false }
+	if lb.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
 	if lb.HandleMouseScroll(e) { return true }
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
