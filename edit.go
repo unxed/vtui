@@ -230,11 +230,10 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		return e.FireAction(e.OnAction, nil)
 
 	case vtinput.VK_LEFT:
+		if e.curPos == 0 && !shift && !ctrl { return false } // Escape focus to previous
 		if shift { e.beginSelection() } else { e.selStart = -1; e.selAnchor = -1 }
 		if ctrl {
-			// Skip leading spaces
 			for e.curPos > 0 && unicode.IsSpace(e.text[e.curPos-1]) { e.curPos-- }
-			// Skip word
 			for e.curPos > 0 && !unicode.IsSpace(e.text[e.curPos-1]) { e.curPos-- }
 		} else {
 			if e.curPos > 0 { e.curPos-- }
@@ -244,11 +243,10 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		return true
 
 	case vtinput.VK_RIGHT:
+		if e.curPos == len(e.text) && !shift && !ctrl { return false } // Escape focus to next
 		if shift { e.beginSelection() } else { e.selStart = -1; e.selAnchor = -1 }
 		if ctrl {
-			// Skip current word
 			for e.curPos < len(e.text) && !unicode.IsSpace(e.text[e.curPos]) { e.curPos++ }
-			// Skip following spaces
 			for e.curPos < len(e.text) && unicode.IsSpace(e.text[e.curPos]) { e.curPos++ }
 		} else {
 			if e.curPos < len(e.text) { e.curPos++ }
@@ -462,9 +460,17 @@ func (e *Edit) HistoryDown() {
 
 func (e *Edit) ProcessMouse(ev *vtinput.InputEvent) bool {
 	if e.IsDisabled() { return false }
-	if ev.ButtonState == vtinput.FromLeft1stButtonPressed && ev.KeyDown {
-		if e.ShowHistoryButton && int(ev.MouseX) == e.X2 && int(ev.MouseY) == e.Y1 {
-			e.OpenHistory()
+	if ev.KeyDown {
+		if ev.ButtonState == vtinput.FromLeft1stButtonPressed {
+			if e.ShowHistoryButton && int(ev.MouseX) == e.X2 && int(ev.MouseY) == e.Y1 {
+				e.OpenHistory()
+				return true
+			}
+		}
+		// Middle-click to paste (standard TUI/Unix behavior)
+		if ev.ButtonState == vtinput.FromLeft2ndButtonPressed {
+			// This is a placeholder; real implementation would need to request
+			// clipboard text asynchronously or via a bridge.
 			return true
 		}
 	}
