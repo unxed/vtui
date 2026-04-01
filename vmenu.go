@@ -214,22 +214,17 @@ func (m *VMenu) Show(scr *ScreenBuf) {
 
 // DisplayObject renders the frame and menu items.
 func (m *VMenu) DisplayObject(scr *ScreenBuf) {
-	if !m.IsVisible() {
-		return
-	}
+	if !m.IsVisible() { return }
+	p := NewPainter(scr)
 
-	// 1. Rendering the frame
-	frame := NewBorderedFrame(m.X1, m.Y1, m.X2, m.Y2, DoubleBox, m.title)
-	// VMenu maps to Menu colors (not dialog listbox) for now
+	// 1. Frame and Background
+	p.Fill(m.X1, m.Y1, m.X2, m.Y2, ' ', Palette[ColMenuText])
+	p.DrawBox(m.X1, m.Y1, m.X2, m.Y2, Palette[ColMenuBox], DoubleBox)
+	p.DrawTitle(m.X1, m.Y1, m.X2, m.title, Palette[ColMenuTitle])
+
 	colText := Palette[ColMenuText]
 	colSel := Palette[ColMenuSelectedText]
 	colBox := Palette[ColMenuBox]
-
-	frame.ColorBoxIdx = ColMenuBox
-	frame.ColorTitleIdx = ColMenuTitle
-	frame.ColorBackgroundIdx = ColMenuText
-	frame.DisplayObject(scr)
-
 	fullWidth := m.X2 - m.X1 + 1
 	interiorWidth := fullWidth - 2
 	height := m.Y2 - m.Y1 - 1

@@ -31,20 +31,14 @@ func (gb *GroupBox) Show(scr *ScreenBuf) {
 }
 
 func (gb *GroupBox) DisplayObject(scr *ScreenBuf) {
-	if !gb.IsVisible() {
-		return
-	}
+	if !gb.IsVisible() { return }
+	p := NewPainter(scr)
 
-	// 1. Draw the frame and title
-	frame := NewBorderedFrame(gb.X1, gb.Y1, gb.X2, gb.Y2, SingleBox, gb.Title)
-	frame.ColorBoxIdx = gb.ColorBoxIdx
-	frame.ColorTitleIdx = gb.ColorTitleIdx
-	frame.ColorBackgroundIdx = gb.ColorBackgroundIdx
-	// A groupbox doesn't fill its background, it's transparent to the dialog's bg
-	// So we only draw the border part of the frame.
-	frame.DisplayObject(scr)
+	// GroupBox is typically transparent to the dialog background,
+	// so we don't call p.Fill() here, only draw the border and title.
+	p.DrawBox(gb.X1, gb.Y1, gb.X2, gb.Y2, Palette[gb.ColorBoxIdx], SingleBox)
+	p.DrawTitle(gb.X1, gb.Y1, gb.X2, gb.Title, Palette[gb.ColorTitleIdx])
 
-	// 2. Draw the children inside the frame
 	gb.Group.DisplayObject(scr)
 }
 
