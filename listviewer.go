@@ -11,6 +11,38 @@ type ListViewer struct {
 	Wrap        bool
 	// Callback to check if an item is selectable (e.g. not a separator)
 	IsSelectable func(int) bool
+
+	ShowScrollBar bool
+	ScrollBar     *ScrollBar
+}
+
+func (lv *ListViewer) InitScrollBar(owner CommandHandler) {
+	lv.ScrollBar = NewScrollBar(0, 0, 0)
+	lv.ScrollBar.SetOwner(owner)
+	lv.ScrollBar.OnScroll = func(v int) {
+		lv.TopPos = v
+	}
+}
+
+func (lv *ListViewer) UpdateScrollBar(x, y, h int) {
+	if lv.ScrollBar != nil {
+		lv.ScrollBar.SetPosition(x, y, x, y+h-1)
+		lv.ScrollBar.PgStep = h
+	}
+}
+
+func (lv *ListViewer) DrawScrollBar(scr *ScreenBuf) {
+	if lv.ShowScrollBar && lv.ScrollBar != nil && lv.ItemCount > lv.ViewHeight && lv.ViewHeight > 0 {
+		lv.ScrollBar.SetParams(lv.TopPos, 0, lv.ItemCount-lv.ViewHeight)
+		lv.ScrollBar.Show(scr)
+	}
+}
+
+func (lv *ListViewer) ProcessMouseScroll(e *vtinput.InputEvent) bool {
+	if lv.ShowScrollBar && lv.ScrollBar != nil && lv.ScrollBar.ProcessMouse(e) {
+		return true
+	}
+	return false
 }
 
 func (lv *ListViewer) EnsureVisible() {

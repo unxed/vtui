@@ -39,12 +39,15 @@ func TestEdit_IgnoreLockKeys(t *testing.T) {
 
 func TestVMenu_ScrollbarMouseClick(t *testing.T) {
 	SetDefaultPalette()
+	scr := NewScreenBuf()
+	scr.AllocBuf(20, 10)
 	m := NewVMenu("Title")
 	// Add 20 items so menu scrolls
 	for i := 0; i < 20; i++ {
 		m.AddItem(MenuItem{Text: "Item"})
 	}
 	m.SetPosition(0, 0, 10, 6) // Height 7, data 5 (Y1+1..Y2-1)
+	m.Show(scr)
 
 	// Initial state: SelectPos 0
 
@@ -52,32 +55,32 @@ func TestVMenu_ScrollbarMouseClick(t *testing.T) {
 	m.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 10, MouseY: 5, ButtonState: vtinput.FromLeft1stButtonPressed,
 	})
-	if m.SelectPos != 1 {
-		t.Errorf("VMenu down arrow click failed, pos %d", m.SelectPos)
+	if m.TopPos != 1 {
+		t.Errorf("VMenu down arrow click failed, pos %d", m.TopPos)
 	}
 
 	// 2. Click up arrow (Y = Y1+1 = 1)
 	m.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 10, MouseY: 1, ButtonState: vtinput.FromLeft1stButtonPressed,
 	})
-	if m.SelectPos != 0 {
-		t.Errorf("VMenu up arrow click failed, pos %d", m.SelectPos)
+	if m.TopPos != 0 {
+		t.Errorf("VMenu up arrow click failed, pos %d", m.TopPos)
 	}
 
 	// 3. Page Down click (Y = 4)
 	m.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 10, MouseY: 4, ButtonState: vtinput.FromLeft1stButtonPressed,
 	})
-	if m.SelectPos != 5 { // 0 + height (5) = 5
-		t.Errorf("VMenu PageDown click failed, pos %d", m.SelectPos)
+	if m.TopPos != 5 { // 0 + height (5) = 5
+		t.Errorf("VMenu PageDown click failed, pos %d", m.TopPos)
 	}
 
 	// 4. Page Up click (Y = 2)
 	m.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: true, MouseX: 10, MouseY: 2, ButtonState: vtinput.FromLeft1stButtonPressed,
 	})
-	if m.SelectPos != 0 { // 5 - height (5) = 0
-		t.Errorf("VMenu PageUp click failed, pos %d", m.SelectPos)
+	if m.TopPos != 0 { // 5 - height (5) = 0
+		t.Errorf("VMenu PageUp click failed, pos %d", m.TopPos)
 	}
 }
 func TestVMenu_Hotkeys(t *testing.T) {

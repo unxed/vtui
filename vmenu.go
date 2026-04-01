@@ -29,7 +29,6 @@ type VMenu struct {
 	Command    int
 	OnAction   func(int)
 	HideShadow bool
-	ScrollBar  *ScrollBar
 }
 
 
@@ -45,26 +44,15 @@ func NewVMenu(title string) *VMenu {
 	m.IsSelectable = func(i int) bool {
 		return i >= 0 && i < len(m.items) && !m.items[i].Separator
 	}
-	m.ScrollBar = NewScrollBar(0, 0, 0)
-	m.ScrollBar.SetOwner(m)
-	m.ScrollBar.OnScroll = func(v int) {
-		m.TopPos = v
-	}
+	m.ShowScrollBar = true
+	m.InitScrollBar(m)
 	return m
 }
 
 func (m *VMenu) SetPosition(x1, y1, x2, y2 int) {
 	m.ScreenObject.SetPosition(x1, y1, x2, y2)
 	m.ViewHeight = y2 - y1 - 1
-	if m.ScrollBar == nil {
-		m.ScrollBar = NewScrollBar(m.X2, m.Y1+1, m.ViewHeight)
-		m.ScrollBar.SetOwner(m)
-		m.ScrollBar.OnScroll = func(v int) {
-			m.TopPos = v
-		}
-	} else {
-		m.ScrollBar.SetPosition(m.X2, m.Y1+1, m.X2, m.Y2-1)
-	}
+	m.UpdateScrollBar(m.X2, m.Y1+1, m.ViewHeight)
 }
 
 // AddItem adds a new item to the menu.
@@ -189,6 +177,8 @@ func (m *VMenu) ClearDone() {
 func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 	if m.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
 
+	if m.ProcessMouseScroll(e) { return true }
+
 	if e.WheelDirection != 0 {
 		if e.WheelDirection > 0 { m.MoveRelative(-1) } else { m.MoveRelative(1) }
 		return true
@@ -196,14 +186,6 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		mx, my := int(e.MouseX), int(e.MouseY)
-		h := m.ViewHeight
-		if mx == m.X2 && m.ItemCount > h {
-			startY := m.Y1 + 1
-			if my == startY { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP}) } else if my == startY+h-1 { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN}) } else {
-				if my < startY+h/2 { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_PRIOR}) } else { m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT}) }
-			}
-			return true
-		}
 		
 		clickedIdx := m.TopPos + (my - m.Y1 - 1)
 		if mx >= m.X1 && mx < m.X2 && clickedIdx >= 0 && clickedIdx < m.ItemCount && !m.items[clickedIdx].Separator {
@@ -308,9 +290,6 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	}
 
 	// 4. Scrollbar
-	if m.ScrollBar != nil && height > 0 && m.ItemCount > height {
-		m.ScrollBar.SetParams(m.TopPos, 0, m.ItemCount-height)
-		m.ScrollBar.Show(scr)
-	}
+	m.DrawScrollBar(scr)
 }
 

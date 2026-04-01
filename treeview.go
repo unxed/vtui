@@ -50,7 +50,6 @@ type TreeView struct {
 	OnAction func(*TreeNode)
 
 	flatNodes []flatNode
-	ScrollBar *ScrollBar
 }
 
 
@@ -64,16 +63,18 @@ func NewTreeView(x, y, w, h int, root *TreeNode) *TreeView {
 		ColorBoxIdx:          ColTableBox,
 	}
 	tv.canFocus = true
+	tv.ShowScrollBar = true
+	tv.InitScrollBar(tv)
 	tv.SetPosition(x, y, x+w-1, y+h-1)
-	tv.ScrollBar = NewScrollBar(tv.X2, tv.Y1, h)
-	tv.ScrollBar.SetOwner(tv)
-	tv.ScrollBar.OnScroll = func(v int) {
-		tv.TopPos = v
-	}
 	tv.Flatten()
 	return tv
 }
 
+func (t *TreeView) SetPosition(x1, y1, x2, y2 int) {
+	t.ScreenObject.SetPosition(x1, y1, x2, y2)
+	t.ViewHeight = y2 - y1 + 1
+	t.UpdateScrollBar(x2, y1, t.ViewHeight)
+}
 // Flatten rebuilds the internal flat list of visible nodes based on expansion state.
 func (t *TreeView) Flatten() {
 	t.flatNodes = nil
@@ -204,10 +205,7 @@ func (t *TreeView) DisplayObject(scr *ScreenBuf) {
 	}
 
 	// Scrollbar
-	if len(t.flatNodes) > height {
-		t.ScrollBar.SetParams(t.TopPos, 0, len(t.flatNodes)-height)
-		t.ScrollBar.Show(scr)
-	}
+	t.DrawScrollBar(scr)
 }
 
 func (t *TreeView) ProcessKey(e *vtinput.InputEvent) bool {
@@ -254,7 +252,7 @@ func (t *TreeView) ProcessKey(e *vtinput.InputEvent) bool {
 
 func (t *TreeView) ProcessMouse(e *vtinput.InputEvent) bool {
 	if t.IsDisabled() || e.Type != vtinput.MouseEventType || len(t.flatNodes) == 0 { return false }
-	if t.ScrollBar != nil && t.ScrollBar.ProcessMouse(e) { return true }
+	if t.ProcessMouseScroll(e) { return true }
 
 	if e.WheelDirection != 0 {
 		if e.WheelDirection > 0 {

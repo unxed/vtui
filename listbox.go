@@ -18,7 +18,6 @@ type ListBox struct {
 	MultiSelect          bool
 	SelectedMap          map[int]bool
 	ColorSelectedTextIdx int
-	ScrollBar            *ScrollBar
 }
 
 
@@ -35,15 +34,17 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 		lb.SelectPos = 0
 	}
 	lb.canFocus = true
+	lb.ShowScrollBar = true
+	lb.InitScrollBar(lb)
 	lb.SetPosition(x, y, x+w-1, y+h-1)
-	lb.ScrollBar = NewScrollBar(x+w-1, y, h)
-	lb.ScrollBar.SetOwner(lb)
-	lb.ScrollBar.OnScroll = func(v int) {
-		lb.TopPos = v
-	}
 	return lb
 }
 
+func (lb *ListBox) SetPosition(x1, y1, x2, y2 int) {
+	lb.ScreenObject.SetPosition(x1, y1, x2, y2)
+	lb.ViewHeight = y2 - y1 + 1
+	lb.UpdateScrollBar(x2, y1, lb.ViewHeight)
+}
 func (lb *ListBox) GetSelectedIndices() []int {
 	var res []int
 	for i := range lb.Items {
@@ -105,10 +106,7 @@ func (lb *ListBox) DisplayObject(scr *ScreenBuf) {
 	}
 
 	// 2. Scrollbar
-	if len(lb.Items) > height {
-		lb.ScrollBar.SetParams(lb.TopPos, 0, len(lb.Items)-height)
-		lb.ScrollBar.Show(scr)
-	}
+	lb.DrawScrollBar(scr)
 }
 
 func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
@@ -146,9 +144,8 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 
 func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
 	if lb.IsDisabled() { return false }
-	if lb.ScrollBar != nil && lb.ScrollBar.ProcessMouse(e) {
-		return true
-	}
+	if lb.ProcessMouseScroll(e) { return true }
+
 	if e.WheelDirection != 0 {
 		if e.WheelDirection > 0 && lb.TopPos > 0 { lb.TopPos-- }
 		if e.WheelDirection < 0 && lb.TopPos < len(lb.Items)-lb.ViewHeight { lb.TopPos++ }

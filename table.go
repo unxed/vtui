@@ -47,7 +47,6 @@ type Table struct {
 	CellSelection  bool
 	ShowHeader     bool
 	ShowSeparators bool
-	ShowScrollBar  bool
 
 	ColorTextIdx             int
 	ColorSelectedTextIdx     int
@@ -55,7 +54,6 @@ type Table struct {
 	ColorItemSelectCursorIdx int
 	ColorTitleIdx            int
 	ColorBoxIdx              int
-	ScrollBar                *ScrollBar
 }
 
 func NewTable(x, y, w, h int, columns []TableColumn) *Table {
@@ -64,7 +62,6 @@ func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 		Rows:                     []TableRow{},
 		ShowHeader:               true,
 		ShowSeparators:           true,
-		ShowScrollBar:            false,
 		ColorTextIdx:             ColTableText,
 		ColorSelectedTextIdx:     ColTableSelectedText,
 		ColorItemSelectTextIdx:   ColTableText,
@@ -73,12 +70,7 @@ func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 		ColorBoxIdx:              ColTableBox,
 	}
 	t.canFocus = true
-	// Create scrollbar before SetPosition to ensure correct initial coordinates
-	t.ScrollBar = NewScrollBar(x+w-1, y, h)
-	t.ScrollBar.SetOwner(t)
-	t.ScrollBar.OnScroll = func(v int) {
-		t.TopPos = v
-	}
+	t.InitScrollBar(t)
 	t.SetPosition(x, y, x+w-1, y+h-1)
 	return t
 }
@@ -149,10 +141,7 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 	}
 
 	// 4. Draw Scrollbar
-	if t.ShowScrollBar && len(t.Rows) > dataHeight {
-		t.ScrollBar.SetParams(t.TopPos, 0, len(t.Rows)-dataHeight)
-		t.ScrollBar.Show(scr)
-	}
+	t.DrawScrollBar(scr)
 }
 
 
@@ -280,7 +269,7 @@ func (t *Table) ProcessKey(e *vtinput.InputEvent) bool {
 
 func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 	if t.IsDisabled() || e.Type != vtinput.MouseEventType { return false }
-	if t.ShowScrollBar && t.ScrollBar != nil && t.ScrollBar.ProcessMouse(e) { return true }
+	if t.ProcessMouseScroll(e) { return true }
 
 	headerOffset := map[bool]int{true: 1, false: 0}[t.ShowHeader]
 
@@ -322,9 +311,6 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 func (t *Table) SetPosition(x1, y1, x2, y2 int) {
 	t.ScreenObject.SetPosition(x1, y1, x2, y2)
 	t.updateViewHeight()
-	if t.ScrollBar != nil {
-		startY := t.Y1 + map[bool]int{true: 1, false: 0}[t.ShowHeader]
-		t.ScrollBar.SetPosition(t.X2, startY, t.X2, t.Y2)
-		t.ScrollBar.PgStep = t.Y2 - startY + 1
-	}
+	startY := t.Y1 + map[bool]int{true: 1, false: 0}[t.ShowHeader]
+	t.UpdateScrollBar(t.X2, startY, t.Y2 - startY + 1)
 }
