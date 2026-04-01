@@ -9,16 +9,14 @@ import (
 )
 
 type mockFrame struct {
-	ScreenObject
-	isModal             bool
-	isDone              bool
-	attentionSuppressed bool
+	BaseFrame
 	onProcessMouse      func(e *vtinput.InputEvent) bool
 	onProcessKey        func(e *vtinput.InputEvent) bool
 }
 
 func newMockFrame(x, y, w, h int, modal bool) *mockFrame {
-	f := &mockFrame{isModal: modal}
+	f := &mockFrame{}
+	f.Modal = modal
 	f.SetPosition(x, y, x+w-1, y+h-1)
 	return f
 }
@@ -37,24 +35,8 @@ func (m *mockFrame) ProcessMouse(e *vtinput.InputEvent) bool {
 	return false
 }
 
-func (m *mockFrame) Show(scr *ScreenBuf)                 {}
-func (m *mockFrame) ResizeConsole(w, h int)             {}
-func (m *mockFrame) GetType() FrameType                 { return TypeUser }
-func (m *mockFrame) SetExitCode(c int)                  { m.isDone = true }
-func (m *mockFrame) IsDone() bool                       { return m.isDone }
-func (m *mockFrame) GetHelp() string                    { return "" }
-func (m *mockFrame) IsBusy() bool                       { return false }
-func (m *mockFrame) HasShadow() bool                    { return false }
-func (m *mockFrame) GetKeyLabels() *KeySet              { return nil }
-func (m *mockFrame) HandleCommand(cmd int, args any) bool { return false }
-func (m *mockFrame) IsModal() bool                      { return m.isModal }
-func (m *mockFrame) GetWindowNumber() int               { return 0 }
-func (m *mockFrame) SetWindowNumber(n int)              {}
-func (m *mockFrame) RequestFocus() bool                 { return true }
-func (m *mockFrame) Close()                             { m.SetExitCode(-1) }
-func (m *mockFrame) GetTitle() string                   { return "MockFrame" }
-func (m *mockFrame) GetProgress() int                   { return -1 }
-func (m *mockFrame) IsAttentionSuppressed() bool        { return m.attentionSuppressed }
+func (m *mockFrame) GetType() FrameType { return TypeUser }
+func (m *mockFrame) GetTitle() string   { return "MockFrame" }
 
 type busyFrame struct {
 	mockFrame
@@ -672,7 +654,8 @@ func TestFrameManager_NeedsAttention_Suppression(t *testing.T) {
 	fm.Init(NewScreenBuf())
 
 	// Используем mockFrame, так как BaseFrame не реализует интерфейс Frame полностью
-	dlg := &mockFrame{isModal: true}
+	dlg := &mockFrame{}
+	dlg.Modal = true
 	s := &AppScreen{Frames: []Frame{dlg}}
 
 	// 1. По умолчанию внимание требуется
@@ -681,7 +664,7 @@ func TestFrameManager_NeedsAttention_Suppression(t *testing.T) {
 	}
 
 	// 2. С подавлением — не требуется
-	dlg.attentionSuppressed = true
+	dlg.AttentionSuppressed = true
 	if s.NeedsAttention() {
 		t.Error("NeedsAttention should be false when attentionSuppressed is true")
 	}
@@ -695,7 +678,8 @@ func TestFrameManager_NoAutoCloseForHeadless(t *testing.T) {
 	fm.Push(NewDesktop())
 
 	// Создаем Headless экран 1 (в нем 1 фрейм, и это НЕ Desktop)
-	dlg := &mockFrame{isModal: true}
+	dlg := &mockFrame{}
+	dlg.Modal = true
 	fm.AddScreenHeadless(dlg)
 
 	if len(fm.Screens) != 2 {
@@ -1411,7 +1395,8 @@ func TestAppScreen_GetProgress_DeepSearch(t *testing.T) {
 	}
 
 	// 3. A modal dialog on top that doesn't have progress should not hide the underlying progress
-	modal := &mockFrame{isModal: true}
+	modal := &mockFrame{}
+	modal.Modal = true
 	s.Frames = append(s.Frames, modal)
 
 	if s.GetProgress() != 42 {

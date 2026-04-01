@@ -3,7 +3,6 @@ package vtui
 import (
 	"testing"
 
-	"github.com/unxed/vtinput"
 )
 
 func TestBaseWindow_ShadowFlag(t *testing.T) {
@@ -134,18 +133,6 @@ func (m *broadcastMockElement) HandleBroadcast(cmd int, args any) bool {
 	return false
 }
 
-// Заглушки для интерфейса UIElement
-func (m *broadcastMockElement) GetPosition() (int, int, int, int)      { return 0, 0, 0, 0 }
-func (m *broadcastMockElement) SetPosition(x1, y1, x2, y2 int)        {}
-func (m *broadcastMockElement) GetGrowMode() GrowMode                  { return 0 }
-func (m *broadcastMockElement) Show(scr *ScreenBuf)                    {}
-func (m *broadcastMockElement) Hide(scr *ScreenBuf)                    {}
-func (m *broadcastMockElement) GetHotkey() rune                        { return 0 }
-func (m *broadcastMockElement) GetId() string                          { return "" }
-func (m *broadcastMockElement) GetHelp() string                        { return "" }
-func (m *broadcastMockElement) ProcessKey(e *vtinput.InputEvent) bool   { return false }
-func (m *broadcastMockElement) ProcessMouse(e *vtinput.InputEvent) bool { return false }
-func (m *broadcastMockElement) HandleCommand(cmd int, args any) bool    { return false }
 
 func TestBaseWindow_HandleBroadcast_Propagation(t *testing.T) {
 	bw := NewBaseWindow(0, 0, 10, 10, "Test")
@@ -187,17 +174,6 @@ func TestBaseWindow_Validation_CmDefault(t *testing.T) {
 	}
 }
 
-// Реализация недостающих методов интерфейса UIElement для cmdMockFrame
-func (c *cmdMockFrame) GetPosition() (int, int, int, int)      { return c.X1, c.Y1, c.X2, c.Y2 }
-func (c *cmdMockFrame) SetPosition(x1, y1, x2, y2 int)        { c.X1, c.Y1, c.X2, c.Y2 = x1, y1, x2, y2 }
-func (c *cmdMockFrame) GetGrowMode() GrowMode                  { return 0 }
-func (c *cmdMockFrame) Show(scr *ScreenBuf)                    {}
-func (c *cmdMockFrame) Hide(scr *ScreenBuf)                    {}
-func (c *cmdMockFrame) GetHotkey() rune                        { return 0 }
-func (c *cmdMockFrame) GetId() string                          { return "" }
-func (c *cmdMockFrame) GetHelp() string                        { return "" }
-func (c *cmdMockFrame) ProcessKey(e *vtinput.InputEvent) bool   { return false }
-func (c *cmdMockFrame) ProcessMouse(e *vtinput.InputEvent) bool { return false }
 
 func TestBaseWindow_NoDownwardCommandRouting(t *testing.T) {
 	bw := NewBaseWindow(0, 0, 10, 10, "Recursion Test")
