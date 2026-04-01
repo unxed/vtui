@@ -164,15 +164,20 @@ func (fm *frameManager) SwitchScreen(idx int) {
 	fm.Redraw()
 }
 
+func (fm *frameManager) createScreen(f Frame, transparent bool) *AppScreen {
+	newScreen := &AppScreen{Frames: make([]Frame, 0, 10), Transparent: transparent}
+	if !transparent {
+		newScreen.Frames = append(newScreen.Frames, NewDesktop())
+	}
+	newScreen.Frames = append(newScreen.Frames, f)
+	return newScreen
+}
 func (fm *frameManager) AddScreen(f Frame) {
 	// If we are already shutting down or in an inconsistent state, bail out.
 	if fm.Screens == nil { return }
 
 	fm.SyncCurrentScreen()
-	newScreen := &AppScreen{Frames: make([]Frame, 0, 10)}
-	newScreen.Frames = append(newScreen.Frames, NewDesktop())
-	newScreen.Frames = append(newScreen.Frames, f)
-	fm.Screens = append(fm.Screens, newScreen)
+	fm.Screens = append(fm.Screens, fm.createScreen(f, false))
 	fm.SwitchScreen(len(fm.Screens) - 1)
 	fm.Redraw()
 }
@@ -180,15 +185,9 @@ func (fm *frameManager) AddScreen(f Frame) {
 func (fm *frameManager) AddScreenHeadless(f Frame) {
 	if fm.Screens == nil { return }
 	fm.SyncCurrentScreen()
-	// Создаем абсолютно чистый стэк без Desktop
-	newScreen := &AppScreen{
-		Frames:      make([]Frame, 0, 5),
-		Transparent: true,
-	}
-	newScreen.Frames = append(newScreen.Frames, f)
-	fm.Screens = append(fm.Screens, newScreen)
+	fm.Screens = append(fm.Screens, fm.createScreen(f, true))
 	fm.ActiveIdx = len(fm.Screens) - 1
-	fm.frames = newScreen.Frames
+	fm.frames = fm.Screens[fm.ActiveIdx].Frames
 	fm.capturedFrame = nil
 	f.ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: true})
 	fm.Redraw()
@@ -196,10 +195,7 @@ func (fm *frameManager) AddScreenHeadless(f Frame) {
 
 func (fm *frameManager) AddScreenBackground(f Frame) {
 	fm.SyncCurrentScreen()
-	newScreen := &AppScreen{Frames: make([]Frame, 0, 10)}
-	newScreen.Frames = append(newScreen.Frames, NewDesktop())
-	newScreen.Frames = append(newScreen.Frames, f)
-	fm.Screens = append(fm.Screens, newScreen)
+	fm.Screens = append(fm.Screens, fm.createScreen(f, false))
 	// Notice: We intentionally do not call fm.SwitchScreen here
 }
 

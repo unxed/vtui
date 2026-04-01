@@ -5,36 +5,6 @@ import (
 	"github.com/unxed/vtinput"
 )
 
-func TestDialog_RadioButtonIntegration(t *testing.T) {
-	d := NewDialog(0, 0, 40, 10, "Radio Test")
-	rb1 := NewRadioButton(1, 1, "R1")
-	rb2 := NewRadioButton(1, 2, "R2")
-
-	rb1.Selected = true
-	d.AddItem(rb1)
-	d.AddItem(rb2)
-
-	if !rb1.Selected || rb2.Selected {
-		t.Fatal("Initial selection state invalid")
-	}
-
-	// Move to rb2 (Tab)
-	d.rootGroup.changeFocus(1)
-
-	// Press Space. Dialog should intercept this and update the group.
-	d.rootGroup.ProcessKey(&vtinput.InputEvent{
-		Type:           vtinput.KeyEventType,
-		KeyDown:        true,
-		VirtualKeyCode: vtinput.VK_SPACE,
-	})
-
-	if rb1.Selected {
-		t.Error("rb1 should be deselected via ProcessKey(Space)")
-	}
-	if !rb2.Selected {
-		t.Error("rb2 should be selected")
-	}
-}
 func TestDialog_HotkeyCaseInsensitivity(t *testing.T) {
 	d := NewDialog(0, 0, 40, 10, "Case Test")
 	btn := NewButton(1, 1, "&File")

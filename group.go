@@ -72,18 +72,6 @@ func (g *Group) ProcessKey(e *vtinput.InputEvent) bool {
 	if g.focusIdx != -1 {
 		focusedItem := g.items[g.focusIdx]
 
-		// Special handling for RadioButton groups within the container for Space/Return:
-		// RadioButtons explicitly return `false` for VK_SPACE/VK_RETURN in their ProcessKey.
-		// This allows the parent (Group) to handle the `selectRadio` logic.
-		// If the focused item *is* a RadioButton and handles Space/Return, we intercept it here.
-		if e.KeyDown && (e.VirtualKeyCode == vtinput.VK_SPACE || e.VirtualKeyCode == vtinput.VK_RETURN) {
-			if rb, ok := focusedItem.(*RadioButton); ok {
-				g.selectRadio(rb)
-				return true
-			}
-		}
-
-		// For other keys, or if the focused item is not a RadioButton:
 		// Delegate the key processing.
 		if focusedItem.ProcessKey(e) {
 			return true // The focused item consumed the key event.
@@ -154,10 +142,6 @@ func (g *Group) ProcessMouse(e *vtinput.InputEvent) bool {
 				}
 			}
 			if item.ProcessMouse(e) {
-				return true
-			}
-			if rb, ok := item.(*RadioButton); ok && e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
-				g.selectRadio(rb)
 				return true
 			}
 			return true // Event was within an item, consume it
@@ -259,8 +243,6 @@ func (g *Group) ActivateHotkey(hk rune) bool {
 				}
 			} else if _, isChk := target.(*Checkbox); isChk {
 				target.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_SPACE})
-			} else if rb, isRad := target.(*RadioButton); isRad {
-				g.selectRadio(rb)
 			}
 			return true
 		}
@@ -276,19 +258,6 @@ func (g *Group) ActivateHotkey(hk rune) bool {
 		}
 	}
 	return false
-}
-
-// selectRadio handles exclusive selection for radio buttons.
-func (g *Group) selectRadio(rb *RadioButton) {
-	if rb.Selected {
-		return
-	}
-	for _, item := range g.items {
-		if other, ok := item.(*RadioButton); ok {
-			other.Selected = false
-		}
-	}
-	rb.Selected = true
 }
 
 // MoveRelative moves the group and all its children.
@@ -335,6 +304,25 @@ func (g *Group) SetData(record any) {
 		return
 	}
 	typ := val.Type()
+
+	// Extract flat map of all ID -> DataControl recursively
+	controls := make(map[string]DataControl)
+	var collect func(grp *Group)
+	collect = func(grp *Group) {
+		for _, item := range grp.items {
+			if dc, ok := item.(DataControl); ok && item.GetId() != "" {
+				controls[item.GetId()] = dc
+			}
+			if subGrp, ok := item.(*Group); ok {
+				collect(subGrp)
+			}
+			if gb, ok := item.(*GroupBox); ok {
+				collect(&gb.Group)
+			}
+		}
+	}
+	collect(g)
+
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		fieldType := typ.Field(i)
@@ -342,13 +330,8 @@ func (g *Group) SetData(record any) {
 		if id == "" {
 			id = fieldType.Name
 		}
-		for _, item := range g.items {
-			if item.GetId() == id {
-				if dc, ok := item.(DataControl); ok {
-					dc.SetData(field.Interface())
-				}
-				break
-			}
+		if dc, ok := controls[id]; ok {
+			dc.SetData(field.Interface())
 		}
 	}
 }
