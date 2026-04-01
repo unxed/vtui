@@ -53,6 +53,9 @@ func (so *ScreenObject) GetGrowMode() GrowMode {
 func (so *ScreenObject) HitTest(x, y int) bool {
 	return x >= so.X1 && x <= so.X2 && y >= so.Y1 && y <= so.Y2
 }
+func (so *ScreenObject) WantsChars() bool {
+	return false
+}
 // SetPosition sets the object's coordinates.
 // Important: this does not trigger a redraw.
 func (so *ScreenObject) SetPosition(x1, y1, x2, y2 int) {

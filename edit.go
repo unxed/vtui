@@ -143,6 +143,9 @@ func (e *Edit) SetData(val any) {
 		e.SetText(s)
 	}
 }
+func (e *Edit) WantsChars() bool {
+	return true
+}
 func (e *Edit) Valid(cmd int) bool {
 	if e.Validator != nil && (cmd == CmOK || cmd == CmDefault) {
 		if !e.Validator.Validate(e.GetText()) {

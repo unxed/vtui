@@ -61,6 +61,12 @@ type UIElement interface {
 	HandleBroadcast(cmd int, args any) bool
 	Valid(cmd int) bool
 	HitTest(x, y int) bool
+	WantsChars() bool
+}
+
+// Container is an interface for elements that have child UI elements.
+type Container interface {
+	GetChildren() []UIElement
 }
 
 // DataControl is an interface for UI elements that can store and return data.

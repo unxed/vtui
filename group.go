@@ -33,6 +33,25 @@ func (g *Group) GetFocusedItem() UIElement {
 	}
 	return nil
 }
+func (g *Group) GetChildren() []UIElement {
+	return g.items
+}
+
+// walk is a helper for recursive traversal of the UI tree.
+// Returning false from the callback stops the traversal.
+func walk(el UIElement, fn func(UIElement) bool) bool {
+	if !fn(el) {
+		return false
+	}
+	if c, ok := el.(Container); ok {
+		for _, child := range c.GetChildren() {
+			if !walk(child, fn) {
+				return false
+			}
+		}
+	}
+	return true
+}
 
 // AddItem adds a UI element to the group.
 func (g *Group) AddItem(item UIElement) {
@@ -90,12 +109,8 @@ func (g *Group) ProcessKey(e *vtinput.InputEvent) bool {
 		charLower := unicode.ToLower(e.Char)
 		alt := (e.ControlKeyState&(vtinput.LeftAltPressed|vtinput.RightAltPressed)) != 0
 		allowWithoutAlt := true
-		if g.focusIdx != -1 {
-			if _, isEdit := g.items[g.focusIdx].(*Edit); isEdit {
-				allowWithoutAlt = false
-			} else if cb, isCombo := g.items[g.focusIdx].(*ComboBox); isCombo && !cb.DropdownOnly {
-				allowWithoutAlt = false
-			}
+		if g.focusIdx != -1 && g.items[g.focusIdx].WantsChars() {
+			allowWithoutAlt = false
 		}
 
 		if alt || allowWithoutAlt {
@@ -299,23 +314,13 @@ func (g *Group) SetData(record any) {
 	}
 	typ := val.Type()
 
-	// Extract flat map of all ID -> DataControl recursively
 	controls := make(map[string]DataControl)
-	var collect func(grp *Group)
-	collect = func(grp *Group) {
-		for _, item := range grp.items {
-			if dc, ok := item.(DataControl); ok && item.GetId() != "" {
-				controls[item.GetId()] = dc
-			}
-			if subGrp, ok := item.(*Group); ok {
-				collect(subGrp)
-			}
-			if gb, ok := item.(*GroupBox); ok {
-				collect(&gb.Group)
-			}
+	walk(g, func(el UIElement) bool {
+		if dc, ok := el.(DataControl); ok && el.GetId() != "" {
+			controls[el.GetId()] = dc
 		}
-	}
-	collect(g)
+		return true
+	})
 
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
@@ -337,6 +342,15 @@ func (g *Group) GetData(record any) {
 	}
 	val = val.Elem()
 	typ := val.Type()
+
+	controls := make(map[string]DataControl)
+	walk(g, func(el UIElement) bool {
+		if dc, ok := el.(DataControl); ok && el.GetId() != "" {
+			controls[el.GetId()] = dc
+		}
+		return true
+	})
+
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		fieldType := typ.Field(i)
@@ -361,27 +375,23 @@ func (g *Group) GetData(record any) {
 // TriggerDefaultAction recursively searches for a default action element and triggers it.
 func (g *Group) TriggerDefaultAction() bool {
 	var firstActionable UIElement
-	var search func(grp *Group) bool
 
-	search = func(grp *Group) bool {
-		for _, item := range grp.items {
-			if btn, ok := item.(*Button); ok && !btn.IsDisabled() {
-				if btn.IsDefault {
-					return btn.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
-				}
-				if firstActionable == nil && (btn.OnClick != nil || btn.Command != 0) {
-					firstActionable = btn
-				}
-			} else if subGrp, ok := item.(*Group); ok {
-				if search(subGrp) { return true }
-			} else if gb, ok := item.(*GroupBox); ok {
-				if search(&gb.Group) { return true }
+	found := false
+	walk(g, func(el UIElement) bool {
+		if btn, ok := el.(*Button); ok && !btn.IsDisabled() {
+			if btn.IsDefault {
+				btn.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+				found = true
+				return false // Stop walking
+			}
+			if firstActionable == nil && (btn.OnClick != nil || btn.Command != 0) {
+				firstActionable = btn
 			}
 		}
-		return false
-	}
+		return true
+	})
 
-	if search(g) {
+	if found {
 		return true
 	}
 	if firstActionable != nil {

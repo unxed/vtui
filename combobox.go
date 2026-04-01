@@ -125,3 +125,6 @@ func (cb *ComboBox) SetDisabled(d bool) {
 	cb.ScreenObject.SetDisabled(d)
 	cb.Edit.SetDisabled(d)
 }
+func (cb *ComboBox) WantsChars() bool {
+	return !cb.DropdownOnly
+}
