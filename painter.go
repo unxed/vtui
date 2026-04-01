@@ -63,3 +63,18 @@ func (p *Painter) DrawCloseButton(x2, y1 int, attr uint64) {
 	closeStr := string(UIStrings.CloseBrackets[0]) + string(UIStrings.CloseSymbol) + string(UIStrings.CloseBrackets[1])
 	p.scr.Write(x2-4, y1, StringToCharInfo(closeStr, attr))
 }
+
+// DrawLine draws a horizontal line segment, optionally with connectors.
+func (p *Painter) DrawLine(x1, y1, x2, y2 int, char rune, attr uint64, connectLeft, connectRight bool) {
+	if x1 > x2 || y1 > y2 { return } // Only horizontal for now
+
+	lineRunes := make([]rune, x2-x1+1)
+	for i := range lineRunes {
+		lineRunes[i] = char
+	}
+
+	if connectLeft { lineRunes[0] = boxSymbols[bsVMenuHCrossLeft] }
+	if connectRight { lineRunes[len(lineRunes)-1] = boxSymbols[bsVMenuHCrossRight] }
+
+	p.scr.Write(x1, y1, RunesToCharInfo(lineRunes, attr))
+}

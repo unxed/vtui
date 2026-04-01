@@ -137,7 +137,14 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 
 	// 3. Draw Vertical Separators if needed
 	if t.ShowSeparators {
-		t.drawSeparators(scr)
+		p := NewPainter(scr)
+		currX := t.X1
+		sepChar := boxSymbols[bsV] // │
+		for i := 0; i < len(t.Columns)-1; i++ {
+			currX += t.Columns[i].Width
+			p.Fill(currX, t.Y1, currX, t.Y2, sepChar, Palette[t.ColorBoxIdx])
+			currX++
+		}
 	}
 
 	// 4. Draw Scrollbar
@@ -216,16 +223,6 @@ func (t *Table) drawRow(scr *ScreenBuf, y int, rowIdx int, attr uint64) {
 	lastX := currX - 1
 	if lastX < endX {
 		scr.FillRect(lastX+1, y, endX, y, ' ', attr)
-	}
-}
-
-func (t *Table) drawSeparators(scr *ScreenBuf) {
-	currX := t.X1
-	sepChar := boxSymbols[bsV] // │
-	for i := 0; i < len(t.Columns)-1; i++ {
-		currX += t.Columns[i].Width
-		scr.FillRect(currX, t.Y1, currX, t.Y2, sepChar, Palette[t.ColorBoxIdx])
-		currX++
 	}
 }
 

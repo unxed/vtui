@@ -20,23 +20,9 @@ func (s *Separator) Show(scr *ScreenBuf) {
 
 func (s *Separator) DisplayObject(scr *ScreenBuf) {
 	if !s.IsVisible() { return }
+	p := NewPainter(scr)
 	attr := Palette[ColDialogBox]
 
-	// Draw horizontal line
-	sym := getBoxSymbols(SingleBox)
-	line := make([]CharInfo, s.X2-s.X1+1)
-	for i := range line {
-		line[i] = CharInfo{Char: uint64(sym[bsH]), Attributes: attr}
-	}
-
-	// Add connectors if explicitly requested
-	if s.ConnectLeft {
-		line[0] = CharInfo{Char: uint64(boxSymbols[26]), Attributes: attr}
-	}
-	if s.ConnectRight {
-		line[len(line)-1] = CharInfo{Char: uint64(boxSymbols[27]), Attributes: attr}
-	}
-	
-	scr.Write(s.X1, s.Y1, line)
+	p.DrawLine(s.X1, s.Y1, s.X2, s.Y1, boxSymbols[bsH], attr, s.ConnectLeft, s.ConnectRight)
 }
 

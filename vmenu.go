@@ -251,14 +251,9 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 		}
 
 		if item.Separator {
-			// Separator: ╟──────╢
-			sepRunes := make([]rune, fullWidth)
-			sepRunes[0] = boxSymbols[22] // ╟
-			for j := 1; j < fullWidth-1; j++ {
-				sepRunes[j] = boxSymbols[1] // ─
-			}
-			sepRunes[fullWidth-1] = boxSymbols[23] // ╢
-			scr.Write(m.X1, currY, RunesToCharInfo(sepRunes, colBox))
+			// For VMenu separators, we want the single horizontal line symbol (bsH)
+			// with the VMenu specific cross-symbols.
+			p.DrawLine(m.X1, currY, m.X2, currY, boxSymbols[bsH], colBox, true, true)
 		} else {
 			fullItemText := " " + item.Text
 			clean, _, _ := ParseAmpersandString(fullItemText)
