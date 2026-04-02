@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"context"
 	"testing"
 	"github.com/unxed/f4/vfs"
 	"github.com/unxed/vtinput"
@@ -16,7 +17,7 @@ func TestHelpView_Navigation(t *testing.T) {
 @NextTopic
 Success
 `
-	wc, _ := memVfs.Create(helpPath)
+	wc, _ := memVfs.Create(context.Background(), helpPath)
 	wc.Write([]byte(content))
 	wc.Close()
 

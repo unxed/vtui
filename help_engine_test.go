@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"context"
 	"testing"
 	"github.com/unxed/f4/vfs"
 )
@@ -14,14 +15,14 @@ func TestHelpEngine_Parsing(t *testing.T) {
 @Contents
 $Manual Header
 This is a #bold# word.
-See ~Introduction~IntroTopic@ for details.
+	See ~Introduction~IntroTopic@ for details.
   ^Centered line
 
 @IntroTopic
 $Introduction
 Welcome to the intro.
 `
-	wc, _ := memVfs.Create(helpPath)
+	wc, _ := memVfs.Create(context.Background(), helpPath)
 	wc.Write([]byte(content))
 	wc.Close()
 

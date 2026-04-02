@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"bufio"
+	"context"
 	"strings"
 	"github.com/unxed/f4/vfs"
 )
@@ -39,7 +40,7 @@ func NewHelpEngine(v vfs.VFS) *HelpEngine {
 
 // LoadFile reads an .hlf file and populates the topic cache.
 func (e *HelpEngine) LoadFile(path string) error {
-	f, err := e.vfs.Open(path)
+	f, err := e.vfs.Open(context.Background(), path)
 	if err != nil {
 		return err
 	}
