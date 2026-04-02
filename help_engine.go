@@ -28,6 +28,16 @@ type HelpEngine struct {
 	vfs    vfs.VFS
 	topics map[string]*HelpTopic
 }
+
+// ctxReader adapts vfs.ReadAtCloser to the standard io.Reader interface.
+type ctxReader struct {
+	ctx context.Context
+	r   vfs.ReadAtCloser
+}
+
+func (cr *ctxReader) Read(p []byte) (int, error) {
+	return cr.r.Read(cr.ctx, p)
+}
 // GlobalHelpEngine is the default engine used by the framework for F1 lookups.
 var GlobalHelpEngine *HelpEngine
 
@@ -40,13 +50,15 @@ func NewHelpEngine(v vfs.VFS) *HelpEngine {
 
 // LoadFile reads an .hlf file and populates the topic cache.
 func (e *HelpEngine) LoadFile(path string) error {
-	f, err := e.vfs.Open(context.Background(), path)
+	ctx := context.Background()
+	f, err := e.vfs.Open(ctx, path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
+	// Wrap our context-aware reader into a standard io.Reader for bufio
+	scanner := bufio.NewScanner(&ctxReader{ctx, f})
 	var currentTopic *HelpTopic
 
 	lineIdx := 0

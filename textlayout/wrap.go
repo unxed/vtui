@@ -101,10 +101,29 @@ func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
 	endOffset := we.pt.Size()
 	if logLineIdx+1 < we.li.LineCount() {
 		endOffset = we.li.GetLineOffset(logLineIdx + 1)
+	} else {
+		// If this is the unindexed tail, cap the processing to prevent loading gigabytes
+		if endOffset-startOffset > 64*1024 {
+			endOffset = startOffset + 64*1024
+		}
 	}
 
 	we.tmpBuf = we.tmpBuf[:0]
-	we.tmpBuf = we.pt.AppendRange(we.tmpBuf, startOffset, endOffset-startOffset)
+	var err error
+	we.tmpBuf, err = we.pt.AppendRange(we.tmpBuf, startOffset, endOffset-startOffset)
+
+	// If data is not ready, return a dummy visual fragment
+	if err == piecetable.ErrLoading {
+		frag := LineFragment{
+			LogicalLineIdx:  logLineIdx,
+			ByteOffsetStart: startOffset,
+			ByteOffsetEnd:   endOffset,
+			VisualWidth:     16, // Width of "[ Loading... ]"
+		}
+		we.fragmentCache[logLineIdx] = []LineFragment{frag}
+		return we.fragmentCache[logLineIdx]
+	}
+
 	lineData := we.tmpBuf
 	// Убираем \n или \r\n с конца
 	if len(lineData) > 0 && lineData[len(lineData)-1] == '\n' {
@@ -325,7 +344,7 @@ func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int)
 			width := 0
 			if byteOffset > frag.ByteOffsetStart {
 				we.tmpBuf = we.tmpBuf[:0]
-				we.tmpBuf = we.pt.AppendRange(we.tmpBuf, frag.ByteOffsetStart, byteOffset-frag.ByteOffsetStart)
+				we.tmpBuf, _ = we.pt.AppendRange(we.tmpBuf, frag.ByteOffsetStart, byteOffset-frag.ByteOffsetStart)
 				data := we.tmpBuf
 				for len(data) > 0 {
 					r, size := utf8.DecodeRune(data)
@@ -361,7 +380,7 @@ func (we *WrapEngine) VisualToLogical(visualRow, visualCol int) int {
 	}
 
 	we.tmpBuf = we.tmpBuf[:0]
-	we.tmpBuf = we.pt.AppendRange(we.tmpBuf, frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart)
+	we.tmpBuf, _ = we.pt.AppendRange(we.tmpBuf, frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart)
 	lineData := we.tmpBuf
 	offset := frag.ByteOffsetStart
 	currentCol := 0

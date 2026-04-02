@@ -24,7 +24,7 @@ func (li *LineIndex) Rebuild(pt *PieceTable) {
 	}
 
 	absPos := 0
-	pt.ForEachRange(func(data []byte) {
+	pt.ForEachRange(func(data []byte) error {
 		for i, b := range data {
 			if b == '\n' {
 				// Next line starts immediately after the newline character
@@ -32,7 +32,13 @@ func (li *LineIndex) Rebuild(pt *PieceTable) {
 			}
 		}
 		absPos += len(data)
+		return nil
 	})
+}
+
+// AppendOffsets adds pre-calculated line offsets (used by background indexer).
+func (li *LineIndex) AppendOffsets(offsets []int) {
+	li.offsets = append(li.offsets, offsets...)
 }
 
 // LineCount returns total number of lines.

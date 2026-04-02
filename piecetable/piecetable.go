@@ -1,23 +1,28 @@
 package piecetable
 
 // BufferType indicates which buffer a text fragment is in.
+import "errors"
+
+var ErrLoading = errors.New("data is loading")
+
+// BufferType indicates which buffer a text fragment is in.
 type Buffer interface {
 	Size() int
-	Read(offset, length int) []byte
+	Read(offset, length int) ([]byte, error)
 }
 
 type MemoryBuffer []byte
 
 func (m MemoryBuffer) Size() int { return len(m) }
-func (m MemoryBuffer) Read(offset, length int) []byte {
+func (m MemoryBuffer) Read(offset, length int) ([]byte, error) {
 	if offset < 0 || offset >= len(m) || length <= 0 {
-		return nil
+		return nil, nil
 	}
 	end := offset + length
 	if end > len(m) {
 		end = len(m)
 	}
-	return m[offset:end]
+	return m[offset:end], nil
 }
 type BufferType int
 
@@ -168,21 +173,23 @@ func (pt *PieceTable) Delete(offset, length int) {
 // Bytes assembles and returns all current text.
 // Note: for large file rendering in future we'll write ReadAt methods,
 // so as not to unload entire buffer into memory.
-func (pt *PieceTable) Bytes() []byte {
+func (pt *PieceTable) Bytes() ([]byte, error) {
 	res := make([]byte, 0, pt.size)
 	for _, p := range pt.pieces {
 		if p.Buf == Original {
-			res = append(res, pt.orig.Read(p.Start, p.Length)...)
+			data, err := pt.orig.Read(p.Start, p.Length)
+			if err != nil { return nil, err }
+			res = append(res, data...)
 		} else {
 			res = append(res, pt.add[p.Start:p.Start+p.Length]...)
 		}
 	}
-	return res
+	return res, nil
 }
 // AppendRange appends the specified range to the dest slice without new allocations.
-func (pt *PieceTable) AppendRange(dest []byte, offset, length int) []byte {
+func (pt *PieceTable) AppendRange(dest []byte, offset, length int) ([]byte, error) {
 	if offset < 0 || length <= 0 || offset+length > pt.size {
-		return dest
+		return dest, nil
 	}
 
 	remaining := length
@@ -197,7 +204,9 @@ func (pt *PieceTable) AppendRange(dest []byte, offset, length int) []byte {
 		}
 
 		if p.Buf == Original {
-			dest = append(dest, pt.orig.Read(p.Start+offInPiece, take)...)
+			data, err := pt.orig.Read(p.Start+offInPiece, take)
+			if err != nil { return dest, err }
+			dest = append(dest, data...)
 		} else {
 			dest = append(dest, pt.add[p.Start+offInPiece : p.Start+offInPiece+take]...)
 		}
@@ -206,17 +215,19 @@ func (pt *PieceTable) AppendRange(dest []byte, offset, length int) []byte {
 		offInPiece = 0
 	}
 
-	return dest
+	return dest, nil
 }
 
 // String returns current text as a string (convenient for tests).
+// Ignore errors here to keep tests simple.
 func (pt *PieceTable) String() string {
-	return string(pt.Bytes())
+	b, _ := pt.Bytes()
+	return string(b)
 }
 
 // ForEachRange sequentially calls a function for each data fragment.
 // This allows processing text without allocating a single large slice.
-func (pt *PieceTable) ForEachRange(fn func(data []byte)) {
+func (pt *PieceTable) ForEachRange(fn func(data []byte) error) error {
 	for _, p := range pt.pieces {
 		if p.Buf == Original {
 			const chunkSize = 1024 * 1024
@@ -225,18 +236,21 @@ func (pt *PieceTable) ForEachRange(fn func(data []byte)) {
 				if offset+take > p.Length {
 					take = p.Length - offset
 				}
-				fn(pt.orig.Read(p.Start+offset, take))
+				data, err := pt.orig.Read(p.Start+offset, take)
+				if err != nil { return err }
+				if err := fn(data); err != nil { return err }
 			}
 		} else {
-			fn(pt.add[p.Start : p.Start+p.Length])
+			if err := fn(pt.add[p.Start : p.Start+p.Length]); err != nil { return err }
 		}
 	}
+	return nil
 }
 
 // GetRange returns a byte slice for the specified range.
-func (pt *PieceTable) GetRange(offset, length int) []byte {
+func (pt *PieceTable) GetRange(offset, length int) ([]byte, error) {
 	if offset < 0 || length <= 0 || offset+length > pt.size {
-		return nil
+		return nil, nil
 	}
 
 	res := make([]byte, 0, length)
@@ -255,7 +269,9 @@ func (pt *PieceTable) GetRange(offset, length int) []byte {
 
 		var buf []byte
 		if p.Buf == Original {
-			buf = pt.orig.Read(p.Start+offInPiece, take)
+			var err error
+			buf, err = pt.orig.Read(p.Start+offInPiece, take)
+			if err != nil { return nil, err }
 		} else {
 			buf = pt.add[p.Start+offInPiece : p.Start+offInPiece+take]
 		}
@@ -266,7 +282,7 @@ func (pt *PieceTable) GetRange(offset, length int) []byte {
 		offInPiece = 0 // For subsequent pieces, read from start
 	}
 
-	return res
+	return res, nil
 }
 
 func NewWithBuffer(buf Buffer) *PieceTable {

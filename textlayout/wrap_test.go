@@ -25,7 +25,8 @@ func TestWrapEngine_SimpleWrap(t *testing.T) {
 	}
 
 	for i, frag := range frags {
-		text := string(pt.GetRange(frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart))
+		data, _ := pt.GetRange(frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart)
+		text := string(data)
 		if text != expectedTexts[i] {
 			t.Errorf("Frag %d: expected %q, got %q", i, expectedTexts[i], text)
 		}
@@ -46,7 +47,8 @@ func TestWrapEngine_NoWrap(t *testing.T) {
 		t.Fatalf("Expected 1 fragment when word wrap is off, got %d", len(frags))
 	}
 
-	text := string(pt.GetRange(frags[0].ByteOffsetStart, frags[0].ByteOffsetEnd-frags[0].ByteOffsetStart))
+	data, _ := pt.GetRange(frags[0].ByteOffsetStart, frags[0].ByteOffsetEnd-frags[0].ByteOffsetStart)
+	text := string(data)
 	if text != "This is a very long line that should not be wrapped." {
 		t.Errorf("Fragment text mismatch: got %q", text)
 	}
@@ -72,7 +74,8 @@ func TestWrapEngine_UnicodeWrap(t *testing.T) {
 	}
 
 	for i, frag := range frags {
-		text := string(pt.GetRange(frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart))
+		data, _ := pt.GetRange(frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart)
+		text := string(data)
 		if text != expectedTexts[i] {
 			t.Errorf("Frag %d: expected %q, got %q", i, expectedTexts[i], text)
 		}
@@ -94,7 +97,8 @@ func TestWrapEngine_LongWord(t *testing.T) {
 	}
 
 	for i, frag := range frags {
-		text := string(pt.GetRange(frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart))
+		data, _ := pt.GetRange(frag.ByteOffsetStart, frag.ByteOffsetEnd-frag.ByteOffsetStart)
+		text := string(data)
 		if !reflect.DeepEqual(text, expectedTexts[i]) {
 			t.Errorf("Frag %d: expected %q, got %q", i, expectedTexts[i], text)
 		}
@@ -201,7 +205,8 @@ func TestWrapEngine_ExtremeCorners(t *testing.T) {
 
 	frags3 := we.GetFragments(0)
 	// Ожидаем "    Line " (пробел после Line влезает в 10 символов)
-	text := string(pt3.GetRange(frags3[0].ByteOffsetStart, frags3[0].ByteOffsetEnd-frags3[0].ByteOffsetStart))
+	data3, _ := pt3.GetRange(frags3[0].ByteOffsetStart, frags3[0].ByteOffsetEnd-frags3[0].ByteOffsetStart)
+	text := string(data3)
 	if text != "    Line " {
 		t.Errorf("Indentation preserved: expected '    Line ', got %q", text)
 	}
@@ -220,8 +225,10 @@ func TestWrapEngine_MultipleSpaces(t *testing.T) {
 	if len(frags) != 2 {
 		t.Fatalf("Expected 2 fragments for multiple spaces, got %d", len(frags))
 	}
-	text1 := string(pt.GetRange(frags[0].ByteOffsetStart, frags[0].ByteOffsetEnd-frags[0].ByteOffsetStart))
-	text2 := string(pt.GetRange(frags[1].ByteOffsetStart, frags[1].ByteOffsetEnd-frags[1].ByteOffsetStart))
+	d1, _ := pt.GetRange(frags[0].ByteOffsetStart, frags[0].ByteOffsetEnd-frags[0].ByteOffsetStart)
+	d2, _ := pt.GetRange(frags[1].ByteOffsetStart, frags[1].ByteOffsetEnd-frags[1].ByteOffsetStart)
+	text1 := string(d1)
+	text2 := string(d2)
 	if text1 != "word1    " || text2 != "word2" {
 		t.Errorf("Multiple spaces failed. Got %q and %q", text1, text2)
 	}

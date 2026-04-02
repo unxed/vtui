@@ -97,25 +97,31 @@ func TestPieceTable_GetRange(t *testing.T) {
 	pt.Insert(5, []byte("abc")) // "01234abc56789"
 
 	// 1. Range from original buffer
-	if string(pt.GetRange(1, 3)) != "123" {
+	r1, _ := pt.GetRange(1, 3)
+	if string(r1) != "123" {
 		t.Error("GetRange failed on original buffer")
 	}
 
 	// 2. Range from add buffer
-	if string(pt.GetRange(6, 1)) != "b" {
+	r2, _ := pt.GetRange(6, 1)
+	if string(r2) != "b" {
 		t.Error("GetRange failed on add buffer")
 	}
 
 	// 3. Range spanning multiple pieces
-	if string(pt.GetRange(4, 4)) != "4abc" {
+	r3, _ := pt.GetRange(4, 4)
+	if string(r3) != "4abc" {
 		t.Error("GetRange failed on spanning pieces")
 	}
 
 	// 4. Edge cases
-	if string(pt.GetRange(0, pt.Size())) != "01234abc56789" {
+	r4, _ := pt.GetRange(0, pt.Size())
+	if string(r4) != "01234abc56789" {
 		t.Error("GetRange failed on full range")
 	}
-	if pt.GetRange(-1, 5) != nil || pt.GetRange(0, 100) != nil {
+	rErr1, _ := pt.GetRange(-1, 5)
+	rErr2, _ := pt.GetRange(0, 100)
+	if rErr1 != nil || rErr2 != nil {
 		t.Error("GetRange should return nil for invalid ranges")
 	}
 }

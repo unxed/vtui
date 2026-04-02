@@ -94,6 +94,9 @@ func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharI
 
 // SanitizeRune ensures the rune is printable and handles its visual width.
 func SanitizeRune(r rune) (rune, int) {
+	if r == '\n' || r == '\r' {
+		return 0, 0
+	}
 	if r < 0x20 || r == 0x7F {
 		return '·', 1
 	}
@@ -115,9 +118,11 @@ func FillCharInfo(target []CharInfo, data []byte, attr uint64) []CharInfo {
 		data = data[size:]
 
 		sr, w := SanitizeRune(r)
-		target = append(target, CharInfo{Char: uint64(sr), Attributes: attr})
-		for i := 1; i < w; i++ {
-			target = append(target, CharInfo{Char: WideCharFiller, Attributes: attr})
+		if w > 0 {
+			target = append(target, CharInfo{Char: uint64(sr), Attributes: attr})
+			for i := 1; i < w; i++ {
+				target = append(target, CharInfo{Char: WideCharFiller, Attributes: attr})
+			}
 		}
 	}
 	return target
@@ -131,11 +136,7 @@ func FillCharInfoWithSelection(target []CharInfo, data []byte, defaultAttr, selA
 		r, size := utf8.DecodeRune(data)
 		data = data[size:]
 
-		// Sanitize control characters
-		if r < 0x20 || r == 0x7F {
-			r = '·'
-		}
-
+		sr, w := SanitizeRune(r)
 		attr := defaultAttr
 		absPos := fragStartOffset + currByte
 		if absPos >= selMin && absPos < selMax {
@@ -143,16 +144,11 @@ func FillCharInfoWithSelection(target []CharInfo, data []byte, defaultAttr, selA
 		}
 		currByte += size
 
-		w := 1
-		if r >= 0x7F {
-			w = runewidth.RuneWidth(r)
-		}
-		if w <= 0 {
-			w = 1
-		}
-		target = append(target, CharInfo{Char: uint64(r), Attributes: attr})
-		for i := 1; i < w; i++ {
-			target = append(target, CharInfo{Char: WideCharFiller, Attributes: attr})
+		if w > 0 {
+			target = append(target, CharInfo{Char: uint64(sr), Attributes: attr})
+			for i := 1; i < w; i++ {
+				target = append(target, CharInfo{Char: WideCharFiller, Attributes: attr})
+			}
 		}
 	}
 	return target
