@@ -61,10 +61,7 @@ func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 		if idx < 0 || idx >= len(lb.Items) { return }
 		selected := lb.Items[idx]
 		oldPath := vfs.GetPath()
-		newPath := vfs.Join(oldPath, selected)
-		if selected == ".." { newPath = vfs.Dir(oldPath) }
-
-		if err := vfs.SetPath(newPath); err == nil {
+		if err := vfs.SetPath(vfs.Join(oldPath, selected)); err == nil {
 			target := ""
 			if selected == ".." { target = vfs.Base(oldPath) }
 			updateList(vfs.GetPath(), target)
@@ -139,9 +136,7 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window 
 		selected := lb.Items[idx]
 		if isDirMap[selected] {
 			oldPath := vfs.GetPath()
-			newPath := vfs.Join(oldPath, selected)
-			if selected == ".." { newPath = vfs.Dir(oldPath) }
-			if err := vfs.SetPath(newPath); err == nil {
+			if err := vfs.SetPath(vfs.Join(oldPath, selected)); err == nil {
 				target := ""
 				if selected == ".." { target = vfs.Base(oldPath) }
 				updateList(vfs.GetPath(), target)
