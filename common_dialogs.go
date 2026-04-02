@@ -33,23 +33,21 @@ func SelectDirDialog(title string, initialPath string, vfs VFSMinimal) *Window {
 	lb := NewListBox(0, 0, 10, 8, []string{".."})
 
 	updateList := func(p string, targetToSelect string) {
-		currentItems := []string{".."}
-		vfs.ReadDir(context.Background(), p, func(chunk []VFSItem) {
-			for _, e := range chunk {
-				if e.IsDir && e.Name != ".." { currentItems = append(currentItems, e.Name) }
-			}
+		go func() {
+			currentItems := []string{".."}
+			vfs.ReadDir(context.Background(), p, func(chunk []VFSItem) {
+				for _, e := range chunk {
+					if e.IsDir && e.Name != ".." { currentItems = append(currentItems, e.Name) }
+				}
+			})
 			FrameManager.PostTask(func() {
 				if dlg.IsDone() { return }
 				lb.Items = currentItems
 				lb.UpdateRows()
-				if targetToSelect != "" {
-					lb.SelectName(targetToSelect)
-				} else {
-					lb.SetSelectPos(0) // Default to ".."
-				}
+				if targetToSelect != "" { lb.SelectName(targetToSelect) } else { lb.SetSelectPos(0) }
 				FrameManager.Redraw()
 			})
-		})
+		}()
 	}
 
 	lb.OnSelect = func(idx int) {
@@ -111,9 +109,11 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window 
 	isDirMap := make(map[string]bool)
 
 	updateList := func(p string, targetToSelect string) {
-		var allEntries []VFSItem
-		vfs.ReadDir(context.Background(), p, func(chunk []VFSItem) {
-			allEntries = append(allEntries, chunk...)
+		go func() {
+			var allEntries []VFSItem
+			vfs.ReadDir(context.Background(), p, func(chunk []VFSItem) {
+				allEntries = append(allEntries, chunk...)
+			})
 			FrameManager.PostTask(func() {
 				if dlg.IsDone() { return }
 				items := []string{".."}
@@ -125,7 +125,7 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window 
 				if targetToSelect != "" { lb.SelectName(targetToSelect) } else { lb.SetSelectPos(0) }
 				FrameManager.Redraw()
 			})
-		})
+		}()
 	}
 
 	lb.OnSelect = func(idx int) {

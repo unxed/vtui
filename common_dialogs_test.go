@@ -24,6 +24,31 @@ func (v *testVFS) Join(elem ...string) string { return filepath.Join(elem...) }
 func (v *testVFS) Dir(p string) string { return filepath.Dir(p) }
 func (v *testVFS) Base(p string) string { return filepath.Base(p) }
 
+// pumpTasks executes all pending tasks in the FrameManager queue.
+func pumpTasks() {
+	for {
+		select {
+		case task := <-FrameManager.TaskChan:
+			task()
+		default:
+			return
+		}
+	}
+}
+
+// waitForCondition waits for a predicate to become true, pumping tasks in between.
+func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		pumpTasks()
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("Timeout waiting for condition in async test")
+}
+
 func TestSelectDirDialog_ArrowVsEnter(t *testing.T) {
 	SetDefaultPalette()
 	tmpDir := t.TempDir()
@@ -89,63 +114,98 @@ func TestInputBox_OkCallback(t *testing.T) {
 func TestSelectFileDialog_Selection(t *testing.T) {
 	SetDefaultPalette()
 	tmpDir := t.TempDir()
-	vfs := &testVFS{currentPath: tmpDir}
+	v := &testVFS{currentPath: tmpDir}
+	os.WriteFile(filepath.Join(tmpDir, "dummy.txt"), []byte("data"), 0644)
 
-	// Create a dummy file
-	os.WriteFile(vfs.Join(tmpDir, "dummy.txt"), []byte("data"), 0644)
-
-	dlg := SelectFileDialog("Title", tmpDir, vfs)
-
+	dlg := SelectFileDialog("Title", tmpDir, v)
 	var lb *ListBox
 	var fileEdit *Edit
-	editCount := 0
 	walk(dlg.rootGroup, func(el UIElement) bool {
 		if l, ok := el.(*ListBox); ok { lb = l }
-		if e, ok := el.(*Edit); ok {
-			editCount++
-			if editCount == 2 { fileEdit = e }
+		if t, ok := el.(*Text); ok && el.GetHotkey() == 'f' {
+			if e, ok := t.FocusLink.(*Edit); ok { fileEdit = e }
 		}
 		return true
 	})
 
-	if lb == nil || fileEdit == nil {
-		t.Fatal("SelectFileDialog structure error")
-	}
+	// Wait for async loading
+	waitForCondition(t, time.Second, func() bool {
+		for _, item := range lb.Items { if item == "dummy.txt" { return true } }
+		return false
+	})
 
-	// Wait for async VFS to load items into the listbox
-	timeout := time.After(1 * time.Second)
-Loop:
-	for {
-		for _, name := range lb.Items {
-			if name == "dummy.txt" { break Loop }
-		}
-		select {
-		case task := <-FrameManager.TaskChan:
-			task()
-		case <-timeout:
-			t.Fatal("Timeout waiting for dummy.txt to appear in list")
-		}
-	}
-
-	// Find dummy.txt in list
-	fileIdx := -1
-	for i, name := range lb.Items {
-		if name == "dummy.txt" {
-			fileIdx = i
-			break
-		}
-	}
-
-	if fileIdx == -1 { t.Fatal("File not found in list") }
-
-	// Change selection to file
-	if lb.OnSelect != nil {
-		lb.OnSelect(fileIdx)
-	}
+	// Change selection and check if Edit field updates
+	lb.SelectName("dummy.txt")
+	if lb.OnSelect != nil { lb.OnSelect(lb.SelectPos) }
 
 	if fileEdit.GetText() != "dummy.txt" {
-		t.Errorf("File Edit not updated on selection. Got %q", fileEdit.GetText())
+		t.Errorf("File Edit not updated. Got %q", fileEdit.GetText())
 	}
+}
+
+func TestSelectDirDialog_Filtering(t *testing.T) {
+	SetDefaultPalette()
+	tmpDir := t.TempDir()
+	os.Mkdir(filepath.Join(tmpDir, "subfolder"), 0755)
+	os.WriteFile(filepath.Join(tmpDir, "should_be_hidden.txt"), []byte("data"), 0644)
+
+	v := &testVFS{currentPath: tmpDir}
+	dlg := SelectDirDialog("Select Dir", tmpDir, v)
+
+	var lb *ListBox
+	walk(dlg.rootGroup, func(el UIElement) bool {
+		if l, ok := el.(*ListBox); ok { lb = l; return false }; return true
+	})
+
+	waitForCondition(t, time.Second, func() bool {
+		return len(lb.Items) > 1 // ".." + "subfolder"
+	})
+
+	for _, item := range lb.Items {
+		if item == "should_be_hidden.txt" {
+			t.Error("SelectDirDialog MUST NOT show files, only directories")
+		}
+	}
+}
+
+func TestDialogNavigation_UX(t *testing.T) {
+	SetDefaultPalette()
+	tmpDir := t.TempDir()
+	subPath := filepath.Join(tmpDir, "my_work_folder")
+	os.Mkdir(subPath, 0755)
+
+	v := &testVFS{currentPath: tmpDir}
+	dlg := SelectFileDialog("UX Test", tmpDir, v)
+
+	var lb *ListBox
+	walk(dlg.rootGroup, func(el UIElement) bool {
+		if l, ok := el.(*ListBox); ok { lb = l; return false }; return true
+	})
+
+	// 1. Enter into "my_work_folder"
+	waitForCondition(t, time.Second, func() bool {
+		for _, item := range lb.Items { if item == "my_work_folder" { return true } }
+		return false
+	})
+	lb.SelectName("my_work_folder")
+	lb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+
+	// 2. Assert path changed and UI updated (list should now contain only "..")
+	waitForCondition(t, time.Second, func() bool {
+		return v.GetPath() == subPath && len(lb.Items) == 1 && lb.Items[0] == ".."
+	})
+	if lb.SelectPos != 0 {
+		t.Errorf("UX FAIL: Cursor must be on '..' (0) when entering an empty directory. Got pos: %d", lb.SelectPos)
+	}
+
+	// 3. Exit back to parent via ".."
+	lb.SelectName("..")
+	lb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+
+	// 4. Assert path restored and UI updated (cursor should land on "my_work_folder")
+	waitForCondition(t, time.Second, func() bool {
+		return v.GetPath() == tmpDir && lb.Items[lb.SelectPos] == "my_work_folder"
+	})
 }
 
 func TestSelectFileDialog_LayoutBestPractice(t *testing.T) {
