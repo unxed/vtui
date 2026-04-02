@@ -248,3 +248,25 @@ func TestWrapEngine_EndOfLineCursor(t *testing.T) {
 		t.Errorf("Cursor at EOF on first line: expected (0, 3), got (%d, %d)", row, col)
 	}
 }
+type loadingBuffer struct{}
+func (l *loadingBuffer) Size() int { return 100 }
+func (l *loadingBuffer) Read(offset, length int) ([]byte, error) { return nil, piecetable.ErrLoading }
+
+func TestWrapEngine_ErrLoading(t *testing.T) {
+	pt := piecetable.NewWithBuffer(&loadingBuffer{})
+	li := piecetable.NewLineIndex()
+	// Rebuild will finish instantly with 1 line because of ErrLoading
+	li.Rebuild(pt)
+
+	we := NewWrapEngine(pt, li)
+	we.SetWidth(20)
+
+	frags := we.GetFragments(0)
+	if len(frags) != 1 {
+		t.Fatalf("Expected 1 loading fragment, got %d", len(frags))
+	}
+
+	if frags[0].VisualWidth != 16 { // Our constant for "[ Loading... ]" width
+		t.Errorf("Expected loading fragment width 16, got %d", frags[0].VisualWidth)
+	}
+}
