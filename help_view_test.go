@@ -1,15 +1,16 @@
 package vtui
 
 import (
-	"context"
+	"os"
+	"path/filepath"
 	"testing"
-	"github.com/unxed/f4/vfs"
+
 	"github.com/unxed/vtinput"
 )
 
 func TestHelpView_Navigation(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	helpPath := memVfs.Join(memVfs.GetPath(), "test.hlf")
+	tmpDir := t.TempDir()
+	helpPath := filepath.Join(tmpDir, "test.hlf")
 	content := `
 @Contents
 ~GoToNext~NextTopic@
@@ -17,11 +18,9 @@ func TestHelpView_Navigation(t *testing.T) {
 @NextTopic
 Success
 `
-	wc, _ := memVfs.Create(context.Background(), helpPath)
-	wc.Write([]byte(content))
-	wc.Close()
+	os.WriteFile(helpPath, []byte(content), 0644)
 
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	engine.LoadFile(helpPath)
 
 	hv := NewHelpView(engine, "Contents")
@@ -48,8 +47,7 @@ Success
 }
 
 func TestHelpView_TabWrapping(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	topic := &HelpTopic{
 		Name: "Test",
 		Lines: []string{"~L1~T1@ ~L2~T2@"},
@@ -78,8 +76,7 @@ func TestHelpView_TabWrapping(t *testing.T) {
 }
 
 func TestHelpView_Scrolling(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	engine.topics["Test"] = &HelpTopic{
 		Name: "Test",
 		Lines: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
@@ -99,8 +96,7 @@ func TestHelpView_Scrolling(t *testing.T) {
 
 func TestHelpView_VisualRendering(t *testing.T) {
 	SetDefaultPalette()
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	engine.topics["Test"] = &HelpTopic{
 		Name: "Test",
 		Lines: []string{"Normal #Bold# ~Link~T@"},
@@ -130,8 +126,7 @@ func TestHelpView_VisualRendering(t *testing.T) {
 }
 
 func TestHelpView_History_Empty(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	engine.topics["Test"] = &HelpTopic{Name: "Test", Lines: []string{"Text"}}
 	hv := NewHelpView(engine, "Test")
 
@@ -145,8 +140,7 @@ func TestHelpView_History_Empty(t *testing.T) {
 	}
 }
 func TestHelpView_EnsureLinkVisible(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	// Создаем тему, где ссылка находится далеко внизу
 	lines := make([]string, 20)
 	for i := range lines { lines[i] = "line" }
@@ -176,8 +170,7 @@ func TestHelpView_EnsureLinkVisible(t *testing.T) {
 }
 
 func TestHelpView_PageNavigation(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	lines := make([]string, 50)
 	for i := range lines { lines[i] = "text" }
 	engine.topics["Scroll"] = &HelpTopic{Name: "Scroll", Lines: lines}
@@ -197,8 +190,7 @@ func TestHelpView_PageNavigation(t *testing.T) {
 }
 
 func TestHelpView_TabNoLinks(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	engine.topics["NoLinks"] = &HelpTopic{Name: "NoLinks", Lines: []string{"Just text"}}
 
 	hv := NewHelpView(engine, "NoLinks")
@@ -215,8 +207,7 @@ func TestHelpView_TabNoLinks(t *testing.T) {
 
 func TestHelpView_MultiLinkLineRendering(t *testing.T) {
 	SetDefaultPalette()
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	// Две ссылки на одной строке
 	line := "~L1~T1@ and ~L2~T2@"
 	engine.topics["Test"] = &HelpTopic{

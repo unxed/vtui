@@ -3,9 +3,15 @@ package vtui
 import (
 	"bufio"
 	"context"
+	"io"
 	"strings"
-	"github.com/unxed/f4/vfs"
 )
+
+// HelpVFS is a minimal interface needed by HelpEngine to load files.
+// This prevents circular dependencies on the main vfs package.
+type HelpVFS interface {
+	Open(ctx context.Context, path string) (io.ReadCloser, error)
+}
 
 // HelpLink represents a hyperlink within a help topic.
 type HelpLink struct {
@@ -25,23 +31,28 @@ type HelpTopic struct {
 
 // HelpEngine manages loading and parsing of help files.
 type HelpEngine struct {
-	vfs    vfs.VFS
+	vfs    HelpVFS
 	topics map[string]*HelpTopic
 }
 
-// ctxReader adapts vfs.ReadAtCloser to the standard io.Reader interface.
+// ctxReader adapts context-aware reader to standard io.Reader.
 type ctxReader struct {
 	ctx context.Context
-	r   vfs.ReadAtCloser
+	r   io.ReadCloser
 }
 
 func (cr *ctxReader) Read(p []byte) (int, error) {
-	return cr.r.Read(cr.ctx, p)
+	select {
+	case <-cr.ctx.Done():
+		return 0, cr.ctx.Err()
+	default:
+		return cr.r.Read(p)
+	}
 }
 // GlobalHelpEngine is the default engine used by the framework for F1 lookups.
 var GlobalHelpEngine *HelpEngine
 
-func NewHelpEngine(v vfs.VFS) *HelpEngine {
+func NewHelpEngine(v HelpVFS) *HelpEngine {
 	return &HelpEngine{
 		vfs:    v,
 		topics: make(map[string]*HelpTopic),

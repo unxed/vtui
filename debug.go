@@ -8,11 +8,17 @@ import (
 
 // DebugLog writes a timestamped message to debug.log file.
 func DebugLog(format string, a ...any) {
-	if os.Getenv("VTUI_DEBUG") == "" {
+	env := os.Getenv("VTUI_DEBUG")
+	if env == "" {
 		return
 	}
 
-	f, err := os.OpenFile("debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	filename := "debug.log"
+	if env != "1" && env != "true" {
+		filename = env
+	}
+
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return
 	}

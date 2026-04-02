@@ -2,14 +2,22 @@ package vtui
 
 import (
 	"context"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
-	"github.com/unxed/f4/vfs"
 )
 
+type mockHelpVFS struct{}
+
+func (m *mockHelpVFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
+	return os.Open(path)
+}
+
 func TestHelpEngine_Parsing(t *testing.T) {
-	// Create dummy VFS with help content
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	helpPath := memVfs.Join(memVfs.GetPath(), "test.hlf")
+	// Create dummy help content
+	tmpDir := t.TempDir()
+	helpPath := filepath.Join(tmpDir, "test.hlf")
 
 	content := `
 @Contents
@@ -22,11 +30,9 @@ This is a #bold# word.
 $Introduction
 Welcome to the intro.
 `
-	wc, _ := memVfs.Create(context.Background(), helpPath)
-	wc.Write([]byte(content))
-	wc.Close()
+	os.WriteFile(helpPath, []byte(content), 0644)
 
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 	err := engine.LoadFile(helpPath)
 	if err != nil {
 		t.Fatalf("Failed to load help file: %v", err)
@@ -64,8 +70,7 @@ Welcome to the intro.
 }
 
 func TestHelpEngine_Parsing_Complex(t *testing.T) {
-	memVfs := vfs.NewOSVFS(t.TempDir())
-	engine := NewHelpEngine(memVfs)
+	engine := NewHelpEngine(&mockHelpVFS{})
 
 	// Test multiple links on one line and nested formatting
 	topic := &HelpTopic{Name: "Test"}

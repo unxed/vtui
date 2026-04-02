@@ -4,8 +4,9 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"github.com/unxed/vtinput"
+
 	"github.com/mattn/go-runewidth"
+	"github.com/unxed/vtinput"
 )
 
 type HelpView struct {
