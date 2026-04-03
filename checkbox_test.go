@@ -3,7 +3,6 @@ package vtui
 import (
 	"testing"
 )
-import "io"
 
 func TestCheckbox_Toggle(t *testing.T) {
 	// 1. Test 2 states
@@ -26,8 +25,7 @@ func TestCheckbox_Toggle(t *testing.T) {
 
 func TestCheckbox_HotkeyRendering(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(20, 1)
 
 	cb := NewCheckbox(0, 0, "Enable &AI", false)

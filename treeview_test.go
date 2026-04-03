@@ -5,7 +5,6 @@ import (
 
 	"github.com/unxed/vtinput"
 )
-import "io"
 
 func createTestTree() *TreeNode {
 	root := &TreeNode{Text: "Root", Expanded: true}
@@ -124,8 +123,7 @@ func TestTreeView_MouseClick(t *testing.T) {
 
 func TestTreeView_Rendering(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(30, 10)
 
 	tree := NewTreeView(0, 0, 30, 10, createTestTree())
@@ -157,8 +155,7 @@ func TestTreeView_Rendering(t *testing.T) {
 
 func TestTreeView_FullCoverage(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(30, 10)
 
 	// 1. Parent() check

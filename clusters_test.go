@@ -4,7 +4,6 @@ import (
 	"testing"
 	"github.com/unxed/vtinput"
 )
-import "io"
 
 func TestRadioGroup_Navigation(t *testing.T) {
 	rg := NewRadioGroup(0, 0, 1, []string{"&One", "T&wo", "&Three"})
@@ -127,8 +126,7 @@ func TestListBox_MultiSelect(t *testing.T) {
 
 func TestGroupBox_Rendering(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(20, 10)
 
 	gb := NewGroupBox(2, 2, 10, 6, "Group")

@@ -1,12 +1,10 @@
 package vtui
 
 import "testing"
-import "io"
 
 func TestStatusLine_Rendering(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(40, 1)
 
 	sl := NewStatusLine()
@@ -37,8 +35,7 @@ func TestStatusLine_ContextUpdate(t *testing.T) {
 
 func TestStatusLine_Truncation(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(10, 1) // Very narrow screen
 
 	sl := NewStatusLine()

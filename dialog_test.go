@@ -4,7 +4,6 @@ import (
 	"testing"
 	"github.com/unxed/vtinput"
 )
-import "io"
 
 func TestDialog_HotkeyCaseInsensitivity(t *testing.T) {
 	d := NewDialog(0, 0, 40, 10, "Case Test")
@@ -416,8 +415,7 @@ func TestElements_HelpTopic(t *testing.T) {
 
 func TestDialog_ShadowAndFocusColors(t *testing.T) {
 	fm := &frameManager{}
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(20, 20)
 	fm.Init(scr)
 	SetDefaultPalette()

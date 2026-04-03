@@ -8,7 +8,6 @@ import (
 	"time"
 	"github.com/unxed/vtinput"
 )
-import "io"
 
 // testVFS implements VFSMinimal for testing without coupling to f4's VFS.
 type testVFS struct { currentPath string }
@@ -257,8 +256,7 @@ func TestSelectFileDialog_LayoutBestPractice(t *testing.T) {
 }
 func TestLayout_StandardDialogs_Validity(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(80, 25)
 	FrameManager.Init(scr)
 	v := &testVFS{currentPath: "/tmp"}

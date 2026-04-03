@@ -43,6 +43,14 @@ func NewScreenBuf() *ScreenBuf {
 		dirty: true,
 	}
 }
+// NewSilentScreenBuf creates a ScreenBuf that discards all output.
+// Ideal for unit tests to prevent ANSI sequences from polluting the console.
+func NewSilentScreenBuf() *ScreenBuf {
+	return &ScreenBuf{
+		dirty:  true,
+		Writer: io.Discard,
+	}
+}
 
 // HardReset clears the shadow buffer and forces a complete redraw of the screen.
 // Essential when re-attaching to a new physical terminal.
