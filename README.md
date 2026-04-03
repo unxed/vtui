@@ -63,6 +63,10 @@ If a dialog is resized, a widget can:
 *   `KeyBar` (F1-F12 function key hints at the bottom), `StatusLine`
 *   Common Dialogs: `ShowMessage`, `InputBox`, `SelectFileDialog`, `SelectDirDialog`
 
+## Visual Integrity & Testing
+
+`vtui` uses an automated **Layout Validator** to ensure that all dialogs follow strict design guidelines: no overlapping elements, proper spacing ("air"), and correct padding from window borders. Every new dialog or window component must include a unit test that calls `vtui.AssertLayout`. See [UI_TESTING.md](UI_TESTING.md) for detailed instructions and test boilerplate.
+
 ## Quick Start Example
 
 ```go
