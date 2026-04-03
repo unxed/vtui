@@ -421,7 +421,7 @@ func (e *Edit) OpenHistory() {
 	if len(e.History) == 0 {
 		return
 	}
-	menu := NewVMenu("History")
+	menu := NewVMenu(Msg("vtui.History"))
 	for _, h := range e.History {
 		menu.AddItem(MenuItem{Text: h})
 	}

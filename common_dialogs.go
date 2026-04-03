@@ -67,8 +67,8 @@ func SelectDirDialog(title string, initialPath string, vfs FSProvider) *Window {
 		}
 	}
 
-	btnOk := NewButton(0, 0, "&Ok")
-	btnCancel := NewButton(0, 0, "&Cancel")
+	btnOk := NewButton(0, 0, Msg("vtui.Ok"))
+	btnCancel := NewButton(0, 0, Msg("vtui.Cancel"))
 	btnOk.OnClick = func() { dlg.SetExitCode(1) }
 	btnCancel.OnClick = func() { dlg.SetExitCode(-1) }
 
@@ -97,11 +97,11 @@ func SelectFileDialog(title string, initialPath string, vfs FSProvider) *Window 
 	dlg := NewCenteredDialog(width, height, title)
 	dlg.ShowClose = true
 
-	lblPath := NewLabel(0, 0, "Path:", nil)
+	lblPath := NewLabel(0, 0, Msg("vtui.Path"), nil)
 	pathEdit := NewEdit(0, 0, 10, initialPath)
 	pathEdit.SetDisabled(true)
 
-	lblFile := NewLabel(0, 0, "&File:", nil)
+	lblFile := NewLabel(0, 0, Msg("vtui.File"), nil)
 	fileEdit := NewEdit(0, 0, 10, "")
 	lblFile.FocusLink = fileEdit
 
@@ -145,7 +145,7 @@ func SelectFileDialog(title string, initialPath string, vfs FSProvider) *Window 
 		} else { dlg.SetExitCode(1) }
 	}
 
-	btnOk := NewButton(0, 0, "&Ok"); btnCancel := NewButton(0, 0, "&Cancel")
+	btnOk := NewButton(0, 0, Msg("vtui.Ok")); btnCancel := NewButton(0, 0, Msg("vtui.Cancel"))
 	btnOk.OnClick = func() { dlg.SetExitCode(1) }
 	btnCancel.OnClick = func() { dlg.SetExitCode(-1) }
 
@@ -180,8 +180,8 @@ func InputBox(title, prompt, defaultText string, onOk func(string)) *Window {
 
 	edit := NewEdit(0, 0, 10, defaultText)
 	lbl := NewLabel(0, 0, prompt, edit)
-	btnOk := NewButton(0, 0, "&Ok")
-	btnCancel := NewButton(0, 0, "&Cancel")
+	btnOk := NewButton(0, 0, Msg("vtui.Ok"))
+	btnCancel := NewButton(0, 0, Msg("vtui.Cancel"))
 
 	btnOk.OnClick = func() {
 		if onOk != nil { onOk(edit.GetText()) }
