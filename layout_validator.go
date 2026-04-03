@@ -64,26 +64,20 @@ func ValidateLayout(c Container) []error {
 			}
 
 			// Check Proximity ("Air" rule)
-			// Elements must have at least 1 empty cell between them.
-			// Calculation: gap = distance - 1. If gap is 0, they are touching.
 			gapX := max(ox1-x2, x1-ox2) - 1
 			gapY := max(oy1-y2, y1-oy2) - 1
 
-			// Overlap is gap < 0. Touching is gap == 0.
-			// Rule: both gaps must be >= 1 for diagonal air, or at least one must be >= 1.
-			// Standard TUI rule: no touching allowed in any dimension.
 			if gapX < 1 && gapY < 1 {
-
-				// Special cases for elements allowed to touch:
-				// 1. Separators
-				// 2. Contiguous lines of Text (e.g. multi-line messages)
 				_, isSep1 := item.(*Separator)
 				_, isSep2 := other.(*Separator)
 				_, isTxt1 := item.(*Text)
 				_, isTxt2 := other.(*Text)
+				_, isBox1 := item.(*BorderedFrame)
+				_, isBox2 := other.(*BorderedFrame)
 
-				// Allow vertical stacking of text regardless of horizontal alignment.
-				isAllowedToTouch := (isSep1 || isSep2) || (isTxt1 && isTxt2 && gapY <= 0)
+				// In TUIs, Separators and decorative Boxes are allowed to touch anything.
+				// Also contiguous lines of text are allowed to stack.
+				isAllowedToTouch := isSep1 || isSep2 || isBox1 || isBox2 || (isTxt1 && isTxt2 && gapY <= 0)
 
 				if !isAllowedToTouch {
 					errs = append(errs, LayoutError{

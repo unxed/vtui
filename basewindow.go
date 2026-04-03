@@ -66,6 +66,10 @@ func (bw *BaseWindow) AddItem(item UIElement) {
 		bw.MinH = reqH
 	}
 }
+// AddLink delegates the automation link to the root group.
+func (bw *BaseWindow) AddLink(src, target UIElement, action LinkAction) {
+	bw.rootGroup.AddLink(src, target, action)
+}
 
 func (bw *BaseWindow) Show(scr *ScreenBuf) {
 	bw.ScreenObject.Show(scr)

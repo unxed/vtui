@@ -59,6 +59,14 @@ func (so *ScreenObject) SetOwner(owner CommandHandler) {
 func (so *ScreenObject) GetOwner() CommandHandler {
 	return so.owner
 }
+// NotifyChange informs the owner that the element's data or state has changed.
+func (so *ScreenObject) NotifyChange() {
+	if so.owner != nil {
+		if g, ok := so.owner.(interface{ OnElementChange(UIElement) }); ok {
+			g.OnElementChange(so)
+		}
+	}
+}
 
 func (so *ScreenObject) SetGrowMode(gm GrowMode) {
 	so.growMode = gm

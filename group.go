@@ -14,6 +14,13 @@ type Group struct {
 	items     []UIElement
 	focusIdx  int
 	WrapFocus bool
+	links     []autoLink
+}
+
+type autoLink struct {
+	src    UIElement
+	target UIElement
+	action LinkAction
 }
 
 // NewGroup creates a new Group container.
@@ -65,14 +72,53 @@ func walk(el UIElement, fn func(UIElement) bool) bool {
 
 // AddItem adds a UI element to the group.
 func (g *Group) AddItem(item UIElement) {
-	g.items = append(g.items, item)
-	// Set the group as the owner of the added item to enable command bubbling
-	item.SetPosition(item.GetPosition()) // Trigger potential internal updates
 	item.SetOwner(g)
+	g.items = append(g.items, item)
 
+	// Restore focus initialization logic
 	if g.focusIdx == -1 && item.CanFocus() && !item.IsDisabled() {
-		g.focusIdx = len(g.items) - 1
-		item.SetFocus(true)
+		g.setFocus(len(g.items) - 1)
+	}
+
+	// Initially sync links for the new item
+	g.syncLinks()
+}
+
+// AddLink establishes a declarative connection between two elements.
+func (g *Group) AddLink(src, target UIElement, action LinkAction) {
+	g.links = append(g.links, autoLink{src, target, action})
+	g.syncLinks()
+}
+
+// OnElementChange is called via NotifyChange from children.
+func (g *Group) OnElementChange(el UIElement) {
+	g.syncLinks()
+}
+
+func (g *Group) syncLinks() {
+	for _, l := range g.links {
+		isChecked := false
+		if dc, ok := l.src.(DataControl); ok {
+			val := dc.GetData()
+			switch v := val.(type) {
+			case bool: isChecked = v
+			case int: isChecked = v != 0
+			case uint32: isChecked = v != 0
+			}
+		}
+
+		enabled := true
+		visible := l.target.IsVisible()
+
+		switch l.action {
+		case LinkEnableIfChecked: enabled = isChecked
+		case LinkDisableIfChecked: enabled = !isChecked
+		case LinkShowIfChecked: visible = isChecked
+		case LinkHideIfChecked: visible = !isChecked
+		}
+
+		l.target.SetDisabled(!enabled)
+		l.target.SetVisible(visible)
 	}
 }
 

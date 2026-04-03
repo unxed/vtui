@@ -64,4 +64,16 @@ func TestLayoutValidator_Logic(t *testing.T) {
 		AssertLayout(mt, dlg)
 		if mt.failed { t.Error("Valid layout reported as invalid") }
 	})
+	t.Run("Separator touching elements", func(t *testing.T) {
+		dlg := NewDialog(0, 0, 40, 10, "Separator Test")
+		sep := NewSeparator(0, 4, 40, true, true)
+		btn := NewButton(10, 5, "Below") // Touching separator vertically (gapY=0)
+		dlg.AddItem(sep)
+		dlg.AddItem(btn)
+
+		errs := ValidateLayout(dlg)
+		if len(errs) > 0 {
+			t.Errorf("Separator touching elements should be allowed, but got: %v", errs)
+		}
+	})
 }

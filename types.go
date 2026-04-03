@@ -40,6 +40,15 @@ const (
 	GrowAll    GrowMode = 0x0f
 	GrowRel    GrowMode = 0x10
 )
+// LinkAction defines how a target element reacts to a source element's state change.
+type LinkAction int
+
+const (
+	LinkEnableIfChecked LinkAction = iota
+	LinkDisableIfChecked
+	LinkShowIfChecked
+	LinkHideIfChecked
+)
 // UIElement is the interface that all screen objects (widgets, frames, windows) implement.
 type UIElement interface {
 	GetPosition() (int, int, int, int)
@@ -48,6 +57,7 @@ type UIElement interface {
 	Show(scr *ScreenBuf)
 	Hide(scr *ScreenBuf)
 	IsVisible() bool
+	SetVisible(bool)
 	SetFocus(bool)
 	IsFocused() bool
 	CanFocus() bool

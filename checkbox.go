@@ -78,6 +78,7 @@ func (cb *Checkbox) Toggle() {
 		onClick = func() { cb.OnChange(cb.State) }
 	}
 	cb.FireAction(onClick, cb.State)
+	cb.NotifyChange()
 }
 
 func (cb *Checkbox) GetData() any {

@@ -29,7 +29,16 @@ type Edit struct {
 	Validator         Validator
 	ColorUnchangedIdx int
 	ColorSelectedIdx  int
+	HistoryID         string
 }
+
+// HistoryProvider is an interface for external history persistence (e.g. from f4).
+type HistoryProvider interface {
+	LoadHistory(id string) []string
+	SaveHistory(id string, history []string)
+}
+
+var GlobalHistoryProvider HistoryProvider
 
 func NewEdit(x, y, width int, defaultText string) *Edit {
 	e := &Edit{
@@ -388,6 +397,9 @@ func (e *Edit) copySelection() {
 	SetClipboard(string(e.text[e.selStart:e.selEnd]))
 }
 func (e *Edit) OpenHistory() {
+	if e.HistoryID != "" && GlobalHistoryProvider != nil {
+		e.History = GlobalHistoryProvider.LoadHistory(e.HistoryID)
+	}
 	if len(e.History) == 0 {
 		return
 	}
@@ -454,6 +466,9 @@ func (e *Edit) AddHistory(text string) {
 	}
 	if len(e.History) > limit {
 		e.History = e.History[:limit]
+	}
+	if e.HistoryID != "" && GlobalHistoryProvider != nil {
+		GlobalHistoryProvider.SaveHistory(e.HistoryID, e.History)
 	}
 }
 func (e *Edit) HistoryUp() {
