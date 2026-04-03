@@ -27,11 +27,17 @@ func (t *Text) Show(scr *ScreenBuf) {
 
 func (t *Text) DisplayObject(scr *ScreenBuf) {
 	if !t.IsVisible() { return }
+	width := t.X2 - t.X1 + 1
+	if width <= 0 { return }
+
 	attr, highAttr := t.GetStateAttrs(ColDialogText, ColDialogText, ColDialogHighlightText, ColDialogHighlightText)
 	if t.color != 0 && !t.IsDisabled() { attr = t.color }
 
+	// Systemic prevention: truncate text to component width
+	txt := runewidth.Truncate(t.cleanText, width, "")
+
 	p := NewPainter(scr)
-	p.DrawHighlightedText(t.X1, t.Y1, t.cleanText, t.hotkeyPos, attr, highAttr)
+	p.DrawHighlightedText(t.X1, t.Y1, txt, t.hotkeyPos, attr, highAttr)
 }
 func (t *Text) GetFocusLink() UIElement {
 	return t.FocusLink
