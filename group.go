@@ -300,7 +300,10 @@ func (g *Group) ActivateHotkey(hk rune) bool {
 	for i, item := range g.items {
 		if item.GetHotkey() == hk {
 			target := item
+			visited := make(map[UIElement]bool)
 			for target.GetFocusLink() != nil {
+				if visited[target] { break }
+				visited[target] = true
 				target = target.GetFocusLink()
 			}
 

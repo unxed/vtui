@@ -17,6 +17,8 @@ type Edit struct {
 	selAnchor      int  // Position where selection started
 	overtype       bool
 	clearFlag         bool // If true, first input will clear the text
+	pasting           bool
+	pasteBuffer       []rune
 	PasswordMode      bool // Mask text with '*'
 	ShowHistoryButton bool // Show a clickable [v] button
 	History            []string
@@ -70,9 +72,23 @@ func (e *Edit) Show(scr *ScreenBuf) {
 	if e.curPos < e.leftPos {
 		e.leftPos = e.curPos
 	}
-	// Safety: leftPos must not exceed curPos. StringWidth >= visibleWidth
-	// triggers scrolling to the right.
-	for e.leftPos < e.curPos && runewidth.StringWidth(string(e.text[e.leftPos:e.curPos])) >= visibleWidth {
+	// Safety: leftPos must not exceed curPos.
+	width := 0
+	for i := e.leftPos; i < e.curPos; i++ {
+		r := e.text[i]
+		if e.PasswordMode {
+			width += 1
+		} else {
+			width += runewidth.RuneWidth(r)
+		}
+	}
+	for e.leftPos < e.curPos && width >= visibleWidth {
+		r := e.text[e.leftPos]
+		if e.PasswordMode {
+			width -= 1
+		} else {
+			width -= runewidth.RuneWidth(r)
+		}
 		e.leftPos++
 	}
 
@@ -201,6 +217,41 @@ func (e *Edit) InsertString(text string) {
 }
 
 func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
+	if event.Type == vtinput.PasteEventType {
+		if event.PasteStart {
+			e.pasting = true
+			e.pasteBuffer = nil
+		} else {
+			e.pasting = false
+			if len(e.pasteBuffer) > 0 {
+				if e.selStart != -1 {
+					e.DeleteBlock()
+				}
+				newText := make([]rune, 0, len(e.text)+len(e.pasteBuffer))
+				newText = append(newText, e.text[:e.curPos]...)
+				newText = append(newText, e.pasteBuffer...)
+				newText = append(newText, e.text[e.curPos:]...)
+				e.text = newText
+				e.curPos += len(e.pasteBuffer)
+				e.pasteBuffer = nil
+			}
+		}
+		return true
+	}
+
+	if e.pasting {
+		if event.Type == vtinput.KeyEventType && event.KeyDown {
+			if event.Char != 0 {
+				if event.Char == '\r' || event.Char == '\n' {
+					e.pasteBuffer = append(e.pasteBuffer, ' ')
+				} else {
+					e.pasteBuffer = append(e.pasteBuffer, event.Char)
+				}
+			}
+		}
+		return true
+	}
+
 	if !event.KeyDown { return false }
 	if e.IsDisabled() { return false }
 
