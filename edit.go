@@ -335,10 +335,25 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		if e.overtype && e.curPos < len(e.text) {
 			e.text[e.curPos] = event.Char
 		} else {
+			var testChar = event.Char
+			// Auto-uppercase support for specific mask markers
+			if e.Validator != nil {
+				if mv, ok := e.Validator.(*MaskValidator); ok && e.curPos < len(mv.Mask) {
+					m := []rune(mv.Mask)[e.curPos]
+					if m == '&' || m == '!' {
+						testChar = unicode.ToUpper(testChar)
+					}
+				}
+			}
+
 			newText := make([]rune, 0, len(e.text)+1)
 			newText = append(newText, e.text[:e.curPos]...)
-			newText = append(newText, event.Char)
+			newText = append(newText, testChar)
 			newText = append(newText, e.text[e.curPos:]...)
+
+			if e.Validator != nil && !e.Validator.IsValidInput(string(newText)) {
+				return true // Swallow invalid input
+			}
 			e.text = newText
 		}
 		e.curPos++
