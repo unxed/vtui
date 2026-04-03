@@ -2,7 +2,6 @@ package vtui
 
 import (
 	"testing"
-	"io"
 
 	"github.com/unxed/vtinput"
 )
@@ -975,8 +974,7 @@ func TestVMenu_NavigationCallbacks(t *testing.T) {
 
 func TestVMenu_ShortcutRendering(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
-	scr.Writer = io.Discard
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(30, 10)
 
 	m := NewVMenu("Shortcuts")

@@ -47,7 +47,7 @@ func TestAttributesToANSI_ResetBug(t *testing.T) {
 	}
 }
 func TestScreenBuf_OverlayMode(t *testing.T) {
-	scr := NewScreenBuf()
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(5, 5)
 
 	// Setup a custom theme palette
@@ -134,7 +134,7 @@ func contains(s, substr string) bool {
 }
 
 func TestScreenBuf_Clipping(t *testing.T) {
-	scr := NewScreenBuf()
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(20, 10)
 	attr := uint64(111)
 

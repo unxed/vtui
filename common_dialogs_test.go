@@ -81,7 +81,7 @@ func TestSelectDirDialog_ArrowVsEnter(t *testing.T) {
 }
 func TestInputBox_OkCallback(t *testing.T) {
 	SetDefaultPalette()
-	FrameManager.Init(NewScreenBuf())
+	FrameManager.Init(NewSilentScreenBuf())
 
 	received := ""
 	onOk := func(s string) { received = s }
@@ -210,7 +210,7 @@ func TestDialogNavigation_UX(t *testing.T) {
 
 func TestSelectFileDialog_LayoutBestPractice(t *testing.T) {
 	SetDefaultPalette()
-	FrameManager.Init(NewScreenBuf())
+	FrameManager.Init(NewSilentScreenBuf())
 	v := &testVFS{currentPath: "/tmp"}
 
 	// Create dialog (55x20)
@@ -256,9 +256,9 @@ func TestSelectFileDialog_LayoutBestPractice(t *testing.T) {
 }
 func TestLayout_StandardDialogs_Validity(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewSilentScreenBuf()
-	scr.AllocBuf(80, 25)
-	FrameManager.Init(scr)
+	fmscr := NewSilentScreenBuf()
+	fmscr.AllocBuf(80, 25)
+	FrameManager.Init(fmscr)
 	v := &testVFS{currentPath: "/tmp"}
 
 	t.Run("SelectFileDialog", func(t *testing.T) {

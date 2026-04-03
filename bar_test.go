@@ -19,7 +19,7 @@ func TestBar_EnforceSingleLine(t *testing.T) {
 
 func TestBar_DrawBackground(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(10, 5)
 
 	bar := &Bar{}

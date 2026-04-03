@@ -7,7 +7,7 @@ import (
 
 func TestEdit_PasswordMode(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(10, 1)
 
 	e := NewEdit(0, 0, 10, "abc")
@@ -39,7 +39,7 @@ func TestEdit_IgnoreLockKeys(t *testing.T) {
 
 func TestVMenu_ScrollbarMouseClick(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(20, 10)
 	m := NewVMenu("Title")
 	// Add 20 items so menu scrolls

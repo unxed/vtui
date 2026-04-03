@@ -473,7 +473,7 @@ func TestDialog_ShadowAndFocusColors(t *testing.T) {
 
 func TestBaseWindow_FocusVisualFeedback(t *testing.T) {
 	SetDefaultPalette()
-	scr := NewScreenBuf()
+	scr := NewSilentScreenBuf()
 	scr.AllocBuf(40, 20)
 
 	// Окно 5,5 -> 20,10. Ширина = 16.
