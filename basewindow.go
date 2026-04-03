@@ -28,6 +28,9 @@ type BaseWindow struct {
 func (bw *BaseWindow) GetFocusedItem() UIElement {
 	return bw.rootGroup.GetFocusedItem()
 }
+func (bw *BaseWindow) GetChildren() []UIElement {
+	return bw.rootGroup.GetChildren()
+}
 
 func NewBaseWindow(x1, y1, x2, y2 int, title string) *BaseWindow {
 	bw := &BaseWindow{
