@@ -43,3 +43,31 @@ func TestEdit_GlobalHistoryBinding(t *testing.T) {
 		t.Errorf("History not saved to provider. Current storage: %v", saved)
 	}
 }
+
+func TestEdit_HistorySyncBetweenControls(t *testing.T) {
+	mock := &mockHistoryProvider{
+		storage: map[string][]string{
+			"shared": {"cmd1"},
+		},
+	}
+	GlobalHistoryProvider = mock
+	defer func() { GlobalHistoryProvider = nil }()
+
+	e1 := NewEdit(0, 0, 10, "")
+	e1.HistoryID = "shared"
+
+	e2 := NewEdit(0, 1, 10, "")
+	e2.HistoryID = "shared"
+
+	// Load in e1
+	e1.OpenHistory()
+
+	// Add in e1
+	e1.AddHistory("cmd2")
+
+	// Open in e2 - should see the update from e1
+	e2.OpenHistory()
+	if len(e2.History) < 2 || e2.History[0] != "cmd2" {
+		t.Errorf("Sync failed: e2 did not see history added by e1. History: %v", e2.History)
+	}
+}

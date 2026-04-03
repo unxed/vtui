@@ -72,8 +72,15 @@ func ValidateLayout(c Container) []error {
 				_, isSep2 := other.(*Separator)
 				_, isTxt1 := item.(*Text)
 				_, isTxt2 := other.(*Text)
-				_, isBox1 := item.(*BorderedFrame)
-				_, isBox2 := other.(*BorderedFrame)
+
+				// Decorative elements allowed to touch others
+				_, isBf1 := item.(*BorderedFrame)
+				_, isGb1 := item.(*GroupBox)
+				isBox1 := isBf1 || isGb1
+
+				_, isBf2 := other.(*BorderedFrame)
+				_, isGb2 := other.(*GroupBox)
+				isBox2 := isBf2 || isGb2
 
 				// In TUIs, Separators and decorative Boxes are allowed to touch anything.
 				// Also contiguous lines of text are allowed to stack.

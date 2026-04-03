@@ -63,3 +63,50 @@ func TestAutomation_Visibility(t *testing.T) {
 		t.Error("Text should be visible when checked")
 	}
 }
+
+func TestAutomation_InverseActions(t *testing.T) {
+	dlg := NewDialog(0, 0, 40, 10, "Inverse Test")
+	chk := NewCheckbox(2, 2, "Disable Others", false)
+	btn := NewButton(2, 4, "Action")
+	lbl := NewLabel(2, 6, "Notice", nil)
+
+	dlg.AddItem(chk); dlg.AddItem(btn); dlg.AddItem(lbl)
+
+	dlg.AddLink(chk, btn, LinkDisableIfChecked)
+	dlg.AddLink(chk, lbl, LinkHideIfChecked)
+
+	// 1. Initial: Checkbox OFF -> Button Enabled, Label Visible
+	if btn.IsDisabled() || !lbl.IsVisible() {
+		t.Error("Initial state fail: items should be active")
+	}
+
+	// 2. Toggle ON -> Button Disabled, Label Hidden
+	chk.State = 1
+	chk.NotifyChange()
+
+	if !btn.IsDisabled() {
+		t.Error("Button should be disabled when checkbox is checked")
+	}
+	if lbl.IsVisible() {
+		t.Error("Label should be hidden when checkbox is checked")
+	}
+}
+
+func TestAutomation_BitmaskHandling(t *testing.T) {
+	// Tests if syncLinks handles uint32 from CheckGroup correctly
+	dlg := NewDialog(0, 0, 40, 10, "Bitmask Test")
+	cg := NewCheckGroup(2, 2, 1, []string{"Option 1"})
+	edit := NewEdit(2, 4, 10, "")
+	dlg.AddItem(cg); dlg.AddItem(edit)
+
+	dlg.AddLink(cg, edit, LinkEnableIfChecked)
+
+	// Initial: mask is 0 -> disabled
+	if !edit.IsDisabled() { t.Error("Should be disabled initially") }
+
+	// Set first bit -> enabled
+	cg.SetData(uint32(1))
+	cg.NotifyChange()
+
+	if edit.IsDisabled() { t.Error("Should be enabled when bitmask is non-zero") }
+}

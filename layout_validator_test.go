@@ -76,4 +76,19 @@ func TestLayoutValidator_Logic(t *testing.T) {
 			t.Errorf("Separator touching elements should be allowed, but got: %v", errs)
 		}
 	})
+	t.Run("Frame touching elements", func(t *testing.T) {
+		dlg := NewDialog(0, 0, 40, 20, "Frame Test")
+		// Create a GroupBox (BorderedFrame) that fills most of the dialog
+		gb := NewGroupBox(2, 2, 38, 10, "Group")
+		// Put a button exactly 1 cell below the frame (touching, gapY=0)
+		btn := NewButton(10, 11, "Below")
+
+		dlg.AddItem(gb)
+		dlg.AddItem(btn)
+
+		errs := ValidateLayout(dlg)
+		if len(errs) > 0 {
+			t.Errorf("Frame touching elements should be allowed, but got: %v", errs)
+		}
+	})
 }
