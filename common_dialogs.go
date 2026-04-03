@@ -174,7 +174,7 @@ func SelectFileDialog(title string, initialPath string, vfs VFSMinimal) *Window 
 // InputBox creates a simple one-line text input dialog.
 func InputBox(title, prompt, defaultText string, onOk func(string)) *Window {
 	width := 40
-	height := 7 // DELIBERATE BREAKAGE FOR TESTING
+	height := 9 // Increased height to fit all elements with margins
 	dlg := NewCenteredDialog(width, height, title)
 	dlg.ShowClose = true
 
