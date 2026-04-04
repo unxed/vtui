@@ -113,6 +113,9 @@ func (cb *ComboBox) ProcessMouse(e *vtinput.InputEvent) bool {
 }
 
 func (cb *ComboBox) Open() {
+	if cb.IsDisabled() {
+		return
+	}
 	// Calculate menu position below combo box
 	h := len(cb.Menu.items) + 2
 	if h > 10 { h = 10 } // Limit height

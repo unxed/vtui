@@ -84,3 +84,44 @@ func TestComboBox_OpenFlip(t *testing.T) {
 		t.Errorf("ComboBox menu did not flip upwards. Y1=%d, ComboBoxY=%d", y1, cb.Y1)
 	}
 }
+
+func TestComboBox_DisabledState(t *testing.T) {
+	FrameManager.Init(NewSilentScreenBuf())
+	cb := NewComboBox(0, 0, 20, []string{"A", "B"})
+	
+	// 1. Initially enabled
+	if cb.IsDisabled() || cb.Edit.IsDisabled() {
+		t.Error("ComboBox and its Edit should be enabled by default")
+	}
+	
+	// 2. Disable ComboBox
+	cb.SetDisabled(true)
+	
+	if !cb.IsDisabled() {
+		t.Error("ComboBox failed to set disabled flag")
+	}
+	if !cb.Edit.IsDisabled() {
+		t.Error("SetDisabled failed to propagate to underlying Edit control")
+	}
+	
+	// 3. Try to open menu while disabled
+	cb.Open()
+	if FrameManager.GetTopFrameType() == TypeMenu {
+		t.Error("Disabled ComboBox should not allow opening its menu")
+	}
+}
+
+func TestComboBox_WantsChars(t *testing.T) {
+	cb := NewComboBox(0, 0, 20, []string{"A"})
+	
+	// Normal mode: should want chars (pass to edit)
+	if !cb.WantsChars() {
+		t.Error("Standard ComboBox should want chars for editing")
+	}
+	
+	// DropdownOnly: should NOT want chars
+	cb.DropdownOnly = true
+	if cb.WantsChars() {
+		t.Error("DropdownOnly ComboBox should not want chars")
+	}
+}

@@ -145,3 +145,33 @@ func TestGroup_SetFocusedItem(t *testing.T) {
 		t.Error("Focus flags not updated after SetFocusedItem")
 	}
 }
+func TestGroup_ActivateHotkey_FocusLinkRecursion(t *testing.T) {
+	// Tests that hotkey on a Label focuses the linked element even if nested
+	dlg := NewDialog(0, 0, 40, 10, "Hotkey Test")
+
+	group := NewGroupBox(1, 1, 38, 8, "Inner")
+	edit := NewEdit(2, 4, 10, "")
+	label := NewLabel(2, 2, "&Target:", edit)
+
+	group.AddItem(label)
+	group.AddItem(edit)
+	dlg.AddItem(group)
+
+	// Focus initially elsewhere
+	dummy := NewButton(1, 1, "Dummy")
+	dlg.AddItem(dummy)
+	dlg.SetFocusedItem(dummy)
+
+	// Activate hotkey 't' (from &Target)
+	dlg.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, Char: 't',
+		ControlKeyState: vtinput.LeftAltPressed,
+	})
+
+	if !edit.IsFocused() {
+		t.Error("Hotkey failed to focus linked element through nested group")
+	}
+	if !group.IsFocused() {
+		t.Error("Parent group of the focused element should also be marked as focused")
+	}
+}
