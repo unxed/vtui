@@ -175,3 +175,23 @@ func TestGroup_ActivateHotkey_FocusLinkRecursion(t *testing.T) {
 		t.Error("Parent group of the focused element should also be marked as focused")
 	}
 }
+func TestGroup_FocusAllDisabled(t *testing.T) {
+	// Verifies that group doesn't enter infinite loop or crash if no items can be focused
+	g := NewGroup(0, 0, 10, 10)
+	b1 := NewButton(1, 1, "B1")
+	b1.SetDisabled(true)
+	b2 := NewButton(1, 2, "B2")
+	b2.SetDisabled(true)
+
+	g.AddItem(b1)
+	g.AddItem(b2)
+
+	// Should safely return false
+	res := g.changeFocus(1)
+	if res {
+		t.Error("changeFocus should return false when no items are enabled")
+	}
+	if g.focusIdx != -1 {
+		t.Errorf("focusIdx should be -1, got %d", g.focusIdx)
+	}
+}
