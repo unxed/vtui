@@ -347,3 +347,51 @@ func TestPieceTable_ReadAtBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestPieceTable_MixedBuffer_ComplexRead(t *testing.T) {
+	// Create a piece table with highly interleaved pieces from both buffers
+	// [Orig:0-2][Add:0-2][Orig:2-4][Add:2-4]
+	// "AB" + "12" + "CD" + "34" = "AB12CD34"
+	pt := New([]byte("ABCD"))
+	pt.Insert(2, []byte("12")) // "AB12CD"
+	pt.Insert(6, []byte("34")) // "AB12CD34"
+
+	tests := []struct {
+		off, len int
+		want     string
+	}{
+		{0, 8, "AB12CD34"}, // Full
+		{1, 4, "B12C"},     // Crosses 3 pieces
+		{3, 2, "2C"},       // Crosses Add and Orig
+		{7, 1, "4"},        // Tail
+		{0, 0, ""},         // Zero length
+	}
+
+	for _, tt := range tests {
+		got, err := pt.GetRange(tt.off, tt.len)
+		if err != nil { t.Errorf("GetRange(%d,%d) err: %v", tt.off, tt.len, err) }
+		if string(got) != tt.want {
+			t.Errorf("GetRange(%d,%d) = %q, want %q", tt.off, tt.len, string(got), tt.want)
+		}
+	}
+}
+
+
+func TestPieceTable_Delete_PieceRemoval(t *testing.T) {
+	// Verifies that deleting a range that exactly matches one or more pieces
+	// correctly removes them from the table.
+	pt := New([]byte("AAA"))
+	pt.Insert(0, []byte("CCC")) // [CCC][AAA]
+	pt.Insert(3, []byte("BBB")) // [CCC][BBB][AAA]
+
+	// We inserted at 0 and then in the middle, preventing the "append-at-end" merge optimization.
+	if len(pt.pieces) != 3 { t.Fatalf("Expected 3 pieces, got %d", len(pt.pieces)) }
+
+	// Delete "BBB" (offset 3, length 3)
+	pt.Delete(3, 3)
+
+	if pt.String() != "CCCAAA" { t.Errorf("Delete failed: %q", pt.String()) }
+	if len(pt.pieces) != 2 {
+		t.Errorf("Piece was not removed from table, count: %d", len(pt.pieces))
+	}
+}
