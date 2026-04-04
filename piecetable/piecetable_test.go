@@ -2,6 +2,7 @@ package piecetable
 
 import (
 	"testing"
+	"reflect"
 )
 
 func TestPieceTable_Basic(t *testing.T) {
@@ -238,5 +239,36 @@ func TestPieceTable_FragmentationStress(t *testing.T) {
 	_, err := pt.Bytes()
 	if err != nil {
 		t.Errorf("Fragmentation caused corruption: %v", err)
+	}
+}
+func TestPieceTable_StreamingIntegrity(t *testing.T) {
+	// Tests ForEachRange which is used for saving files to disk.
+	// We need to ensure it yields exactly the same bytes as a full memory dump.
+	content := "The quick brown fox jumps over the lazy dog"
+	pt := New([]byte(content))
+
+	// Fragment the table with multiple operations
+	pt.Delete(4, 6)               // "The brown fox..."
+	pt.Insert(4, []byte("lazy ")) // "The lazy brown fox..."
+	pt.Insert(pt.Size(), []byte("!"))
+
+	memBytes, _ := pt.Bytes()
+	var streamBytes []byte
+
+	err := pt.ForEachRange(func(data []byte) error {
+		streamBytes = append(streamBytes, data...)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("ForEachRange failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(memBytes, streamBytes) {
+		t.Errorf("Streaming integrity failed.\nMem:    %q\nStream: %q", string(memBytes), string(streamBytes))
+	}
+
+	if string(streamBytes) != "The lazy brown fox jumps over the lazy dog!" {
+		t.Errorf("Resulting text is wrong: %q", string(streamBytes))
 	}
 }
