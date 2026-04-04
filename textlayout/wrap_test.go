@@ -311,3 +311,39 @@ func TestWrapEngine_InvalidateFrom(t *testing.T) {
 		t.Errorf("Failed to recover total rows after invalidation, got %d", total)
 	}
 }
+func TestWrapEngine_LazyCache_LargeJump(t *testing.T) {
+	// Create 1000 lines, each wrapping into 2 visual rows
+	line := "Word1 Word2 Word3 Word4 Word5\n"
+	pt := piecetable.New(bytes.Repeat([]byte(line), 1000))
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+
+	we := NewWrapEngine(pt, li)
+	// Set width small enough to force 2 rows per line
+	we.SetWidth(10)
+
+	// 1. Request a visual row near the end without previous calculation
+	// This triggers the lazy calculation loop in chunks of 100.
+	targetRow := 1500
+	logLine, frag := we.GetLogLineAtVisualRow(targetRow)
+
+	if logLine < 0 || logLine >= 1000 {
+		t.Errorf("Invalid logical line mapping: %d", logLine)
+	}
+
+	// Each logical line produces 5 fragments with width 10:
+	// "Word1 ", "Word2 ", "Word3 ", "Word4 ", "Word5"
+	// 1000 lines * 5 rows = 5000 rows.
+	// The 1000th \n creates a 1001st empty line (1 row). Total = 5001.
+	// Row 1500 should be logical line 300 (1500 / 5)
+	expectedLine := 300
+	if logLine != expectedLine {
+		t.Errorf("Lazy cache jump failed: expected line %d, got %d (frag %d)", expectedLine, logLine, frag)
+	}
+
+	// 2. Request total rows
+	total := we.GetTotalVisualRows()
+	if total != 5001 {
+		t.Errorf("Expected 5001 total rows, got %d", total)
+	}
+}
