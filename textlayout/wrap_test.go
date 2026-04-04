@@ -270,3 +270,44 @@ func TestWrapEngine_ErrLoading(t *testing.T) {
 		t.Errorf("Expected loading fragment width 16, got %d", frags[0].VisualWidth)
 	}
 }
+func TestWrapEngine_InvalidateFrom(t *testing.T) {
+	pt := piecetable.New([]byte("Line 0\nLine 1\nLine 2\nLine 3\nLine 4"))
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+
+	we := NewWrapEngine(pt, li)
+	we.SetWidth(20)
+
+	// 1. Force full cache calculation
+	total := we.GetTotalVisualRows()
+	if total != 5 {
+		t.Fatalf("Expected 5 visual rows, got %d", total)
+	}
+	if we.validUntil != 4 {
+		t.Fatalf("Expected validUntil 4, got %d", we.validUntil)
+	}
+
+	// 2. Invalidate from middle (Line 2)
+	we.InvalidateFrom(2)
+
+	// validUntil should be 1 (lines 0 and 1 are still valid)
+	if we.validUntil != 1 {
+		t.Errorf("InvalidateFrom failed: expected validUntil 1, got %d", we.validUntil)
+	}
+
+	// Line 0 and 1 cache should still exist
+	if we.fragmentCache[1] == nil {
+		t.Error("Cache for Line 1 should not have been cleared")
+	}
+
+	// Line 2 and later cache should be nil
+	if we.fragmentCache[2] != nil {
+		t.Error("Cache for Line 2 should have been cleared")
+	}
+
+	// 3. Recalculate and verify it recovers correctly
+	total = we.GetTotalVisualRows()
+	if total != 5 {
+		t.Errorf("Failed to recover total rows after invalidation, got %d", total)
+	}
+}

@@ -125,3 +125,54 @@ func TestPieceTable_GetRange(t *testing.T) {
 		t.Error("GetRange should return nil for invalid ranges")
 	}
 }
+func TestPieceTable_MergeOptimization(t *testing.T) {
+	pt := New([]byte("Start"))
+
+	// 1. Insert at end (creates Add piece 1)
+	pt.Insert(pt.Size(), []byte(" One"))
+	if len(pt.pieces) != 2 {
+		t.Fatalf("Expected 2 pieces, got %d", len(pt.pieces))
+	}
+
+	// 2. Insert at end again (should merge into Add piece 1)
+	pt.Insert(pt.Size(), []byte(" Two"))
+	if len(pt.pieces) != 2 {
+		t.Errorf("Optimization failed: expected pieces to merge, got %d pieces", len(pt.pieces))
+	}
+
+	// 3. Insert in middle.
+	// Note: Offset 5 is exactly between 'Start' and ' One Two'.
+	// PieceTable inserts between pieces without splitting if offset is on boundary.
+	pt.Insert(5, []byte(" Middle"))
+	if len(pt.pieces) != 3 {
+		t.Errorf("Expected 3 pieces after boundary insert, got %d", len(pt.pieces))
+	}
+
+	expected := "Start Middle One Two"
+	if pt.String() != expected {
+		t.Errorf("Data corrupted during merge test. Expected %q, got %q", expected, pt.String())
+	}
+}
+
+func TestPieceTable_AppendRange_Boundary(t *testing.T) {
+	pt := New([]byte("0123456789"))
+	pt.Insert(5, []byte("XXX")) // 01234 XXX 56789
+
+	dest := make([]byte, 0, 10)
+
+	// Read across all three pieces: "4" (Orig), "XXX" (Add), "5" (Orig)
+	dest, err := pt.AppendRange(dest, 4, 5)
+	if err != nil {
+		t.Fatalf("AppendRange failed: %v", err)
+	}
+
+	if string(dest) != "4XXX5" {
+		t.Errorf("AppendRange across boundaries failed. Expected '4XXX5', got %q", string(dest))
+	}
+
+	// Ensure no data was overwritten improperly
+	dest = append(dest, []byte("Tail")...)
+	if string(dest) != "4XXX5Tail" {
+		t.Errorf("AppendRange modified slice capacity/length improperly: %q", string(dest))
+	}
+}

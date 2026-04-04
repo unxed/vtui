@@ -188,8 +188,11 @@ func (pt *PieceTable) Bytes() ([]byte, error) {
 }
 // AppendRange appends the specified range to the dest slice without new allocations.
 func (pt *PieceTable) AppendRange(dest []byte, offset, length int) ([]byte, error) {
-	if offset < 0 || length <= 0 || offset+length > pt.size {
+	if offset < 0 || length <= 0 {
 		return dest, nil
+	}
+	if offset+length > pt.size {
+		length = pt.size - offset
 	}
 
 	remaining := length
