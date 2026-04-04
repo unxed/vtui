@@ -62,6 +62,10 @@ func New(text []byte) *PieceTable {
 func (pt *PieceTable) Size() int {
 	return pt.size
 }
+// GetOriginalBuffer returns the underlying original buffer.
+func (pt *PieceTable) GetOriginalBuffer() Buffer {
+	return pt.orig
+}
 
 // offsetToPiece finds piece index and offset within it by global offset.
 func (pt *PieceTable) offsetToPiece(offset int) (pieceIdx int, offsetInPiece int) {
@@ -288,6 +292,12 @@ func (pt *PieceTable) GetRange(offset, length int) ([]byte, error) {
 	return res, nil
 }
 
+// UpdateOriginalBuffer safely replaces the original underlying buffer
+// without losing the current logical state and additions.
+// Used primarily for state recovery after a failed I/O operation.
+func (pt *PieceTable) UpdateOriginalBuffer(buf Buffer) {
+	pt.orig = buf
+}
 func NewWithBuffer(buf Buffer) *PieceTable {
 	pt := &PieceTable{
 		orig: buf,

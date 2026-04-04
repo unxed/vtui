@@ -201,3 +201,22 @@ func TestScreenBuf_ApplyShadow_Clipping(t *testing.T) {
 		t.Error("Shadow not applied inside clip rect")
 	}
 }
+func TestScreenBuf_WidthHeightConcurrency(t *testing.T) {
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 25)
+
+	done := make(chan bool)
+	go func() {
+		for i := 0; i < 1000; i++ {
+			scr.AllocBuf(100+i, 30+i)
+		}
+		done <- true
+	}()
+
+	for i := 0; i < 1000; i++ {
+		_ = scr.Width()
+		_ = scr.Height()
+	}
+
+	<-done
+}

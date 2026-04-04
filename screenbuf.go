@@ -293,10 +293,14 @@ func (s *ScreenBuf) SetCursorVisible(visible bool) {
 }
 
 func (s *ScreenBuf) Width() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.width
 }
 
 func (s *ScreenBuf) Height() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.height
 }
 // GetCell returns the character and attributes at the specified coordinates.
