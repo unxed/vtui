@@ -21,7 +21,7 @@ func (p *Painter) Fill(x1, y1, x2, y2 int, char rune, attr uint64) {
 
 // DrawBox draws a frame of specified type (SingleBox, DoubleBox).
 func (p *Painter) DrawBox(x1, y1, x2, y2 int, attr uint64, boxType int) {
-	if boxType == NoBox { return }
+	if boxType == NoBox || x2 <= x1 || y2 <= y1 { return }
 	sym := getBoxSymbols(boxType)
 	w := x2 - x1 + 1
 
@@ -101,9 +101,12 @@ func (p *Painter) DrawControlText(x, y int, text string, normAttr, highAttr uint
 }
 // DrawLine draws a horizontal line segment, optionally with connectors.
 func (p *Painter) DrawLine(x1, y1, x2, y2 int, char rune, attr uint64, connectLeft, connectRight bool) {
-	if x1 > x2 || y1 > y2 { return } // Only horizontal for now
+	if x1 > x2 || y1 > y2 { return }
 
-	lineRunes := make([]rune, x2-x1+1)
+	count := x2 - x1 + 1
+	if count <= 0 { return }
+
+	lineRunes := make([]rune, count)
 	for i := range lineRunes {
 		lineRunes[i] = char
 	}

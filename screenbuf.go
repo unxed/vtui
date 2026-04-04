@@ -258,12 +258,15 @@ func (s *ScreenBuf) FillRect(x1, y1, x2, y2 int, char rune, attributes uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.buf == nil || len(s.clipStack) == 0 { return }
+	if x1 > x2 || y1 > y2 { return }
+
 	clip := s.clipStack[len(s.clipStack)-1]
 	if x1 < clip.X1 { x1 = clip.X1 }
 	if y1 < clip.Y1 { y1 = clip.Y1 }
 	if x2 > clip.X2 { x2 = clip.X2 }
 	if y2 > clip.Y2 { y2 = clip.Y2 }
 	if x1 > x2 || y1 > y2 { return }
+
 	attributes = s.resolveAttr(attributes)
 	cell := CharInfo{Char: uint64(char), Attributes: attributes}
 	for y := y1; y <= y2; y++ {
