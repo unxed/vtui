@@ -26,6 +26,23 @@ func TestLineIndex_Build(t *testing.T) {
 		t.Errorf("Line 2 offset: expected 14, got %d", li.GetLineOffset(2))
 	}
 }
+func TestLineIndex_UpdateAfterDelete_SingleNewline(t *testing.T) {
+	// Tests merging two lines by deleting the newline between them
+	pt := New([]byte("Line1\nLine2"))
+	li := NewLineIndex()
+	li.Rebuild(pt)
+
+	// Delete '\n' at offset 5
+	pt.Delete(5, 1)
+	li.UpdateAfterDelete(5, 1)
+
+	if li.LineCount() != 1 {
+		t.Errorf("Expected 1 line after merging, got %d", li.LineCount())
+	}
+	if li.GetLineOffset(0) != 0 {
+		t.Errorf("Line 0 offset should be 0, got %d", li.GetLineOffset(0))
+	}
+}
 
 func TestLineIndex_GetLineAtOffset(t *testing.T) {
 	pt := New([]byte("AAA\nBBB\nCCC"))

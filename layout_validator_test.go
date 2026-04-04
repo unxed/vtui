@@ -64,6 +64,34 @@ func TestLayoutValidator_Logic(t *testing.T) {
 		AssertLayout(mt, dlg)
 		if mt.failed { t.Error("Valid layout reported as invalid") }
 	})
+	t.Run("Recursive nested layout", func(t *testing.T) {
+		// We use GroupBox because it is a real Container that the validator recurses into.
+		dlg := NewDialog(0, 0, 60, 20, "Nested")
+
+		// gb at (2,2). Validator requires 2 cells padding from gb edge for children.
+		// Allowed children area: (2+2, 2+2) = (4,4).
+		gb := NewGroupBox(dlg.X1+2, dlg.Y1+2, dlg.X1+30, dlg.Y1+12, "Group")
+		b1 := NewButton(0, 0, "B1")
+		b2 := NewButton(0, 0, "B2")
+
+		vbox := NewVBoxLayout(gb.X1+2, gb.Y1+2, gb.X2-gb.X1-4, gb.Y2-gb.Y1-4)
+		vbox.Add(b1, Margins{}, AlignLeft)
+		vbox.Add(b2, Margins{Top: 1}, AlignLeft)
+		vbox.Apply()
+
+		gb.AddItem(b1)
+		gb.AddItem(b2)
+		dlg.AddItem(gb)
+
+		// edit at (35,2) is safe for dlg (padding 2 means allowed starts at 2,2)
+		edit := NewEdit(dlg.X1+35, dlg.Y1+2, 20, "E1")
+		dlg.AddItem(edit)
+
+		errs := ValidateLayout(dlg)
+		if len(errs) > 0 {
+			t.Errorf("Valid recursive layout reported as invalid: %v", errs)
+		}
+	})
 	t.Run("Separator touching elements", func(t *testing.T) {
 		dlg := NewDialog(0, 0, 40, 10, "Separator Test")
 		sep := NewSeparator(0, 4, 40, true, true)
