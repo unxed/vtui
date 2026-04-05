@@ -60,6 +60,12 @@ func NewEdit(x, y, width int, defaultText string) *Edit {
 	e.SetPosition(x, y, x+width-1, y)
 	return e
 }
+// NewPasswordEdit creates an Edit control that masks input with asterisks.
+func NewPasswordEdit(x, y, width int, defaultText string) *Edit {
+	e := NewEdit(x, y, width, defaultText)
+	e.PasswordMode = true
+	return e
+}
 
 
 func (e *Edit) Show(scr *ScreenBuf) {

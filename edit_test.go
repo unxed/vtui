@@ -20,6 +20,15 @@ func TestEdit_PasswordMode(t *testing.T) {
 	checkCell(t, scr, 1, 0, '*', Palette[ColDialogEdit])
 	checkCell(t, scr, 2, 0, '*', Palette[ColDialogEdit])
 }
+func TestNewPasswordEdit(t *testing.T) {
+	e := NewPasswordEdit(0, 0, 10, "secret")
+	if !e.PasswordMode {
+		t.Error("NewPasswordEdit constructor failed to enable PasswordMode")
+	}
+	if e.GetText() != "secret" {
+		t.Errorf("NewPasswordEdit failed to store initial text. Expected 'secret', got %q", e.GetText())
+	}
+}
 
 func TestEdit_IgnoreLockKeys(t *testing.T) {
 	e := NewEdit(0, 0, 10, "")
