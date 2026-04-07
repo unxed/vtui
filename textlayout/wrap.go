@@ -351,6 +351,7 @@ func (we *WrapEngine) GetLogLineAtVisualRow(visualRow int) (logLineIdx int, frag
 
 // LogicalToVisual переводит байтовый оффсет в документе в (строка, колонка) на экране.
 func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int) {
+	if byteOffset < 0 { byteOffset = 0 }
 	logLineIdx := we.li.GetLineAtOffset(byteOffset)
 	we.ensureRowCountCache(logLineIdx)
 	fragments := we.GetFragments(logLineIdx)
@@ -382,8 +383,16 @@ func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int)
 	return totalRow, 0
 }
 
+func (we *WrapEngine) logNav(msg string, offset int, row int, col int) {
+	// Only log if specifically requested to avoid flooding
+	// vtui.DebugLog("LAYOUT_NAV: %s Offset:%d -> VRow:%d VCol:%d", msg, offset, row, col)
+}
+
 // VisualToLogical переводит (строка, колонка) на экране в байтовый оффсет документа.
 func (we *WrapEngine) VisualToLogical(visualRow, visualCol int) int {
+	if visualRow < 0 {
+		return 0
+	}
 	logLineIdx, fragIdx := we.GetLogLineAtVisualRow(visualRow)
 	fragments := we.GetFragments(logLineIdx)
 	if fragments == nil {

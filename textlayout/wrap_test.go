@@ -392,3 +392,26 @@ func TestWrapEngine_CacheResilience(t *testing.T) {
 		t.Errorf("Engine did not reset total rows after index change, got %d", total)
 	}
 }
+func TestWrapEngine_BoundarySafety(t *testing.T) {
+	pt := piecetable.New([]byte("line1\nline2"))
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+	we := NewWrapEngine(pt, li)
+	we.SetWidth(80)
+
+	t.Run("Negative offset mapping", func(t *testing.T) {
+		// Should not panic, should return 0,0
+		row, col := we.LogicalToVisual(-50)
+		if row != 0 || col != 0 {
+			t.Errorf("LogicalToVisual(-50) expected (0,0), got (%d,%d)", row, col)
+		}
+	})
+
+	t.Run("Negative row mapping", func(t *testing.T) {
+		// Should not panic, should return offset 0
+		off := we.VisualToLogical(-10, 5)
+		if off != 0 {
+			t.Errorf("VisualToLogical(-10) expected offset 0, got %d", off)
+		}
+	})
+}
