@@ -503,7 +503,7 @@ func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
 
 	fm.InjectEvents([]*vtinput.InputEvent{
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN},
-		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10}, // Quit loop
 	})
 
 	fm.Run(vtinput.NewReader(os.Stdin))
@@ -536,7 +536,7 @@ func TestFrameManager_MenuAccessibleDuringNonModal(t *testing.T) {
 	// Simulate pressing F9 to activate menu while window is open
 	fm.InjectEvents([]*vtinput.InputEvent{
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F9},
-		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10}, // Quit loop
 	})
 
 	fm.Run(vtinput.NewReader(os.Stdin))
@@ -602,7 +602,7 @@ func TestFrameManager_MenuBarNavigabilityWithSubMenu(t *testing.T) {
 	// The MenuBar should intercept it, close "File" and open "Edit".
 	fm.InjectEvents([]*vtinput.InputEvent{
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT},
-		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10},
 	})
 
 	fm.Run(vtinput.NewReader(os.Stdin))
@@ -724,7 +724,7 @@ func TestFrameManager_F9WorksForMenuOwningModal(t *testing.T) {
 	// Inject F9
 	fm.InjectEvents([]*vtinput.InputEvent{
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F9},
-		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10},
 	})
 
 	fm.Run(vtinput.NewReader(os.Stdin))
@@ -970,7 +970,7 @@ func TestFrameManager_F12ScreensMenu(t *testing.T) {
 	// Inject F12
 	fm.InjectEvents([]*vtinput.InputEvent{
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F12},
-		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed},
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10},
 	})
 
 	fm.Run(vtinput.NewReader(os.Stdin))
@@ -1123,7 +1123,7 @@ func TestFrameManager_ModalDialogBlocksF9(t *testing.T) {
 
 	fm.InjectEvents([]*vtinput.InputEvent{
 		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F9},
-		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_Q, ControlKeyState: vtinput.LeftCtrlPressed}, // Quit loop
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10}, // Quit loop
 	})
 
 	fm.Run(vtinput.NewReader(os.Stdin))

@@ -1109,11 +1109,6 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 
 	// 3. Fallbacks (F9, Alt+Hotkey, Global Shortcuts) if top frame didn't want the key
 	if !handled && ev.Type == vtinput.KeyEventType && ev.KeyDown {
-		// Global Quit (standard for vtui tools)
-		if ev.VirtualKeyCode == vtinput.VK_Q && fm.ctrlPressed {
-			fm.Shutdown()
-			return
-		}
 
 		// Window Cycling (Ctrl+Tab / Ctrl+Shift+Tab)
 		if ev.VirtualKeyCode == vtinput.VK_TAB && (fm.ctrlPressed || fm.switcherActive) {

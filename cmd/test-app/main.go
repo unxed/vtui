@@ -52,6 +52,13 @@ func (d *DemoWindow) HandleCommand(cmd int, args any) bool {
 	// Fallback to default window behavior (e.g. CmClose, CmZoom)
 	return d.Window.HandleCommand(cmd, args)
 }
+func (d *DemoWindow) ProcessKey(e *vtinput.InputEvent) bool {
+	// Preserve Ctrl+Q as an exit shortcut for the demo app only
+	if e.VirtualKeyCode == vtinput.VK_Q && (e.ControlKeyState&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed)) != 0 {
+		return d.HandleCommand(vtui.CmQuit, nil)
+	}
+	return d.Window.ProcessKey(e)
+}
 
 func (d *DemoWindow) GetKeyLabels() *vtui.KeySet {
 	return &vtui.KeySet{
