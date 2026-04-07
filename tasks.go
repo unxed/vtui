@@ -2,6 +2,9 @@ package vtui
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"runtime/debug"
 )
 
 // TaskContext provides a safe environment for background operations
@@ -27,6 +30,18 @@ func RunAsync(worker func(ctx *TaskContext)) *TaskContext {
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				stack := debug.Stack()
+				crashPath := RecordCrash(r, stack)
+				Suspend()
+				fmt.Fprintf(os.Stderr, "\n[f4] FATAL PANIC IN ASYNC TASK: %v\n", r)
+				if crashPath != "" {
+					fmt.Fprintf(os.Stderr, "[f4] Crash report saved to: %s\n", crashPath)
+				}
+				os.Exit(2)
+			}
+		}()
 		worker(taskCtx)
 	}()
 

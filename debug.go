@@ -32,6 +32,12 @@ func rotateLogs(basePath string) {
 // If the file exists at the start of the session, it is rotated
 // (up to 3 files: debug.log, debug.1.log, debug.2.log).
 func DebugLog(format string, a ...any) {
+	msg := fmt.Sprintf(format, a...)
+	timestamp := time.Now().Format("15:04:05.000")
+	fullMsg := fmt.Sprintf("[%s] %s", timestamp, msg)
+
+	recordLogMemory(fullMsg)
+
 	env := os.Getenv("VTUI_DEBUG")
 	if env == "" {
 		return
@@ -57,8 +63,6 @@ func DebugLog(format string, a ...any) {
 	}
 	defer f.Close()
 
-	msg := fmt.Sprintf(format, a...)
-	timestamp := time.Now().Format("15:04:05.000")
-	fmt.Fprintf(f, "[%s] %s\n", timestamp, msg)
+	fmt.Fprintln(f, fullMsg)
 	f.Sync()
 }

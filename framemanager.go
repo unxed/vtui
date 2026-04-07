@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -703,7 +704,14 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	// Restore cursor visibility on exit
 	defer func() {
 		if r := recover(); r != nil {
-			DebugLog("FATAL PANIC in FrameManager: %v\n%s", r, debug.Stack())
+			stack := debug.Stack()
+			crashPath := RecordCrash(r, stack)
+			Suspend()
+			fmt.Fprintf(os.Stderr, "\n[f4] FATAL PANIC: %v\n", r)
+			if crashPath != "" {
+				fmt.Fprintf(os.Stderr, "[f4] Crash report saved to: %s\n", crashPath)
+			}
+			os.Exit(2)
 		}
 		fm.running = false
 		fm.scr.SetCursorVisible(true)
