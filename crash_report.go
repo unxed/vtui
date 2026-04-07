@@ -66,6 +66,28 @@ func getCrashDir() string {
 	return filepath.Join(cd, "f4", "crashes")
 }
 
+// GetVersionInfo returns a string containing Git revision and Go version.
+func GetVersionInfo() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		var vcsRev, vcsDirty string
+		for _, s := range info.Settings {
+			if s.Key == "vcs.revision" {
+				vcsRev = s.Value
+				if len(vcsRev) > 8 {
+					vcsRev = vcsRev[:8]
+				}
+			}
+			if s.Key == "vcs.modified" {
+				vcsDirty = s.Value
+			}
+		}
+		if vcsRev != "" {
+			return fmt.Sprintf("rev:%s(dirty:%s) go:%s", vcsRev, vcsDirty, info.GoVersion)
+		}
+		return "go:" + info.GoVersion
+	}
+	return "unknown version"
+}
 // RecordCrash writes the crash details and the in-memory log buffer to a file.
 func RecordCrash(panicVal any, stack []byte) string {
 	crashDir := getCrashDir()
