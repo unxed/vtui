@@ -254,6 +254,26 @@ func (pt *PieceTable) ForEachRange(fn func(data []byte) error) error {
 	return nil
 }
 
+// TableState represents a snapshot of the PieceTable structure.
+type TableState struct {
+	Pieces []Piece
+	Size   int
+}
+
+// GetState returns a snapshot of the current table structure.
+func (pt *PieceTable) GetState() TableState {
+	ps := make([]Piece, len(pt.pieces))
+	copy(ps, pt.pieces)
+	return TableState{Pieces: ps, Size: pt.size}
+}
+
+// LoadState restores the table structure from a snapshot.
+func (pt *PieceTable) LoadState(s TableState) {
+	pt.pieces = make([]Piece, len(s.Pieces))
+	copy(pt.pieces, s.Pieces)
+	pt.size = s.Size
+}
+
 // GetRange returns a byte slice for the specified range.
 func (pt *PieceTable) GetRange(offset, length int) ([]byte, error) {
 	if offset < 0 || length <= 0 || offset+length > pt.size {
