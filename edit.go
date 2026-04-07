@@ -277,6 +277,9 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		case vtinput.VK_A:
 			e.SelectAll()
 			return true
+		case vtinput.VK_E:
+			e.HistoryUp()
+			return true
 		case vtinput.VK_C, vtinput.VK_INSERT:
 			if e.selStart != -1 {
 				e.copySelection()
@@ -289,6 +292,8 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 				e.clearFlag = false
 				return true
 			}
+			e.HistoryDown()
+			return true
 		case vtinput.VK_V:
 			if text := GetClipboard(); text != "" {
 				e.InsertString(text)
