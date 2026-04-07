@@ -952,6 +952,7 @@ func (fm *frameManager) renderPhase() {
 }
 
 func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) {
+	RecordEvent(ev.String())
 	if ev.Type == vtinput.Far2lEventType {
 		DebugLog("FM_DISPATCH: Processing Far2l event: cmd=%q", ev.Far2lCommand)
 		if ev.Far2lCommand == "ok" {

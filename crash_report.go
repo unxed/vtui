@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -17,7 +18,46 @@ var (
 	logIdx      int
 	logFull     bool
 	maxLogLines = 10000
+
+	eventRing     []string
+	eventIdx      int
+	maxEventLines = 20
 )
+
+func RecordEvent(ev string) {
+	crashMu.Lock()
+	defer crashMu.Unlock()
+	if eventRing == nil {
+		eventRing = make([]string, maxEventLines)
+	}
+	eventRing[eventIdx] = ev
+	eventIdx = (eventIdx + 1) % maxEventLines
+}
+
+func getEventHistory() []string {
+	crashMu.Lock()
+	defer crashMu.Unlock()
+	if eventRing == nil {
+		return nil
+	}
+	var res []string
+	// For events we always show them in chronological order
+	for i := 0; i < maxEventLines; i++ {
+		idx := (eventIdx + i) % maxEventLines
+		if eventRing[idx] != "" {
+			res = append(res, eventRing[idx])
+		}
+	}
+	return res
+}
+
+func countOpenFDs() int {
+	files, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return -1
+	}
+	return len(files)
+}
 
 var CrashDirBase string
 
@@ -126,6 +166,38 @@ func RecordCrash(panicVal any, stack []byte) string {
 	}
 
 	fmt.Fprintf(f, "\n=== PANIC ===\n%v\n\n=== STACK TRACE ===\n%s\n", panicVal, stack)
+
+	fmt.Fprintf(f, "\n=== RUNTIME INFO ===\n")
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	fmt.Fprintf(f, "Goroutines: %d\n", runtime.NumGoroutine())
+	fmt.Fprintf(f, "Memory Alloc: %v MB (Total: %v MB, Sys: %v MB)\n", m.Alloc/1024/1024, m.TotalAlloc/1024/1024, m.Sys/1024/1024)
+	fmt.Fprintf(f, "OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	if FrameManager != nil && FrameManager.scr != nil {
+		fmt.Fprintf(f, "Terminal Size: %dx%d\n", FrameManager.scr.width, FrameManager.scr.height)
+	}
+	fmt.Fprintf(f, "Open FDs: %d\n", countOpenFDs())
+	fmt.Fprintf(f, "Env TERM: %s\n", os.Getenv("TERM"))
+	fmt.Fprintf(f, "Env LANG: %s\n", os.Getenv("LANG"))
+
+	fmt.Fprintf(f, "\n=== RECENT INPUT EVENTS ===\n")
+	for _, ev := range getEventHistory() {
+		fmt.Fprintln(f, ev)
+	}
+
+	fmt.Fprintf(f, "\n=== UI FRAME STACK ===\n")
+	if FrameManager != nil {
+		for i, s := range FrameManager.Screens {
+			activeMark := ""
+			if i == FrameManager.ActiveIdx {
+				activeMark = " (ACTIVE)"
+			}
+			fmt.Fprintf(f, "Screen %d%s: [%s]\n", i, activeMark, s.GetTitle())
+			for j, frame := range s.Frames {
+				fmt.Fprintf(f, "  [%d] Type:%d Title:%q\n", j, frame.GetType(), frame.GetTitle())
+			}
+		}
+	}
 
 	fmt.Fprintf(f, "\n=== LOG HISTORY BEFORE CRASH ===\n")
 	for _, l := range getMemLogs() {
