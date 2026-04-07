@@ -116,3 +116,19 @@ func (p *Painter) DrawLine(x1, y1, x2, y2 int, char rune, attr uint64, connectLe
 
 	p.scr.Write(x1, y1, RunesToCharInfo(lineRunes, attr))
 }
+
+var highlighterProviders []HighlighterProvider
+
+func RegisterHighlighter(p HighlighterProvider) {
+	highlighterProviders = append(highlighterProviders, p)
+}
+
+func GetHighlighter(filename string, content string) Highlighter {
+	for _, p := range highlighterProviders {
+		if p.Match(filename, content) {
+			return p.Create(filename, content)
+		}
+	}
+	return nil
+}
+

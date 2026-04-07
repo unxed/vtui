@@ -37,8 +37,13 @@ func (li *LineIndex) Rebuild(pt *PieceTable) {
 }
 
 // AppendOffsets adds pre-calculated line offsets (used by background indexer).
-func (li *LineIndex) AppendOffsets(offsets []int) {
-	li.offsets = append(li.offsets, offsets...)
+// It performs a safety check to ensure offsets are within reasonable bounds.
+func (li *LineIndex) AppendOffsets(offsets []int, maxAllowed int) {
+	for _, off := range offsets {
+		if off <= maxAllowed {
+			li.offsets = append(li.offsets, off)
+		}
+	}
 }
 
 // LineCount returns total number of lines.

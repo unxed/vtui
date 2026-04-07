@@ -92,3 +92,21 @@ type DataControl interface {
 type FocusContainer interface {
 	GetFocusedItem() UIElement
 }
+// Highlighter defines a capability to provide syntax coloring.
+type Highlighter interface {
+	// Highlight processes a line of text.
+	// line: text to highlight.
+	// prevState: state returned by the previous line (nil for the first line).
+	// baseAttr: default text attributes.
+	// Returns: attributes for each character and the state for the next line.
+	Highlight(line string, prevState any, baseAttr uint64) (attrs []uint64, nextState any)
+}
+
+// HighlighterProvider defines a factory for highlighters.
+type HighlighterProvider interface {
+	Name() string
+	// Match returns true if this provider can handle the file.
+	Match(filename string, content string) bool
+	// Create generates a new Highlighter instance for a specific file.
+	Create(filename string, content string) Highlighter
+}
