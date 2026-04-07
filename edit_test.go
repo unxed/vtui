@@ -409,3 +409,59 @@ func TestEdit_Validation_FinalTrigger(t *testing.T) {
 		t.Error("Validator.Error() should have pushed a message box")
 	}
 }
+
+func TestEdit_WordJumps_FarSpec(t *testing.T) {
+	// Спецификация Far2l для vtui.Edit (использует индексы рун)
+	// word...///next   ...spaces 🍏.apple
+	// 0123456789012345678901234567890123
+	//           10        20        30
+	e := NewEdit(0, 0, 100, "word...///next   ...spaces 🍏.apple")
+	e.curPos = 0
+
+	// 1. Ctrl+Right: [W] -> [D] (остановка на первой точке)
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 4 { t.Errorf("Stop W->D fail: expected 4, got %d", e.curPos) }
+
+	// 2. Ctrl+Right: [D1] -> [D2] (смена разделителя с точки на слэш)
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 7 { t.Errorf("Stop D1->D2 fail: expected 7, got %d", e.curPos) }
+
+	// 3. Ctrl+Right: [D] -> [W] (прыжок к началу 'next')
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 10 { t.Errorf("Stop D->W fail: expected 10, got %d", e.curPos) }
+
+	// 4. Ctrl+Right: [S] -> [D] (прыжок через пробелы к блоку точек)
+	e.curPos = 14 // сразу после 'next'
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 17 { t.Errorf("Stop S->D fail: expected 17, got %d", e.curPos) }
+
+	// 5. Ctrl+Left: [S] -> [W] (прыжок назад к 'spaces')
+	e.curPos = 26 // пробел после 'spaces'
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 20 { t.Errorf("Stop S->W fail: expected 20, got %d", e.curPos) }
+
+	// 6. Ctrl+Left: [D] -> [W] (прыжок назад от начала "apple" к Эмодзи)
+	// apple начинается на 29. Перед ним точка на 28. Перед ней яблоко на 27.
+	e.curPos = 29
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 27 { t.Errorf("Stop D->W fail (Unicode): expected 27, got %d", e.curPos) }
+}
+
+func TestEdit_WordSelection_FarSpec(t *testing.T) {
+	e := NewEdit(0, 0, 100, "select this word")
+	e.SelectAll() // curPos=16, selAnchor=0, selStart=0, selEnd=16, clearFlag=true
+
+	e.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true,
+		VirtualKeyCode: vtinput.VK_LEFT,
+		ControlKeyState: vtinput.LeftCtrlPressed | vtinput.ShiftPressed,
+	})
+
+	if e.clearFlag { t.Error("Shift+Ctrl navigation must reset clearFlag") }
+
+	// Якорь в 0, курсор прыгнул к началу "word" (индекс руны 12).
+	// Выделение охватывает [0:12].
+	if e.selStart != 0 || e.selEnd != 12 {
+		t.Errorf("Selection fail: expected [0:12], got [%d:%d]", e.selStart, e.selEnd)
+	}
+}
