@@ -12,6 +12,12 @@ var internalClipboard string
 // SetClipboard copies text to the system clipboard.
 func SetClipboard(text string) {
 	DebugLog("CLIPBOARD: SetClipboard called, len: %d", len(text))
+	// Global protection against terminal/IPC overload (2MB limit)
+	const maxGlobalClipboardSize = 2 * 1024 * 1024
+	if len(text) > maxGlobalClipboardSize {
+		text = text[:maxGlobalClipboardSize]
+		DebugLog("CLIPBOARD: Text truncated to %d bytes to prevent IPC lockup", maxGlobalClipboardSize)
+	}
 	internalClipboard = text
 	if SetFar2lClipboard(text) {
 		DebugLog("CLIPBOARD: SetFar2lClipboard SUCCESS")
