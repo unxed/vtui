@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"time"
 	"strings"
-	"runtime/debug"
 
 	"github.com/unxed/vtinput"
 	"golang.org/x/term"
@@ -681,6 +680,17 @@ func (fm *frameManager) GetScreenSize() int {
 	if fm.scr == nil { return 80 }
 	return fm.scr.width
 }
+func (fm *frameManager) GetSyncStats() string {
+	tLen, tCap := 0, 0
+	if fm.TaskChan != nil {
+		tLen, tCap = len(fm.TaskChan), cap(fm.TaskChan)
+	}
+	eLen, eCap := 0, 0
+	if fm.EventChan != nil {
+		eLen, eCap = len(fm.EventChan), cap(fm.EventChan)
+	}
+	return fmt.Sprintf("Tasks:%d/%d, Events:%d/%d", tLen, tCap, eLen, eCap)
+}
 
 // Stop signals the main loop to exit.
 func (fm *frameManager) Stop() {
@@ -704,8 +714,8 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	// Restore cursor visibility on exit
 	defer func() {
 		if r := recover(); r != nil {
-			stack := debug.Stack()
-			crashPath := RecordCrash(r, stack)
+			// Note: RecordCrash now generates its own full stack dump
+			crashPath := RecordCrash(r, nil)
 			Suspend()
 			fmt.Fprintf(os.Stderr, "\n[f4] FATAL PANIC: %v\n", r)
 			if crashPath != "" {

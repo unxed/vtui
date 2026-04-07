@@ -165,9 +165,18 @@ func RecordCrash(panicVal any, stack []byte) string {
 		fmt.Fprintf(f, "Go Version: %s\n", info.GoVersion)
 	}
 
-	fmt.Fprintf(f, "\n=== PANIC ===\n%v\n\n=== STACK TRACE ===\n%s\n", panicVal, stack)
+	fmt.Fprintf(f, "\n=== PANIC ===\n%v\n", panicVal)
+
+	fmt.Fprintf(f, "\n=== FULL GOROUTINE DUMP ===\n")
+	// Using a large buffer to capture all goroutines (up to 1MB)
+	fullStack := make([]byte, 1024*1024)
+	n := runtime.Stack(fullStack, true)
+	f.Write(fullStack[:n])
 
 	fmt.Fprintf(f, "\n=== RUNTIME INFO ===\n")
+	if FrameManager != nil {
+		fmt.Fprintf(f, "UI Task Queue: %s\n", FrameManager.GetSyncStats())
+	}
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	fmt.Fprintf(f, "Goroutines: %d\n", runtime.NumGoroutine())

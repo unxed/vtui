@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime/debug"
 )
 
 // TaskContext provides a safe environment for background operations
@@ -32,8 +31,7 @@ func RunAsync(worker func(ctx *TaskContext)) *TaskContext {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				stack := debug.Stack()
-				crashPath := RecordCrash(r, stack)
+				crashPath := RecordCrash(r, nil)
 				Suspend()
 				fmt.Fprintf(os.Stderr, "\n[f4] FATAL PANIC IN ASYNC TASK: %v\n", r)
 				if crashPath != "" {
