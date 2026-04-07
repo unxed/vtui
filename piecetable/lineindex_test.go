@@ -1,6 +1,7 @@
 package piecetable
 
 import "testing"
+import "sync"
 
 func TestLineIndex_Build(t *testing.T) {
 	// Text:
@@ -177,4 +178,42 @@ func TestLineIndex_IncrementalStress(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestLineIndex_ConcurrentAccess(t *testing.T) {
+	// Verifies thread safety and absence of self-deadlock.
+	li := NewLineIndex()
+	var wg sync.WaitGroup
+
+	// 1. Writer: periodically adds new offsets (simulates background indexer)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			li.AppendOffsets([]int{i * 10}, 20000)
+		}
+	}()
+
+	// 2. Reader: constantly queries the index
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			_ = li.LineCount()
+			_ = li.GetLineAtOffset(i * 5)
+			_ = li.GetLineOffset(0)
+		}
+	}()
+
+	// 3. Mutator: performs edits (simulates UI thread)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			// This tests UpdateAfterInsert which used to cause self-deadlock
+			li.UpdateAfterInsert(0, []byte("data\n"))
+		}
+	}()
+
+	wg.Wait()
 }

@@ -357,6 +357,15 @@ func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int)
 	fragments := we.GetFragments(logLineIdx)
 	totalRow := we.rowOffsets[logLineIdx]
 
+	if len(fragments) > 0 {
+		lastFrag := fragments[len(fragments)-1]
+		if byteOffset > lastFrag.ByteOffsetEnd {
+			// Safety for capped binary lines: if offset is beyond indexed fragments,
+			// snap to the end of the last visible fragment.
+			byteOffset = lastFrag.ByteOffsetEnd
+		}
+	}
+
 	for i, frag := range fragments {
 		isLastFragOfLine := (i == len(fragments)-1)
 		if byteOffset >= frag.ByteOffsetStart && (byteOffset < frag.ByteOffsetEnd || (isLastFragOfLine && byteOffset == frag.ByteOffsetEnd)) {

@@ -415,3 +415,23 @@ func TestWrapEngine_BoundarySafety(t *testing.T) {
 		}
 	})
 }
+func TestWrapEngine_LogicalToVisual_CappedLine(t *testing.T) {
+	// Tests safety when a logical line is massive (binary) and indexing is capped at 64KB.
+	// Create 100KB of data with NO newlines.
+	data := make([]byte, 100*1024)
+	for i := range data { data[i] = 'a' }
+
+	pt := piecetable.New(data)
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+	we := NewWrapEngine(pt, li)
+	we.SetWidth(80)
+
+	// LogicalToVisual for an offset far beyond the 64KB cap.
+	// It should NOT crash and should return the end of the indexed fragment.
+	row, col := we.LogicalToVisual(90 * 1024)
+
+	if row < 0 || col < 0 {
+		t.Errorf("LogicalToVisual returned negative coordinates for capped line: (%d, %d)", row, col)
+	}
+}

@@ -1,9 +1,11 @@
 package piecetable
 
 import "sort"
+import "sync"
 
 // LineIndex stores start offsets of each line.
 type LineIndex struct {
+	mu      sync.RWMutex
 	offsets []int
 }
 
@@ -16,6 +18,8 @@ func NewLineIndex() *LineIndex {
 
 // Rebuild completely reconstructs the line index based on PieceTable.
 func (li *LineIndex) Rebuild(pt *PieceTable) {
+	li.mu.Lock()
+	defer li.mu.Unlock()
 	// Reset index, first line always starts at 0
 	li.offsets = []int{0}
 
@@ -39,6 +43,8 @@ func (li *LineIndex) Rebuild(pt *PieceTable) {
 // AppendOffsets adds pre-calculated line offsets (used by background indexer).
 // It performs a safety check to ensure offsets are within reasonable bounds.
 func (li *LineIndex) AppendOffsets(offsets []int, maxAllowed int) {
+	li.mu.Lock()
+	defer li.mu.Unlock()
 	for _, off := range offsets {
 		if off <= maxAllowed {
 			li.offsets = append(li.offsets, off)
@@ -48,11 +54,15 @@ func (li *LineIndex) AppendOffsets(offsets []int, maxAllowed int) {
 
 // LineCount returns total number of lines.
 func (li *LineIndex) LineCount() int {
+	li.mu.RLock()
+	defer li.mu.RUnlock()
 	return len(li.offsets)
 }
 
 // GetLineOffset returns byte offset of the specified line start (0-based).
 func (li *LineIndex) GetLineOffset(line int) int {
+	li.mu.RLock()
+	defer li.mu.RUnlock()
 	if line < 0 || line >= len(li.offsets) {
 		return -1
 	}
@@ -61,7 +71,7 @@ func (li *LineIndex) GetLineOffset(line int) int {
 
 // GetLineAtOffset returns the line number (0-based) to which specified offset belongs.
 // Uses binary search for O(log N) speed.
-func (li *LineIndex) GetLineAtOffset(offset int) int {
+func (li *LineIndex) getLineAtOffset(offset int) int {
 	if offset <= 0 {
 		return 0
 	}
@@ -75,15 +85,23 @@ func (li *LineIndex) GetLineAtOffset(offset int) int {
 	return idx - 1
 }
 
+func (li *LineIndex) GetLineAtOffset(offset int) int {
+	li.mu.RLock()
+	defer li.mu.RUnlock()
+	return li.getLineAtOffset(offset)
+}
+
 // UpdateAfterInsert incrementally updates the index after data insertion.
 func (li *LineIndex) UpdateAfterInsert(offset int, data []byte) {
+	li.mu.Lock()
+	defer li.mu.Unlock()
 	lenData := len(data)
 	if lenData == 0 {
 		return
 	}
 
 	// 1. Find the line where insertion occurred
-	lineIdx := li.GetLineAtOffset(offset)
+	lineIdx := li.getLineAtOffset(offset)
 
 	// 2. Search for new line breaks in the inserted fragment
 	var newOffsets []int
@@ -110,12 +128,14 @@ func (li *LineIndex) UpdateAfterInsert(offset int, data []byte) {
 
 // UpdateAfterDelete incrementally updates the index after data deletion.
 func (li *LineIndex) UpdateAfterDelete(offset, length int) {
+	li.mu.Lock()
+	defer li.mu.Unlock()
 	if length == 0 {
 		return
 	}
 
-	startLine := li.GetLineAtOffset(offset)
-	endLine := li.GetLineAtOffset(offset + length)
+	startLine := li.getLineAtOffset(offset)
+	endLine := li.getLineAtOffset(offset + length)
 
 	// 1. Determine how many lines were removed
 	linesRemoved := endLine - startLine
