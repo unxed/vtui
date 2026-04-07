@@ -129,7 +129,7 @@ func showShowcaseDialog() {
 }
 
 func main() {
-	restore, err := vtinput.Enable()
+	restore, err := vtui.PrepareTerminal()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return
