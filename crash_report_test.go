@@ -67,7 +67,7 @@ func TestRecordCrash(t *testing.T) {
 	if !strings.Contains(content, "Test Panic") {
 		t.Error("Missing panic value")
 	}
-	if !strings.Contains(content, "stack info") {
+	if !strings.Contains(content, "[running]") {
 		t.Error("Missing stack trace")
 	}
 	if !strings.Contains(content, "Test line before crash") {
