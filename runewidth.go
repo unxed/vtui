@@ -97,12 +97,15 @@ func SanitizeRune(r rune) (rune, int) {
 	if r == '\n' || r == '\r' {
 		return 0, 0
 	}
+	if r == '\uFFFD' {
+		return '?', 1
+	}
 	if r < 0x20 || r == 0x7F {
 		return '·', 1
 	}
 	w := runewidth.RuneWidth(r)
 	if w <= 0 {
-		return r, 1 // Visible placeholder for zero-width/invalid
+		return '·', 1 // Visible placeholder for zero-width/invalid
 	}
 	return r, w
 }
