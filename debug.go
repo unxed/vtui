@@ -66,3 +66,7 @@ func DebugLog(format string, a ...any) {
 	fmt.Fprintln(f, fullMsg)
 	f.Sync()
 }
+
+func GetCurrentLogs() []string {
+	return getMemLogs()
+}
