@@ -75,10 +75,10 @@ func (cb *ComboBox) ProcessKey(e *vtinput.InputEvent) bool {
 	if !e.KeyDown { return false }
 	if cb.IsDisabled() { return false }
 
-	alt := (e.ControlKeyState & (vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0
+	ctrl := (e.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed)) != 0
 
-	// Alt+Down opens the list
-	if e.VirtualKeyCode == vtinput.VK_DOWN && alt {
+	// Ctrl+Down opens the list
+	if e.VirtualKeyCode == vtinput.VK_DOWN && ctrl {
 		cb.Open()
 		return true
 	}
