@@ -204,7 +204,7 @@ func (fm *frameManager) AddScreenBackground(f Frame) {
 
 func (fm *frameManager) CloseActiveScreen() {
 	if len(fm.Screens) <= 1 {
-		fm.Shutdown()
+		fm.EmitCommand(CmQuit, nil)
 		return
 	}
 	fm.Screens = append(fm.Screens[:fm.ActiveIdx], fm.Screens[fm.ActiveIdx+1:]...)
