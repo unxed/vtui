@@ -28,6 +28,15 @@ func rotateLogs(basePath string) {
 	_ = os.Rename(basePath, middle)
 }
 
+var diskLoggingEnabled = true
+
+// ConfigDiskLogging allows enabling or disabling writing to debug.log on disk.
+// If disabled, logs are still kept in the in-memory ring buffer for crash reports.
+func ConfigDiskLogging(enabled bool) {
+	logMu.Lock()
+	diskLoggingEnabled = enabled
+	logMu.Unlock()
+}
 // DebugLog writes a timestamped message to debug.log file.
 // If the file exists at the start of the session, it is rotated
 // (up to 3 files: debug.log, debug.1.log, debug.2.log).
@@ -43,12 +52,18 @@ func DebugLog(format string, a ...any) {
 		return
 	}
 
+	logMu.Lock()
+	enabled := diskLoggingEnabled
+	if !enabled {
+		logMu.Unlock()
+		return
+	}
+
 	filename := "debug.log"
 	if env != "1" && env != "true" {
 		filename = env
 	}
 
-	logMu.Lock()
 	if !logRotated {
 		if _, err := os.Stat(filename); err == nil {
 			rotateLogs(filename)
