@@ -418,7 +418,14 @@ func (fm *frameManager) Redraw() {
 // PostTask schedules a function to be executed safely on the main UI thread.
 func (fm *frameManager) PostTask(task func()) {
 	if fm.TaskChan != nil {
-		fm.TaskChan <- task
+		select {
+		case fm.TaskChan <- task:
+			// Успешно добавлено
+		default:
+			// Очередь полна. Не блокируемся, чтобы не вызвать дедлок.
+			// В нормальной ситуации UI-поток скоро освободит место.
+			DebugLog("FRAMEWORK: TaskChan overflow, dropping task.")
+		}
 	}
 }
 // EmitCommand broadcasts a command starting from the top-most frame

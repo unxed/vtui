@@ -1018,6 +1018,30 @@ func TestFrameManager_TaskCleanup(t *testing.T) {
 		t.Error("Frame should be cleaned up immediately after task execution")
 	}
 }
+func TestFrameManager_PostTaskNonBlocking(t *testing.T) {
+	// Проверяем, что PostTask не вешает вызывающий поток, если очередь полна.
+	// Это важно для предотвращения каскадных зависаний.
+	fm := &frameManager{}
+	fm.TaskChan = make(chan func(), 2) // Маленький буфер для теста
+
+	fm.PostTask(func() {})
+	fm.PostTask(func() {})
+
+	// Третий вызов не должен зависнуть, даже если мы его дропнем (в текущей отладочной версии)
+	// Или должен завершиться по таймауту/дропнуться в финальной версии.
+	done := make(chan bool)
+	go func() {
+		fm.PostTask(func() {})
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// Успех: PostTask больше не блокирует поток
+	case <-time.After(100 * time.Millisecond):
+		t.Error("PostTask STILL blocks on full channel (regression!)")
+	}
+}
 func TestFrameManager_BoundVsUnboundTask(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
