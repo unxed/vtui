@@ -1391,8 +1391,14 @@ func TestFrameManager_CloseActiveScreen_Shifting(t *testing.T) {
 	fm.CloseActiveScreen()
 
 	// Should trigger Shutdown
-	if fm.Screens != nil || fm.frames != nil {
-		t.Error("FrameManager should be shut down when the last screen is closed")
+	if len(fm.Screens) != 1 {
+		t.Error("Last screen should NOT be closed automatically by CloseActiveScreen (it should emit CmQuit)")
+	}
+
+	// Now manually shut down to clean up the test state
+	fm.Shutdown()
+	if !fm.IsShutdown() {
+		t.Error("FrameManager manual shutdown failed")
 	}
 }
 
