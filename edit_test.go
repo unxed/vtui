@@ -446,6 +446,29 @@ func TestEdit_WordJumps_FarSpec(t *testing.T) {
 	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT, ControlKeyState: vtinput.LeftCtrlPressed})
 	if e.curPos != 27 { t.Errorf("Stop D->W fail (Unicode): expected 27, got %d", e.curPos) }
 }
+func TestEdit_WordJumps_Left_FarSpec(t *testing.T) {
+	// Проверяем специфичные правила для движения ВЛЕВО
+	// "word   ///...next"
+	//  01234567890123456
+	e := NewEdit(0, 0, 100, "word   ///...next")
+
+	// 1. Проверка [D] -> [W]: прыжок от конца 'next' к началу 'next'
+	e.curPos = 17
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT, ControlKeyState: vtinput.LeftCtrlPressed})
+	// prev='.', curr='n' ([D]->[W]). Остановка на 'n' (13)
+	if e.curPos != 13 { t.Errorf("Stop D->W fail: expected 13, got %d", e.curPos) }
+
+	// 2. Проверка игнорирования [D1] -> [D2] и остановки на [S] -> [D]
+	// Стартуем с 'n' (13), прыгаем влево.
+	// Должен проскочить '.' и '/', так как смена разделителей при движении влево игнорируется.
+	// Должен остановиться на первом слэше (7), так как слева от него пробел ([S]->[D]).
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 7 { t.Errorf("Stop S->D fail (and ignore D1->D2): expected 7, got %d", e.curPos) }
+
+	// 3. Проверка [S] -> [W]: от начала разделителей (7) к началу слова 'word'
+	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT, ControlKeyState: vtinput.LeftCtrlPressed})
+	if e.curPos != 0 { t.Errorf("Stop S->W fail: expected 0, got %d", e.curPos) }
+}
 
 func TestEdit_WordSelection_FarSpec(t *testing.T) {
 	e := NewEdit(0, 0, 100, "select this word")
