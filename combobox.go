@@ -58,7 +58,22 @@ func (cb *ComboBox) DisplayObject(scr *ScreenBuf) {
 	}
 
 	cb.Edit.focused = cb.focused
-	cb.Edit.Show(scr)
+	if cb.DropdownOnly {
+		cb.Edit.HideCursor = true
+		if cb.focused {
+			// Visually highlight the entire field as selected when focused
+			oldStart, oldEnd := cb.Edit.selStart, cb.Edit.selEnd
+			cb.Edit.selStart = 0
+			cb.Edit.selEnd = len(cb.Edit.text)
+			cb.Edit.Show(scr)
+			cb.Edit.selStart, cb.Edit.selEnd = oldStart, oldEnd
+		} else {
+			cb.Edit.Show(scr)
+		}
+	} else {
+		cb.Edit.HideCursor = false
+		cb.Edit.Show(scr)
+	}
 
 	attr := Palette[ColDialogText]
 	if cb.focused {

@@ -21,6 +21,7 @@ type Edit struct {
 	pasting           bool
 	pasteBuffer       []rune
 	PasswordMode      bool // Mask text with '*'
+	HideCursor        bool // If true, suppress blinking cursor even when focused
 	ShowHistoryButton bool // Show a clickable [v] button
 	History            []string
 	HistoryPos         int
@@ -101,7 +102,7 @@ func (e *Edit) Show(scr *ScreenBuf) {
 
 	e.DisplayObject(scr)
 
-	if e.IsFocused() {
+	if e.IsFocused() && !e.HideCursor {
 		scr.SetCursorVisible(true)
 		headText := string(e.text[e.leftPos:e.curPos])
 		vOffset := runewidth.StringWidth(headText)
