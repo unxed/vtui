@@ -835,7 +835,8 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 		fm.dispatchEvent(e, injected)
 
 		// 4. Queue "Drain"
-		// Burst process pending events (e.g. fast typing or paste)
+		// Burst process pending events and tasks to avoid redundant renders.
+		// This naturally throttles the UI when a background thread spams updates.
 		for fm.running && !fm.IsShutdown() {
 			idleTimer.Reset(2 * time.Millisecond)
 			select {
@@ -844,11 +845,17 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 					select { case <-idleTimer.C: default: }
 				}
 				if !ok { return }
-
-				// If previous event in this burst closed the window/app, stop immediately.
 				if len(fm.frames) > 0 {
 					fm.dispatchEvent(ev, false)
 				}
+				continue
+			case task := <-fm.TaskChan:
+				if !idleTimer.Stop() {
+					select { case <-idleTimer.C: default: }
+				}
+				task()
+				fm.cleanupDoneFrames()
+				fm.Redraw()
 				continue
 			case <-idleTimer.C:
 			}
