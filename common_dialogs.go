@@ -108,22 +108,14 @@ func ShowMessageOn(anchor Frame, title string, text string, buttons []string) *W
 
 // Internal helper to avoid code duplication
 func createMessageDialog(title string, text string, buttons []string) *Window {
-	const maxDialogWidth = 60
-	const sidePadding = 4 // Total side margins (2 left + 2 right)
+	const maxDialogWidth = 72 // Comfortably fits within 80 columns
+	const sidePadding = 4
 
-	// 1. Calculate text dimensions
-	lines := WrapText(text, maxDialogWidth-sidePadding)
-	textWidth := 0
-	for _, l := range lines {
-		w := runewidth.StringWidth(l)
-		if w > textWidth { textWidth = w }
-	}
-
-	// 2. Calculate button dimensions
+	// 1. Calculate button dimensions
 	btnsWidth := 0
 	for _, b := range buttons {
 		clean, _, _ := ParseAmpersandString(b)
-		btnsWidth += runewidth.StringWidth(clean) + 4 // brackets + spaces
+		btnsWidth += runewidth.StringWidth(clean) + 4
 	}
 	spacing := 2
 	totalBtnsWidth := 0
@@ -131,20 +123,38 @@ func createMessageDialog(title string, text string, buttons []string) *Window {
 		totalBtnsWidth = btnsWidth + (len(buttons)-1)*spacing
 	}
 
-	// 3. Finalize Dialog size
+	// Determine if buttons fit horizontally
+	stackButtons := (totalBtnsWidth + sidePadding) > maxDialogWidth
+
+	// 2. Finalize Dialog width
+	lines := WrapText(text, maxDialogWidth-sidePadding)
+	textWidth := 0
+	for _, l := range lines {
+		w := runewidth.StringWidth(l)
+		if w > textWidth { textWidth = w }
+	}
+
 	dlgWidth := textWidth + sidePadding
-	if totalBtnsWidth+sidePadding > dlgWidth {
+	if !stackButtons && totalBtnsWidth+sidePadding > dlgWidth {
 		dlgWidth = totalBtnsWidth + sidePadding
 	}
 	if title != "" {
-		tw := runewidth.StringWidth(title) + 6 // Title padding
+		tw := runewidth.StringWidth(title) + 6
 		if tw > dlgWidth { dlgWidth = tw }
 	}
 	if dlgWidth > maxDialogWidth { dlgWidth = maxDialogWidth }
 
-	dlgHeight := len(lines) + 4 // top/bottom padding + borders
+	// 3. Finalize Dialog height
+	// Borders (2) + Padding (2) + Lines (len)
+	dlgHeight := len(lines) + 4
 	if len(buttons) > 0 {
-		dlgHeight += 2 // button row + gap
+		if stackButtons {
+			// Each stacked button adds 1 row for itself and 1 row for its top margin
+			dlgHeight += (len(buttons) * 2)
+		} else {
+			// Horizontal layout adds 1 row for the gap and 1 row for the buttons
+			dlgHeight += 2
+		}
 	}
 
 	dlg := NewCenteredDialog(dlgWidth, dlgHeight, title)
@@ -152,32 +162,39 @@ func createMessageDialog(title string, text string, buttons []string) *Window {
 	// 4. Use Layout Engine for positioning
 	vbox := NewVBoxLayout(dlg.X1+2, dlg.Y1+2, dlgWidth-4, dlgHeight-4)
 
-	// Add text lines
 	for _, l := range lines {
 		txt := NewText(0, 0, l, Palette[ColDialogText])
 		vbox.Add(txt, Margins{}, AlignCenter)
 		dlg.AddItem(txt)
 	}
 
-	// Add buttons row
 	if len(buttons) > 0 {
-		hbox := NewHBoxLayout(0, 0, dlgWidth-4, 1)
-		hbox.HorizontalAlign = AlignCenter
-		hbox.Spacing = spacing
-
-		for i, b := range buttons {
-			btnID := i
-			btn := NewButton(0, 0, b)
-			btn.OnClick = func() { dlg.SetExitCode(btnID) }
-			hbox.Add(btn, Margins{}, AlignTop)
-			dlg.AddItem(btn)
+		if stackButtons {
+			// Add stacked buttons
+			for i, b := range buttons {
+				btnID := i
+				btn := NewButton(0, 0, b)
+				btn.OnClick = func() { dlg.SetExitCode(btnID) }
+				vbox.Add(btn, Margins{Top: 1}, AlignCenter)
+				dlg.AddItem(btn)
+			}
+		} else {
+			// Add horizontal button row
+			hbox := NewHBoxLayout(0, 0, dlgWidth-4, 1)
+			hbox.HorizontalAlign = AlignCenter
+			hbox.Spacing = spacing
+			for i, b := range buttons {
+				btnID := i
+				btn := NewButton(0, 0, b)
+				btn.OnClick = func() { dlg.SetExitCode(btnID) }
+				hbox.Add(btn, Margins{}, AlignTop)
+				dlg.AddItem(btn)
+			}
+			vbox.Add(hbox, Margins{Top: 1}, AlignFill)
 		}
-		vbox.Add(hbox, Margins{Top: 1}, AlignFill)
 	}
 
-	// 5. Calculate and apply all coordinates
 	vbox.Apply()
-
 	return dlg
 }
 

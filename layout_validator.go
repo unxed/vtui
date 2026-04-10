@@ -26,6 +26,12 @@ func ValidateLayout(c Container) []error {
 	if el, ok := c.(UIElement); ok {
 		px1, py1, px2, py2 = el.GetPosition()
 	}
+	// 0. Global Terminal Constraint: prevent dialogs from being too wide
+	if px2-px1+1 > 78 {
+		errs = append(errs, LayoutError{
+			Message: fmt.Sprintf("Container width %d exceeds safe terminal limit (78)", px2-px1+1),
+		})
+	}
 
 	for i, item := range items {
 		x1, y1, x2, y2 := item.GetPosition()

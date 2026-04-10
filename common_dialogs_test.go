@@ -289,6 +289,35 @@ func TestLayout_StandardDialogs_Validity(t *testing.T) {
 		AssertLayout(t, dlg)
 	})
 }
+func TestShowMessage_WideButtons_Layout(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 25)
+	FrameManager.Init(scr)
+
+	// A large set of buttons that will exceed 72 columns and force stacking.
+	// 7 buttons * ~15 chars = 105 cols horizontally.
+	buttons := []string{"Button One", "Button Two", "Button Three", "Button Four", "Button Five", "Button Six", "Button Seven"}
+
+	// Create dialog. Logic: 1 line text + 4 padding/borders + 14 (7 buttons * 2).
+	// Expected Height = 19.
+	dlg := createMessageDialog(" Stacking Test ", "Testing vertical button stacking logic.", buttons)
+
+	// Layout validation (includes width/overlap/padding checks)
+	AssertLayout(t, dlg)
+
+	// Verify it switched to stacked mode
+	height := dlg.Y2 - dlg.Y1 + 1
+	if height != 19 {
+		t.Errorf("Stacked dialog height mismatch: expected 19, got %d", height)
+	}
+
+	// Verify width is constrained to maxDialogWidth
+	width := dlg.X2 - dlg.X1 + 1
+	if width > 72 {
+		t.Errorf("Dialog width %d exceeds maxDialogWidth (72)", width)
+	}
+}
 func TestShowMessage_Structure(t *testing.T) {
 	SetDefaultPalette()
 	FrameManager.Init(NewSilentScreenBuf())
