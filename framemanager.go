@@ -756,6 +756,39 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGWINCH)
 
+	// Terminal size polling (handles Windows and fallback for missed SIGWINCH)
+	sizeChan := make(chan struct{}, 1)
+	go func() {
+		lastW, lastH, _ := term.GetSize(int(os.Stdout.Fd()))
+		for fm.running {
+			time.Sleep(200 * time.Millisecond)
+			w, h, err := term.GetSize(int(os.Stdout.Fd()))
+			if err == nil && w > 0 && h > 0 && (w != lastW || h != lastH) {
+				lastW, lastH = w, h
+				select {
+				case sizeChan <- struct{}{}:
+				default:
+				}
+			}
+		}
+	}()
+
+	handleResize := func() {
+		width, height, err := term.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			width, height, _ = term.GetSize(int(os.Stdin.Fd()))
+		}
+		if width > 0 && height > 0 && (width != fm.scr.width || height != fm.scr.height) {
+			fm.scr.AllocBuf(width, height)
+			for _, s := range fm.Screens {
+				for _, f := range s.Frames {
+					f.ResizeConsole(width, height)
+				}
+			}
+			fm.Redraw()
+		}
+	}
+
 	// --- Main application loop ---
 	// Persistent timer to avoid allocations in the drain loop
 	idleTimer := time.NewTimer(time.Hour)
@@ -794,12 +827,10 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 				fm.Redraw()
 				loopAgain = true
 			case <-sigChan:
-				width, height, _ := term.GetSize(int(os.Stdin.Fd()))
-				fm.scr.AllocBuf(width, height)
-				for _, f := range fm.frames {
-					f.ResizeConsole(width, height)
-				}
-				fm.Redraw()
+				handleResize()
+				loopAgain = true
+			case <-sizeChan:
+				handleResize()
 				loopAgain = true
 			case ev, ok := <-fm.EventChan:
 				if !ok {
@@ -819,12 +850,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 			continue
 		}
 		if e.Type == vtinput.ResizeEventType {
-			width, height, _ := term.GetSize(int(os.Stdin.Fd()))
-			fm.scr.AllocBuf(width, height)
-			for _, f := range fm.frames {
-				f.ResizeConsole(width, height)
-			}
-			fm.Redraw()
+			handleResize()
 			continue
 		}
 
