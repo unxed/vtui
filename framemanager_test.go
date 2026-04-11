@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -12,6 +13,11 @@ type mockFrame struct {
 	BaseFrame
 	onProcessMouse      func(e *vtinput.InputEvent) bool
 	onProcessKey        func(e *vtinput.InputEvent) bool
+	resizedW, resizedH  int
+}
+
+func (m *mockFrame) ResizeConsole(w, h int) {
+	m.resizedW, m.resizedH = w, h
 }
 
 func newMockFrame(x, y, w, h int, modal bool) *mockFrame {
@@ -667,6 +673,113 @@ func TestFrameManager_NeedsAttention_Suppression(t *testing.T) {
 	dlg.AttentionSuppressed = true
 	if s.NeedsAttention() {
 		t.Error("NeedsAttention should be false when attentionSuppressed is true")
+	}
+}
+func TestFrameManager_ResizeAllScreens(t *testing.T) {
+	oldGetSize := GetTerminalSize
+	defer func() { GetTerminalSize = oldGetSize }()
+
+	GetTerminalSize = func() (int, int, error) {
+		return 120, 40, nil
+	}
+
+	fm := &frameManager{}
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 24)
+	fm.Init(scr)
+
+	f1 := &mockFrame{}
+	f2 := &mockFrame{}
+	f3 := &mockFrame{}
+
+	fm.Push(f1) // Screen 0 (Background)
+	fm.AddScreen(f2) // Screen 1 (Active)
+	fm.AddScreenBackground(f3) // Screen 2 (Background added explicitly)
+
+	// Inject Resize Event
+	fm.InjectEvents([]*vtinput.InputEvent{
+		{Type: vtinput.ResizeEventType},
+	})
+
+	// Setup a trap to stop the manager cleanly after processing
+	f2.onProcessKey = func(e *vtinput.InputEvent) bool {
+		if e.VirtualKeyCode == vtinput.VK_F10 {
+			fm.Stop()
+			return true
+		}
+		return false
+	}
+	fm.InjectEvents([]*vtinput.InputEvent{
+		{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F10},
+	})
+
+	pr, pw := io.Pipe()
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		pw.Close()
+	}()
+
+	reader := vtinput.NewReader(pr)
+	fm.Run(reader)
+
+	if f1.resizedW != 120 || f1.resizedH != 40 {
+		t.Errorf("Background screen frame not resized. Got %dx%d", f1.resizedW, f1.resizedH)
+	}
+	if f2.resizedW != 120 || f2.resizedH != 40 {
+		t.Errorf("Active screen frame not resized. Got %dx%d", f2.resizedW, f2.resizedH)
+	}
+	if f3.resizedW != 120 || f3.resizedH != 40 {
+		t.Errorf("Background added screen frame not resized. Got %dx%d", f3.resizedW, f3.resizedH)
+	}
+	if scr.Width() != 120 || scr.Height() != 40 {
+		t.Errorf("ScreenBuf not resized. Got %dx%d", scr.Width(), scr.Height())
+	}
+}
+
+func TestFrameManager_SizePolling(t *testing.T) {
+	oldGetSize := GetTerminalSize
+	defer func() { GetTerminalSize = oldGetSize }()
+
+	mockW, mockH := 80, 24
+	GetTerminalSize = func() (int, int, error) {
+		return mockW, mockH, nil
+	}
+
+	fm := &frameManager{}
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 24)
+	fm.Init(scr)
+
+	f1 := &mockFrame{}
+	fm.Push(f1)
+
+	done := make(chan struct{})
+	pr, pw := io.Pipe()
+
+	go func() {
+		reader := vtinput.NewReader(pr)
+		fm.Run(reader)
+		close(done)
+	}()
+
+	// Wait for loop and polling goroutine to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Change mock size to trigger polling mechanism
+	mockW, mockH = 100, 30
+
+	// Wait for the polling interval (200ms) + buffer time
+	time.Sleep(300 * time.Millisecond)
+
+	fm.Stop()
+	pw.Close()
+	<-done
+
+	if f1.resizedW != 100 || f1.resizedH != 30 {
+		t.Errorf("Polling failed to resize frame. Got %dx%d", f1.resizedW, f1.resizedH)
+	}
+	if scr.Width() != 100 || scr.Height() != 30 {
+		t.Errorf("Polling failed to resize ScreenBuf. Got %dx%d", scr.Width(), scr.Height())
 	}
 }
 

@@ -697,6 +697,15 @@ func (fm *frameManager) GetSyncStats() string {
 	return fmt.Sprintf("Tasks:%d/%d, Events:%d/%d", tLen, tCap, eLen, eCap)
 }
 
+// GetTerminalSize is a variable to allow mocking terminal size in tests.
+var GetTerminalSize = func() (int, int, error) {
+	w, h, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		w, h, err = term.GetSize(int(os.Stdin.Fd()))
+	}
+	return w, h, err
+}
+
 // Stop signals the main loop to exit.
 func (fm *frameManager) Stop() {
 	DebugLog("FM: Stop() requested. Deactivating menus and exiting loop.")
@@ -759,10 +768,10 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	// Terminal size polling (handles Windows and fallback for missed SIGWINCH)
 	sizeChan := make(chan struct{}, 1)
 	go func() {
-		lastW, lastH, _ := term.GetSize(int(os.Stdout.Fd()))
+		lastW, lastH, _ := GetTerminalSize()
 		for fm.running {
 			time.Sleep(200 * time.Millisecond)
-			w, h, err := term.GetSize(int(os.Stdout.Fd()))
+			w, h, err := GetTerminalSize()
 			if err == nil && w > 0 && h > 0 && (w != lastW || h != lastH) {
 				lastW, lastH = w, h
 				select {
@@ -774,10 +783,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	}()
 
 	handleResize := func() {
-		width, height, err := term.GetSize(int(os.Stdout.Fd()))
-		if err != nil {
-			width, height, _ = term.GetSize(int(os.Stdin.Fd()))
-		}
+		width, height, _ := GetTerminalSize()
 		if width > 0 && height > 0 && (width != fm.scr.width || height != fm.scr.height) {
 			fm.scr.AllocBuf(width, height)
 			for _, s := range fm.Screens {
