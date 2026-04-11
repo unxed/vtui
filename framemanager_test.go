@@ -782,6 +782,46 @@ func TestFrameManager_SizePolling(t *testing.T) {
 		t.Errorf("Polling failed to resize ScreenBuf. Got %dx%d", scr.Width(), scr.Height())
 	}
 }
+func TestFrameManager_ResizeRobustness(t *testing.T) {
+	oldGetSize := GetTerminalSize
+	defer func() { GetTerminalSize = oldGetSize }()
+
+	fm := &frameManager{}
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 24)
+	fm.Init(scr)
+
+	// 1. Test: Error from GetTerminalSize should be ignored
+	GetTerminalSize = func() (int, int, error) {
+		return 0, 0, io.EOF
+	}
+
+	// Manual call to internal handleResize logic is simulated via event
+	fm.InjectEvents([]*vtinput.InputEvent{{Type: vtinput.ResizeEventType}})
+
+	// Start a short-lived loop to process the event
+	pr, pw := io.Pipe()
+	go func() { time.Sleep(50 * time.Millisecond); fm.Stop(); pw.Close() }()
+	fm.Run(vtinput.NewReader(pr))
+
+	if scr.Width() != 80 || scr.Height() != 24 {
+		t.Error("Resize handled an error size incorrectly")
+	}
+
+	// 2. Test: Non-positive sizes should be ignored
+	GetTerminalSize = func() (int, int, error) {
+		return -10, 0, nil
+	}
+	fm.InjectEvents([]*vtinput.InputEvent{{Type: vtinput.ResizeEventType}})
+
+	pr2, pw2 := io.Pipe()
+	go func() { time.Sleep(50 * time.Millisecond); fm.Stop(); pw2.Close() }()
+	fm.Run(vtinput.NewReader(pr2))
+
+	if scr.Width() != 80 || scr.Height() != 24 {
+		t.Error("Resize handled non-positive size incorrectly")
+	}
+}
 
 func TestFrameManager_NoAutoCloseForHeadless(t *testing.T) {
 	fm := &frameManager{}

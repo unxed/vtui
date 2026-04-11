@@ -783,7 +783,10 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	}()
 
 	handleResize := func() {
-		width, height, _ := GetTerminalSize()
+		width, height, err := GetTerminalSize()
+		if err != nil {
+			return // Keep existing size if we can't determine the new one
+		}
 		if width > 0 && height > 0 && (width != fm.scr.width || height != fm.scr.height) {
 			fm.scr.AllocBuf(width, height)
 			for _, s := range fm.Screens {
