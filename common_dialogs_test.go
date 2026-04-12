@@ -211,10 +211,9 @@ func TestDialogNavigation_UX(t *testing.T) {
 func TestSelectFileDialog_LayoutBestPractice(t *testing.T) {
 	SetDefaultPalette()
 	FrameManager.Init(NewSilentScreenBuf())
-	v := &testVFS{currentPath: "/tmp"}
-
+	v := &testVFS{currentPath: filepath.FromSlash("/tmp")}
 	// Create dialog (55x20)
-	dlg := SelectFileDialog("LayoutTest", "/tmp", v)
+	dlg := SelectFileDialog("LayoutTest", filepath.FromSlash("/tmp"), v)
 
 	var fileEdit *Edit
 	var btnOk *Button
@@ -260,10 +259,9 @@ func TestLayout_StandardDialogs_Validity(t *testing.T) {
 	fmscr := NewSilentScreenBuf()
 	fmscr.AllocBuf(80, 25)
 	FrameManager.Init(fmscr)
-	v := &testVFS{currentPath: "/tmp"}
-
+	v := &testVFS{currentPath: filepath.FromSlash("/tmp")}
 	t.Run("SelectFileDialog", func(t *testing.T) {
-		dlg := SelectFileDialog("Test", "/tmp", v)
+		dlg := SelectFileDialog("Test", filepath.FromSlash("/tmp"), v)
 		AssertLayout(t, dlg)
 	})
 

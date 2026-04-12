@@ -3,6 +3,7 @@ package vtui
 import (
 	"reflect"
 	"testing"
+	"path/filepath"
 )
 
 func TestWrapText_Simple(t *testing.T) {
@@ -62,7 +63,7 @@ func TestTruncateMiddle(t *testing.T) {
 		{"1234567890", 7, "12...90"},    // Middle cut
 		{"1234567890", 5, "1...0"},      // Minimal cut
 		{"12345", 2, "12345"},           // Stability check (max too small)
-		{"/home/user/project/file.txt", 15, "/home/...le.txt"},
+		{filepath.FromSlash("/home/user/project/file.txt"), 15, filepath.FromSlash("/home/...le.txt")},
 	}
 
 	for _, tt := range tests {
