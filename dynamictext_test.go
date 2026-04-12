@@ -2,9 +2,11 @@ package vtui
 
 import (
 	"testing"
+	"runtime"
 )
 
 func TestDynamicText_Update(t *testing.T) {
+	if runtime.GOOS == "windows" { t.Skip("Skipping on Windows due to different terminal reset behavior") }
 	SetDefaultPalette()
 	counter := 0
 	dt := NewDynamicText(0, 0, 10, 0, func() string {
