@@ -348,6 +348,7 @@ func (s *ScreenBuf) Flush() {
 	s.Renderer.SetPalette(activePal)
 	s.Renderer.Render(s.buf, s.shadow, s.width, s.height, s.dirty)
 	s.Renderer.SetCursor(s.cursorX, s.cursorY, s.cursorVisible)
+	s.Renderer.Flush()
 
 	s.dirty = false
 	s.cursorDirty = false
@@ -358,45 +359,50 @@ func (s *ScreenBuf) Flush() {
 type AnsiRenderer struct {
 	parent   *ScreenBuf
 	lastAttr uint64
+	frameOut strings.Builder
 }
 
 func (r *AnsiRenderer) SetPalette(pal *[256]uint32) {
-	if pal == nil { return }
-	var builder strings.Builder
+	if pal == nil {
+		return
+	}
 	for i := 0; i < 256; i++ {
 		if !r.parent.HostPaletteValid[i] || r.parent.HostPalette[i] != pal[i] {
 			r.parent.quantCache = make(map[uint32]uint8)
 			pr, pg, pb := rgb(pal[i])
-			builder.WriteString(fmt.Sprintf("\x1b]4;%d;rgb:%02x/%02x/%02x\x07", i, pr, pg, pb))
+			r.frameOut.WriteString(fmt.Sprintf("\x1b]4;%d;rgb:%02x/%02x/%02x\x07", i, pr, pg, pb))
 			r.parent.HostPalette[i] = pal[i]
 			r.parent.HostPaletteValid[i] = true
 		}
 	}
-	r.write(builder.String())
 }
 
 func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
-	renderStart := time.Now()
-	var b strings.Builder
-	b.WriteString("\x1b[?25l") // Hide cursor during draw
+	r.frameOut.WriteString("\x1b[?25l") // Hide cursor during draw
 
 	lastX, lastY := -1, -1
 	r.lastAttr = ^uint64(0)
 
 	var activePal *[256]uint32
-	if r.parent.ActivePalette != nil { activePal = r.parent.ActivePalette } else { activePal = r.parent.ThemePalette }
+	if r.parent.ActivePalette != nil {
+		activePal = r.parent.ActivePalette
+	} else {
+		activePal = r.parent.ThemePalette
+	}
 
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			idx := y*w + x
-			if !force && buf[idx] == shadow[idx] { continue }
+			if !force && buf[idx] == shadow[idx] {
+				continue
+			}
 
 			if x != lastX+1 || y != lastY {
-				b.WriteString(fmt.Sprintf("\x1b[%d;%dH", y+1, x+1))
+				r.frameOut.WriteString(fmt.Sprintf("\x1b[%d;%dH", y+1, x+1))
 			}
 
 			attr := buf[idx].Attributes
-			b.WriteString(attributesToANSI(attr, r.lastAttr, activePal, r.parent.Force256Colors, r.parent.quantCache))
+			r.frameOut.WriteString(attributesToANSI(attr, r.lastAttr, activePal, r.parent.Force256Colors, r.parent.quantCache))
 			r.lastAttr = attr
 
 			char := buf[idx].Char
@@ -404,27 +410,39 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				lastX, lastY = x, y
 				continue
 			}
-			if char == 0 { b.WriteByte(' ') } else { b.WriteRune(rune(char)) }
+			if char == 0 {
+				r.frameOut.WriteByte(' ')
+			} else {
+				r.frameOut.WriteRune(rune(char))
+			}
 			lastX, lastY = x, y
 		}
-	}
-
-	prepDur := time.Since(renderStart)
-	writeStart := time.Now()
-	payload := b.String()
-	r.write(payload)
-	writeDur := time.Since(writeStart)
-
-	// Only log slow renders to avoid flooding the log file
-	if prepDur + writeDur > 10*time.Millisecond {
-		DebugLog("PROFILE: Render Slow! Prep:%v Write:%v Bytes:%d", prepDur, writeDur, len(payload))
 	}
 }
 
 func (r *AnsiRenderer) SetCursor(x, y int, vis bool) {
-	out := fmt.Sprintf("\x1b[%d;%dH", y+1, x+1)
-	if vis { out += "\x1b[?25h" } else { out += "\x1b[?25l" }
-	r.write(out)
+	r.frameOut.WriteString(fmt.Sprintf("\x1b[%d;%dH", y+1, x+1))
+	if vis {
+		r.frameOut.WriteString("\x1b[?25h")
+	} else {
+		r.frameOut.WriteString("\x1b[?25l")
+	}
+}
+
+func (r *AnsiRenderer) Flush() {
+	payload := r.frameOut.String()
+	r.frameOut.Reset()
+	if payload == "" {
+		return
+	}
+
+	writeStart := time.Now()
+	r.write(payload)
+	writeDur := time.Since(writeStart)
+
+	if writeDur > 10*time.Millisecond {
+		DebugLog("PROFILE: Atomic Write Slow! Time:%v Bytes:%d", writeDur, len(payload))
+	}
 }
 
 func (r *AnsiRenderer) write(s string) {

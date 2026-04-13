@@ -115,4 +115,5 @@ type SurfaceRenderer interface {
 	Render(buf, shadow []CharInfo, width, height int, forceRedraw bool)
 	SetCursor(x, y int, visible bool)
 	SetPalette(palette *[256]uint32)
+	Flush() // Combined atomic output
 }
