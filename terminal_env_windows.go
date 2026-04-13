@@ -2,12 +2,22 @@
 
 package vtui
 
-import "golang.org/x/sys/windows"
+import (
+	"os"
+
+	"golang.org/x/sys/windows"
+)
+
+func watchResizeSignal(c chan os.Signal) {
+	// Windows doesn't use signals for resizing.
+	// FrameManager already polls terminal size on Windows.
+}
 
 func initTerminalOS() {
 	// Ensure that Windows Console handles UTF-8 output properly,
 	// preventing Box Drawing characters from appearing as gibberish.
-	windows.SetConsoleOutputCP(windows.CP_UTF8)
+	// 65001 is the ID for CP_UTF8
+	windows.SetConsoleOutputCP(65001)
 
 	// Enable VT processing for Windows Console (conhost)
 	hOut, err := windows.GetStdHandle(windows.STD_OUTPUT_HANDLE)

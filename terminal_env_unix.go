@@ -2,6 +2,14 @@
 
 package vtui
 
-func initTerminalOS() {
-	// No special OS-level initialization needed for Unix terminals here
+import (
+	"os"
+	"os/signal"
+	"syscall"
+)
+
+func initTerminalOS() {}
+
+func watchResizeSignal(c chan os.Signal) {
+	signal.Notify(c, syscall.SIGWINCH)
 }

@@ -3,8 +3,6 @@ package vtui
 import (
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 	"strings"
 
@@ -763,7 +761,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 
 	// Configure channel for tracking window resizing
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGWINCH)
+	watchResizeSignal(sigChan)
 
 	// Terminal size polling (handles Windows and fallback for missed SIGWINCH)
 	sizeChan := make(chan struct{}, 1)
