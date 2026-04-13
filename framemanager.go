@@ -862,7 +862,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 		}
 
 		if e.Type == vtinput.KeyEventType && e.KeyDown {
-			DebugLog("KEY: Vk=%X Char=%d ActiveFrames=%d", e.VirtualKeyCode, e.Char, len(fm.frames))
+			DebugLog("KEY: Vk=%X Char=%d Src=%s ActiveFrames=%d", e.VirtualKeyCode, e.Char, e.InputSource, len(fm.frames))
 		}
 
 		fm.dispatchEvent(e, injected)
