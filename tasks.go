@@ -31,8 +31,10 @@ func RunAsync(worker func(ctx *TaskContext)) *TaskContext {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
+				DebugLog("FATAL PANIC IN ASYNC TASK: %v", r)
 				crashPath := RecordCrash(r, nil)
 				Suspend()
+				CleanupStderrLog()
 				fmt.Fprintf(os.Stderr, "\n[f4] FATAL PANIC IN ASYNC TASK: %v\n", r)
 				if crashPath != "" {
 					fmt.Fprintf(os.Stderr, "[f4] Crash report saved to: %s\n", crashPath)

@@ -13,6 +13,11 @@ import (
 )
 
 var (
+	sessionTimestamp = time.Now().Format("20060102_150405")
+	sessionPID       = os.Getpid()
+	stderrLogPath    string
+	stderrLogFile    *os.File
+
 	crashMu     sync.Mutex
 	logRing     []string
 	logIdx      int
@@ -97,6 +102,29 @@ func getCrashDir() string {
 	}
 	return filepath.Join(cd, "f4", "crashes")
 }
+// SetupStderrLog redirects standard error to a file in the crash directory.
+// This allows capturing low-level Go runtime fatal errors (like Out Of Memory).
+func SetupStderrLog() {
+	crashDir := getCrashDir()
+	os.MkdirAll(crashDir, 0755)
+	stderrLogPath = filepath.Join(crashDir, fmt.Sprintf("stderr_%s_%d.log", sessionTimestamp, sessionPID))
+	f, err := os.OpenFile(stderrLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		stderrLogFile = f
+		RedirectStderr(f)
+	}
+}
+
+// CleanupStderrLog deletes the stderr log file if it is empty.
+func CleanupStderrLog() {
+	if stderrLogFile != nil {
+		info, err := stderrLogFile.Stat()
+		stderrLogFile.Close()
+		if err == nil && info.Size() == 0 {
+			os.Remove(stderrLogPath)
+		}
+	}
+}
 
 // GetVersionInfo returns a string containing Git revision and Go version.
 func GetVersionInfo() string {
@@ -126,8 +154,7 @@ func RecordCrash(panicVal any, stack []byte) string {
 	os.MkdirAll(crashDir, 0755)
 
 	now := time.Now()
-	timestamp := now.Format("20060102_150405")
-	filename := filepath.Join(crashDir, fmt.Sprintf("crash_%s.log", timestamp))
+	filename := filepath.Join(crashDir, fmt.Sprintf("crash_%s_%d.log", sessionTimestamp, sessionPID))
 
 	f, err := os.Create(filename)
 	if err != nil {

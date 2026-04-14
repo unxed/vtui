@@ -728,8 +728,10 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	defer func() {
 		if r := recover(); r != nil {
 			// Note: RecordCrash now generates its own full stack dump
+			DebugLog("FATAL PANIC IN RUN LOOP: %v", r)
 			crashPath := RecordCrash(r, nil)
 			Suspend()
+			CleanupStderrLog()
 			fmt.Fprintf(os.Stderr, "\n[f4] FATAL PANIC: %v\n", r)
 			if crashPath != "" {
 				fmt.Fprintf(os.Stderr, "[f4] Crash report saved to: %s\n", crashPath)
