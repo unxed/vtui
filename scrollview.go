@@ -25,11 +25,42 @@ type ScrollView struct {
 	OnAction func(int)
 }
 
+// ScrollBy shifts the view and the selection by the same amount, keeping the cursor vertically stable.
+// If the view hits a boundary, the remaining scroll delta is applied to the cursor.
+func (sv *ScrollView) ScrollBy(delta int) {
+	if sv.ItemCount == 0 {
+		return
+	}
+
+	targetTop := sv.TopPos + delta
+	maxTop := sv.ItemCount - sv.ViewHeight
+	if maxTop < 0 {
+		maxTop = 0
+	}
+	if targetTop < 0 {
+		targetTop = 0
+	}
+	if targetTop > maxTop {
+		targetTop = maxTop
+	}
+
+	// Move the cursor by the requested delta to keep it physically stable on the screen,
+	// or to push it towards the boundary if the view itself cannot scroll further.
+	sv.MoveRelative(delta)
+
+	// Force the view to the calculated target
+	sv.TopPos = targetTop
+
+	// Safety check in case MoveRelative jumped out of bounds due to unselectable items
+	sv.EnsureVisible()
+}
+
 func (sv *ScrollView) InitScrollBar(owner CommandHandler) {
 	sv.ScrollBar = NewScrollBar(0, 0, 0)
 	sv.ScrollBar.SetOwner(owner)
 	sv.ScrollBar.OnScroll = func(v int) {
-		sv.TopPos = v
+		delta := v - sv.TopPos
+		sv.ScrollBy(delta)
 	}
 }
 func (sv *ScrollView) GetContentWidth() int {
@@ -65,11 +96,11 @@ func (sv *ScrollView) HandleMouseScroll(e *vtinput.InputEvent) bool {
 		return true
 	}
 	if e.WheelDirection != 0 {
-		if e.WheelDirection > 0 && sv.TopPos > 0 {
-			sv.TopPos--
+		if e.WheelDirection > 0 {
+			sv.ScrollBy(-1)
 			return true
-		} else if e.WheelDirection < 0 && sv.TopPos < sv.ItemCount - sv.ViewHeight {
-			sv.TopPos++
+		} else if e.WheelDirection < 0 {
+			sv.ScrollBy(1)
 			return true
 		}
 	}
