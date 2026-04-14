@@ -93,7 +93,7 @@ func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 
 	switch e.VirtualKeyCode {
-	case vtinput.VK_SPACE, vtinput.VK_RETURN:
+	case vtinput.VK_SPACE:
 		if rg.Selected != rg.focusIdx {
 			rg.Selected = rg.focusIdx
 			if rg.OnChange != nil { rg.OnChange(rg.Selected) }

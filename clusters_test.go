@@ -20,6 +20,13 @@ func TestRadioGroup_Navigation(t *testing.T) {
 	rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_SPACE})
 	if rg.Selected != 1 { t.Error("Space should change selection") }
 
+	// 3a. Enter: should NOT change selection (bubbles to dialog)
+	rg.focusIdx = 2
+	handled := rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+	if handled || rg.Selected == 2 {
+		t.Error("RadioGroup should not handle Return key")
+	}
+
 	// 4. Hotkey: changes both
 	rg.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, Char: 't'})
 	if rg.Selected != 2 || rg.focusIdx != 2 { t.Error("Hotkey failed") }

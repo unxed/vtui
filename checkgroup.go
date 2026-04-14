@@ -101,7 +101,7 @@ func (cg *CheckGroup) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 
 	switch e.VirtualKeyCode {
-	case vtinput.VK_SPACE, vtinput.VK_RETURN:
+	case vtinput.VK_SPACE:
 		cg.States[cg.focusIdx] = !cg.States[cg.focusIdx]
 		return true
 	}

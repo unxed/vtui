@@ -18,7 +18,7 @@ func TestButton_OnClick(t *testing.T) {
 	}
 
 	clicked = false
-	// Test KeyDown Return
+	// Test KeyDown Return (Buttons SHOULD still handle Return)
 	b.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
 	if !clicked {
 		t.Error("Button should be clicked on Return")

@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"testing"
+	"github.com/unxed/vtinput"
 )
 
 func TestCheckbox_Toggle(t *testing.T) {
@@ -21,6 +22,20 @@ func TestCheckbox_Toggle(t *testing.T) {
 	if cb3.State != 2 { t.Error("3-state: expected 2") }
 	cb3.Toggle() // 2 -> 0
 	if cb3.State != 0 { t.Error("3-state: expected 0") }
+}
+func TestCheckbox_NoReturnToggle(t *testing.T) {
+	cb := NewCheckbox(0, 0, "Test", false)
+	cb.State = 0
+
+	// Enter should NOT toggle checkbox (it should bubble up to dialog)
+	handled := cb.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+
+	if handled {
+		t.Error("Checkbox should not handle Return key")
+	}
+	if cb.State != 0 {
+		t.Error("Checkbox state changed on Return")
+	}
 }
 
 func TestCheckbox_HotkeyRendering(t *testing.T) {
