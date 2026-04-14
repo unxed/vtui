@@ -183,16 +183,40 @@ func (t *Table) drawRow(scr *ScreenBuf, y int, rowIdx int, attr uint64) {
 					if isSelected {
 						cellAttr = Palette[t.ColorItemSelectCursorIdx]
 					} else {
-						cellAttr = Palette[t.ColorSelectedTextIdx]
+						cursorAttr := Palette[t.ColorSelectedTextIdx]
+						standardAttr := Palette[t.ColorTextIdx]
+						if baseAttr != standardAttr {
+							if baseAttr&IsFgRGB != 0 {
+								cellAttr = SetRGBFore(cursorAttr, GetRGBFore(baseAttr))
+							} else {
+								cellAttr = SetIndexFore(cursorAttr, GetIndexFore(baseAttr))
+							}
+							const styleMask = ForegroundIntensity | ForegroundDim | CommonLvbUnderscore | CommonLvbStrikeout
+							cellAttr |= (baseAttr & styleMask)
+						} else {
+							cellAttr = cursorAttr
+						}
 					}
 				} else {
 					if isSelected {
 						cellAttr = Palette[t.ColorItemSelectTextIdx]
 					} else {
 						if t.AlwaysShowCursor {
-							cellAttr = Palette[t.ColorSelectedTextIdx]
+							cursorAttr := Palette[t.ColorSelectedTextIdx]
+							standardAttr := Palette[t.ColorTextIdx]
+							if baseAttr != standardAttr {
+								if baseAttr&IsFgRGB != 0 {
+									cellAttr = SetRGBFore(cursorAttr, GetRGBFore(baseAttr))
+								} else {
+									cellAttr = SetIndexFore(cursorAttr, GetIndexFore(baseAttr))
+								}
+								const styleMask = ForegroundIntensity | ForegroundDim | CommonLvbUnderscore | CommonLvbStrikeout
+								cellAttr |= (baseAttr & styleMask)
+							} else {
+								cellAttr = cursorAttr
+							}
 						} else {
-							cellAttr = Palette[t.ColorTextIdx]
+							cellAttr = baseAttr
 						}
 					}
 				}
