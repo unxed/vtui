@@ -38,8 +38,7 @@ func initTerminalOS() {
 	if err == nil {
 		var mode uint32
 		if err := windows.GetConsoleMode(hOut, &mode); err == nil {
-			// ENABLE_PROCESSED_OUTPUT still needed for basic ANSI handling in conhost
-			mode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING | windows.ENABLE_PROCESSED_OUTPUT | windows.ENABLE_WRAP_AT_EOL_OUTPUT
+			mode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING | windows.ENABLE_WRAP_AT_EOL_OUTPUT
 			windows.SetConsoleMode(hOut, mode)
 		}
 	}
