@@ -3,6 +3,7 @@ package vtui
 import (
 	"fmt"
 	"github.com/mattn/go-runewidth"
+	"github.com/unxed/vtinput"
 )
 
 // KeyBarLabels stores labels for F1-F12 for a specific modifier state.
@@ -45,6 +46,39 @@ func (kb *KeyBar) SetModifiers(shift, ctrl, alt bool) {
 func (kb *KeyBar) Show(scr *ScreenBuf) {
 	kb.Bar.Show(scr)
 	kb.DisplayObject(scr)
+}
+func (kb *KeyBar) ProcessMouse(e *vtinput.InputEvent) bool {
+	if !kb.IsVisible() || e.Type != vtinput.MouseEventType {
+		return false
+	}
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+		mx := int(e.MouseX)
+		if kb.HitTest(mx, int(e.MouseY)) {
+			width := kb.X2 - kb.X1 + 1
+			slotWidth := width / 12
+			if slotWidth < 3 {
+				slotWidth = 3
+			}
+
+			slot := (mx - kb.X1) / slotWidth
+			if slot > 11 {
+				slot = 11
+			}
+			if slot >= 0 {
+				vk := uint16(vtinput.VK_F1 + slot)
+				// Синтезируем событие нажатия клавиши с учетом текущих модификаторов (Shift/Ctrl/Alt)
+				ev := &vtinput.InputEvent{
+					Type:            vtinput.KeyEventType,
+					KeyDown:         true,
+					VirtualKeyCode:  vk,
+					ControlKeyState: e.ControlKeyState,
+				}
+				FrameManager.InjectEvents([]*vtinput.InputEvent{ev})
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (kb *KeyBar) DisplayObject(scr *ScreenBuf) {

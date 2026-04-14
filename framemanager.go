@@ -1124,6 +1124,18 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 				fm.capturedFrame = nil // Release capture
 			}
 		} else {
+			// 3.1.5. Global UI components hit-testing (MenuBar, KeyBar)
+			if fm.KeyBar != nil && fm.KeyBar.IsVisible() && fm.KeyBar.HitTest(mx, my) {
+				if fm.KeyBar.ProcessMouse(ev) {
+					return
+				}
+			}
+			if activeMenu != nil && activeMenu.IsVisible() && activeMenu.HitTest(mx, my) {
+				if activeMenu.ProcessMouse(ev) {
+					return
+				}
+			}
+
 			// 3.2. Mouse Hit-Testing: check frames from top to bottom
 			for i := len(fm.frames) - 1; i >= 0; i-- {
 				f := fm.frames[i]
