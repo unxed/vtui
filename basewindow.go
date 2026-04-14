@@ -125,6 +125,21 @@ func (bw *BaseWindow) ProcessKey(e *vtinput.InputEvent) bool {
 	}
 
 	switch e.VirtualKeyCode {
+	case vtinput.VK_NEXT:
+		// Jump to default button
+		for i, item := range bw.rootGroup.items {
+			if btn, ok := item.(*Button); ok && btn.IsDefault && !btn.IsDisabled() {
+				bw.rootGroup.setFocus(i)
+				return true
+			}
+		}
+		// Fallback: jump to first non-disabled button
+		for i, item := range bw.rootGroup.items {
+			if btn, ok := item.(*Button); ok && !btn.IsDisabled() {
+				bw.rootGroup.setFocus(i)
+				return true
+			}
+		}
 	case vtinput.VK_F1:
 		bw.ShowHelp()
 		return true

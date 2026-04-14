@@ -46,6 +46,21 @@ func (m mockMultiColSelectableRow) IsColSelected(col int) bool {
 	if col >= 0 && col < 2 { return m.selected[col] }
 	return false
 }
+type mockColorableRow struct {
+	col1 string
+	attr uint64
+}
+
+func (m mockColorableRow) GetCellText(col int) string {
+	return m.col1
+}
+
+func (m mockColorableRow) GetCellAttr(col int, defaultAttr uint64) uint64 {
+	if col == 0 {
+		return m.attr
+	}
+	return defaultAttr
+}
 
 func TestTable_SelectableRowRendering(t *testing.T) {
 	SetDefaultPalette()
@@ -131,6 +146,29 @@ func TestTable_CellSelection(t *testing.T) {
 	if tbl.SelectCol != 1 || tbl.SelectPos != 0 {
 		t.Errorf("Left wrapping navigation failed: pos=%d, col=%d", tbl.SelectPos, tbl.SelectCol)
 	}
+}
+func TestTable_CellColorableRow(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(10, 5)
+
+	cols := []TableColumn{{Title: "C1", Width: 10, Alignment: AlignLeft}}
+	tbl := NewTable(0, 0, 10, 3, cols)
+
+	customAttr := uint64(999)
+	row1 := mockColorableRow{"Colored", customAttr}
+	row2 := mockRow{"Normal", ""}
+
+	tbl.SetRows([]TableRow{row1, row2})
+	tbl.SetFocus(false)
+	tbl.SelectPos = -1 // Disable cursor interference
+	tbl.Show(scr)
+
+	// First row should have custom color
+	checkCell(t, scr, 0, 1, 'C', customAttr)
+
+	// Second row should have default color
+	checkCell(t, scr, 0, 2, 'N', Palette[ColTableText])
 }
 func TestTable_EmptyGeometry(t *testing.T) {
 	// Ensure table can be sized before data is provided

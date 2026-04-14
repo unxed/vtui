@@ -195,3 +195,28 @@ func TestBaseWindow_NoDownwardCommandRouting(t *testing.T) {
 		t.Error("Window passed command down to focused item, risking infinite recursion")
 	}
 }
+func TestBaseWindow_PgDnFocus(t *testing.T) {
+	bw := NewBaseWindow(0, 0, 40, 10, "PgDn Test")
+	edit := NewEdit(1, 1, 20, "")
+	btnOk := NewButton(1, 5, "&Ok")
+	btnOk.IsDefault = true
+
+	bw.AddItem(edit)
+	bw.AddItem(btnOk)
+
+	// Ensure initial focus is on edit
+	bw.rootGroup.setFocus(0)
+	if !edit.IsFocused() { t.Fatal("Setup failed: edit not focused") }
+
+	// Press PgDn
+	bw.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT,
+	})
+
+	if !btnOk.IsFocused() {
+		t.Error("PgDn failed to move focus to the default button")
+	}
+	if edit.IsFocused() {
+		t.Error("Focus remained on the edit field after PgDn")
+	}
+}

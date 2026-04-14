@@ -28,6 +28,10 @@ type SelectableRow interface {
 type MultiColSelectableRow interface {
 	IsColSelected(col int) bool
 }
+// CellColorableRow is an optional interface allowing rows to define custom colors per cell.
+type CellColorableRow interface {
+	GetCellAttr(col int, defaultAttr uint64) uint64
+}
 
 // Table is a generic control for displaying tabular data.
 type Table struct {
@@ -165,7 +169,12 @@ func (t *Table) drawRow(scr *ScreenBuf, y int, rowIdx int, attr uint64) {
 
 		cellAttr := attr
 		if rowIdx != -1 {
-			cellAttr = Palette[t.ColorTextIdx]
+			baseAttr := Palette[t.ColorTextIdx]
+			if cr, ok := t.Rows[rowIdx].(CellColorableRow); ok {
+				baseAttr = cr.GetCellAttr(colIdx, baseAttr)
+			}
+			cellAttr = baseAttr
+
 			if isSelected {
 				cellAttr = Palette[t.ColorItemSelectTextIdx]
 			}
