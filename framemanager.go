@@ -517,12 +517,12 @@ func (fm *frameManager) CycleWindows(forward bool) bool {
 
 func (fm *frameManager) renderSwitcher(scr *ScreenBuf) {
 	if !fm.switcherActive || len(fm.Screens) < 2 { return }
-	
+
 	menuW := 60
 	menuH := len(fm.Screens) + 2
 	x := (scr.width - menuW) / 2
 	y := (scr.height - menuH) / 2
-	
+
 	attr := Palette[ColMenuText]
 	selAttr := Palette[ColMenuSelectedText]
 	boxAttr := Palette[ColMenuBox]
@@ -541,7 +541,7 @@ func (fm *frameManager) renderSwitcher(scr *ScreenBuf) {
 	for i := range fm.Screens {
 		itemAttr := attr
 		if i == fm.switcherIdx { itemAttr = selAttr }
-		
+
 		pre, tit, suf, needsAttn := fm.getScreenInfo(i, maxTitleLen)
 		if i == fm.switcherIdx { pre = "> " }
 
@@ -1201,7 +1201,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 
 		// F12 - Screens Menu (Window List)
 		// We must ignore NumLock, CapsLock, and EnhancedKey flags
-		modifierMask := uint32(vtinput.LeftAltPressed | vtinput.RightAltPressed | vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.ShiftPressed)
+		modifierMask := vtinput.ControlKeyState(vtinput.LeftAltPressed | vtinput.RightAltPressed | vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.ShiftPressed)
 		if ev.VirtualKeyCode == vtinput.VK_F1 && (ev.ControlKeyState&modifierMask) == 0 {
 			DebugLog("FM: F1 triggered Help for topic context.")
 			topic := topFrame.GetHelp()

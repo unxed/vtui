@@ -454,7 +454,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	if event.Char != 0 && (unicode.IsGraphic(event.Char) || event.Char == ' ') {
 		// When checking modifiers, ignore Lock keys (Num, Caps, Scroll),
 		// because they should not block text input.
-		mods := event.ControlKeyState & ^uint32(vtinput.NumLockOn|vtinput.CapsLockOn|vtinput.ScrollLockOn|vtinput.EnhancedKey)
+		mods := event.ControlKeyState & ^vtinput.ControlKeyState(vtinput.NumLockOn|vtinput.CapsLockOn|vtinput.ScrollLockOn|vtinput.EnhancedKey)
 		if (mods & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0 {
 			return false
 		}

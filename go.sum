@@ -1,3 +1,5 @@
+github.com/emmansun/base64 v0.9.0 h1:92dLrE7iro6g/yWuPsd7M9TzJpe9fEeqKH0H7MApDtE=
+github.com/emmansun/base64 v0.9.0/go.mod h1:hp0DxCkKt7bF26HOh4BzhcObvqfH1BVy2vznoGThW6Q=
 github.com/mattn/go-runewidth v0.0.15 h1:UNAjwbU9l54TA3KzvqLGxwWjHmMgBUVhBiTjelZgg3U=
 github.com/mattn/go-runewidth v0.0.15/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
