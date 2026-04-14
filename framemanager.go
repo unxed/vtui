@@ -640,8 +640,8 @@ func (fm *frameManager) cleanupDoneFrames() {
 			isDead = true
 		}
 
-		if isDead && len(fm.Screens) > 1 {
-			DebugLog("FM: Closing dead Screen %d (Active was %d)", sIdx, fm.ActiveIdx)
+		if isDead {
+			DebugLog("FM: Removing dead Screen %d (Total screens: %d)", sIdx, len(fm.Screens))
 			fm.Screens = append(fm.Screens[:sIdx], fm.Screens[sIdx+1:]...)
 			if fm.ActiveIdx >= sIdx && fm.ActiveIdx > 0 {
 				fm.ActiveIdx--
