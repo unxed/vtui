@@ -25,6 +25,7 @@ type VMenu struct {
 	done       bool
 	exitCode   int
 	OnAction   func(int)
+	OnKeyDown  func(*vtinput.InputEvent) bool
 	HideShadow bool
 }
 
@@ -72,6 +73,10 @@ func (m *VMenu) GetItemCount() int { return len(m.Items) }
 // ProcessKey processes navigation keys.
 func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 	if m.IsDisabled() || !e.KeyDown { return false }
+
+	if m.OnKeyDown != nil && m.OnKeyDown(e) {
+		return true
+	}
 
 	isSubMenu := false
 	if m.owner != nil {
