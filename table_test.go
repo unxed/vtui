@@ -295,6 +295,7 @@ func TestTable_MouseWheel(t *testing.T) {
 	tbl.SetRows(rows)
 
 	tbl.TopPos = 5
+	tbl.SelectPos = 5
 
 	// 1. Scroll Down
 	tbl.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: -1})

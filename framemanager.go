@@ -3,6 +3,7 @@ package vtui
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 	"strings"
 
@@ -740,8 +741,10 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 		fm.scr.Flush()
 	}()
 
-	fm.EventChan = make(chan *vtinput.InputEvent, 1024)
+	ch := make(chan *vtinput.InputEvent, 1024)
+	fm.EventChan = ch
 	stopChan := make(chan struct{})
+	var once sync.Once
 	go func() {
 		for {
 			select {
@@ -750,10 +753,14 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 			default:
 				e, err := reader.ReadEvent()
 				if err != nil {
-					close(fm.EventChan)
+					once.Do(func() { close(ch) })
 					return
 				}
-				fm.EventChan <- e
+				select {
+				case ch <- e:
+				case <-stopChan:
+					return
+				}
 			}
 		}
 	}()

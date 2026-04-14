@@ -38,6 +38,7 @@ func TestListBox_MouseWheel(t *testing.T) {
 	items := make([]string, 10)
 	lb := NewListBox(0, 0, 10, 3, items)
 	lb.TopPos = 2
+	lb.SelectPos = 2
 
 	// Scroll Down (WheelDirection < 0)
 	lb.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: -1})
