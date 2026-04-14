@@ -18,14 +18,15 @@ func rotateLogs(basePath string) {
 	ext := filepath.Ext(basePath)
 	prefix := strings.TrimSuffix(basePath, ext)
 
-	// debug.1.log -> debug.2.log
-	oldest := prefix + ".2" + ext
-	middle := prefix + ".1" + ext
-	_ = os.Remove(oldest)
-	_ = os.Rename(middle, oldest)
+	// Keep up to 5 backups: debug.4.log -> debug.5.log, etc.
+	for i := 4; i >= 1; i-- {
+		oldPath := fmt.Sprintf("%s.%d%s", prefix, i, ext)
+		newPath := fmt.Sprintf("%s.%d%s", prefix, i+1, ext)
+		os.Rename(oldPath, newPath)
+	}
 
 	// debug.log -> debug.1.log
-	_ = os.Rename(basePath, middle)
+	_ = os.Rename(basePath, prefix+".1"+ext)
 }
 
 var diskLoggingEnabled = true
