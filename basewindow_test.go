@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"testing"
+	"github.com/unxed/vtinput"
 )
 
 func TestBaseWindow_ShadowFlag(t *testing.T) {
