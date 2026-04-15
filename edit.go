@@ -284,6 +284,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	DebugLog("  Edit.ProcessKey: VK=%X Char=%d", event.VirtualKeyCode, event.Char)
 	shift := (event.ControlKeyState & vtinput.ShiftPressed) != 0
 	ctrl := (event.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed)) != 0
+	alt := (event.ControlKeyState & (vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0
 
 	if ctrl && event.VirtualKeyCode == vtinput.VK_DOWN && len(e.History) > 0 {
 		e.OpenHistory()
@@ -456,7 +457,10 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		return true
 
 	case vtinput.VK_INSERT:
-		e.overtype = !e.overtype
+		// Toggle overtype mode only if no modifiers are pressed
+		if !shift && !ctrl && !alt {
+			e.overtype = !e.overtype
+		}
 		return true
 	}
 
