@@ -370,7 +370,17 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		return true
 
 	case vtinput.VK_RIGHT:
-		if e.curPos == len(e.text) && !shift && !ctrl { return false } // Escape focus to next
+		if e.curPos == len(e.text) && !shift && !ctrl {
+			// Feature: if everything is selected and we are at the end,
+			// just clear selection and stay in this field instead of losing focus.
+			if e.selStart == 0 && e.selEnd == len(e.text) {
+				e.selStart = -1
+				e.selAnchor = -1
+				e.clearFlag = false
+				return true
+			}
+			return false // Escape focus to next
+		}
 		if shift { e.beginSelection() } else { e.selStart = -1; e.selAnchor = -1 }
 		if ctrl {
 			if e.curPos < len(e.text) {
