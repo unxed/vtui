@@ -529,6 +529,58 @@ func TestFrameManager_CommandBubbling(t *testing.T) {
 		t.Error("Command should have bubbled down to bottom frame")
 	}
 }
+func TestFrameManager_ModalOutsideClicks(t *testing.T) {
+	SetDefaultPalette()
+	fm := &frameManager{}
+	fm.Init(NewSilentScreenBuf())
+	fm.Push(NewDesktop())
+
+	// Create a real Dialog with an active default button
+	dlg := NewDialog(10, 10, 30, 20, "Modal")
+	btn := NewButton(1, 1, "OK")
+	btn.IsDefault = true
+	btn.OnClick = func() { dlg.SetExitCode(42) }
+	dlg.AddItem(btn)
+	fm.Push(dlg)
+
+	// 1. Test LMB outside (at 5, 5) -> should trigger ESC (-1)
+	fm.dispatchEvent(&vtinput.InputEvent{
+		Type:        vtinput.MouseEventType,
+		KeyDown:     true,
+		MouseX:      5,
+		MouseY:      5,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+	}, false)
+
+	if !dlg.IsDone() {
+		t.Error("LMB outside modal dialog did not close it")
+	}
+	if dlg.ExitCode != -1 {
+		t.Errorf("LMB outside: expected ExitCode -1 (Closed), got %d", dlg.ExitCode)
+	}
+
+	// Reset and re-push for RMB test
+	dlg.Done = false
+	dlg.ExitCode = 0
+	fm.Push(dlg)
+
+	// 2. Test RMB outside (at 5, 5) -> should trigger ENTER (42 via Default Button)
+	fm.dispatchEvent(&vtinput.InputEvent{
+		Type:        vtinput.MouseEventType,
+		KeyDown:     true,
+		MouseX:      5,
+		MouseY:      5,
+		ButtonState: vtinput.RightmostButtonPressed,
+	}, false)
+
+	if !dlg.IsDone() {
+		t.Error("RMB outside modal dialog did not trigger the default action")
+	}
+	if dlg.ExitCode != 42 {
+		t.Errorf("RMB outside: expected ExitCode 42, got %d", dlg.ExitCode)
+	}
+}
+
 func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
 	fm := &frameManager{}
 	scr := NewSilentScreenBuf()
