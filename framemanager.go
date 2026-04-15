@@ -1193,20 +1193,6 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 				}
 
 				if f.IsModal() {
-					// Logic for clicking OUTSIDE of a modal dialog:
-					// LMB -> ESC (Close)
-					// RMB -> ENTER (Commit)
-					if ev.KeyDown && ev.ButtonState != 0 {
-						if ev.ButtonState == vtinput.FromLeft1stButtonPressed {
-							f.Close()
-						} else if ev.ButtonState == vtinput.RightmostButtonPressed {
-							f.ProcessKey(&vtinput.InputEvent{
-								Type:           vtinput.KeyEventType,
-								KeyDown:        true,
-								VirtualKeyCode: vtinput.VK_RETURN,
-							})
-						}
-					}
 					break
 				}
 			}

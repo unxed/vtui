@@ -529,58 +529,6 @@ func TestFrameManager_CommandBubbling(t *testing.T) {
 		t.Error("Command should have bubbled down to bottom frame")
 	}
 }
-func TestFrameManager_ModalOutsideClicks(t *testing.T) {
-	fm := &frameManager{}
-	fm.Init(NewSilentScreenBuf())
-	fm.Push(NewDesktop())
-
-	enterPressed := false
-	escPressed := false
-
-	dlg := &cmdMockFrame{}
-	dlg.Modal = true
-	dlg.SetPosition(10, 10, 30, 20)
-	dlg.onCmd = func(cmd int, args any) bool {
-		if cmd == CmCancel || cmd == CmClose {
-			escPressed = true
-		}
-		return true
-	}
-	dlg.onProcessKey = func(e *vtinput.InputEvent) bool {
-		if e.VirtualKeyCode == vtinput.VK_RETURN {
-			enterPressed = true
-		}
-		return true
-	}
-	fm.Push(dlg)
-
-	// 1. Test LMB outside (at 5, 5) -> should trigger Close/ESC
-	fm.dispatchEvent(&vtinput.InputEvent{
-		Type:        vtinput.MouseEventType,
-		KeyDown:     true,
-		MouseX:      5,
-		MouseY:      5,
-		ButtonState: vtinput.FromLeft1stButtonPressed,
-	}, false)
-
-	if !escPressed {
-		t.Error("LMB outside modal dialog did not trigger ESC/Close")
-	}
-
-	// 2. Test RMB outside (at 5, 5) -> should trigger ENTER
-	fm.dispatchEvent(&vtinput.InputEvent{
-		Type:        vtinput.MouseEventType,
-		KeyDown:     true,
-		MouseX:      5,
-		MouseY:      5,
-		ButtonState: vtinput.RightmostButtonPressed,
-	}, false)
-
-	if !enterPressed {
-		t.Error("RMB outside modal dialog did not trigger ENTER")
-	}
-}
-
 func TestFrameManager_ModalPriorityOverMenu(t *testing.T) {
 	fm := &frameManager{}
 	scr := NewSilentScreenBuf()
