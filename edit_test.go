@@ -504,3 +504,25 @@ func TestEdit_WordJumps_DifferentDividers(t *testing.T) {
 		t.Errorf("Expected stop on first slash (index 3), got %d", e.curPos)
 	}
 }
+func TestEdit_RightArrow_FullSelection_StaysInFocus(t *testing.T) {
+	e := NewEdit(0, 0, 20, "/home/user")
+	e.SelectAll() // Selects [0:10], curPos=10, clearFlag=true
+
+	// Simulate pressing Right Arrow
+	handled := e.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT,
+	})
+
+	if !handled {
+		t.Error("VK_RIGHT should be handled when full text is selected")
+	}
+	if e.selStart != -1 {
+		t.Error("Selection should be cleared after VK_RIGHT on full selection")
+	}
+	if e.clearFlag {
+		t.Error("clearFlag should be reset after VK_RIGHT")
+	}
+	if e.curPos != 10 {
+		t.Errorf("Cursor moved unexpectedly: %d", e.curPos)
+	}
+}
