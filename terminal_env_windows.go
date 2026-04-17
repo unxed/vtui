@@ -39,6 +39,14 @@ func initTerminalOS() {
 		var mode uint32
 		if err := windows.GetConsoleMode(hOut, &mode); err == nil {
 			mode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING | windows.ENABLE_WRAP_AT_EOL_OUTPUT
+
+			// ENABLE_PROCESSED_OUTPUT (0x0001)
+			if WindowsProcessedOutput {
+				mode |= 0x0001
+			} else {
+				mode &^= 0x0001
+			}
+
 			windows.SetConsoleMode(hOut, mode)
 		}
 	}
