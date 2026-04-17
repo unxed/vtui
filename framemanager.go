@@ -871,7 +871,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 		}
 
 		if e.Type == vtinput.KeyEventType && e.KeyDown {
-			DebugLog("KEY: Vk=%X Char=%d Src=%s ActiveFrames=%d", e.VirtualKeyCode, e.Char, e.InputSource, len(fm.frames))
+			DebugLog("KEY: VK=%s Char=%d Src=%s ActiveFrames=%d", vtinput.VKString(e.VirtualKeyCode), e.Char, e.InputSource, len(fm.frames))
 		}
 
 		fm.dispatchEvent(e, injected)
@@ -1091,7 +1091,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	// --- Menu Interception ---
 	if ev.Type == vtinput.KeyEventType && ev.KeyDown {
 
-		DebugLog("INPUT: KeyPress VK=0x%X Char=%d (Stack: %d frames, ActiveIdx: %d)", ev.VirtualKeyCode, ev.Char, len(fm.frames), fm.ActiveIdx)
+		DebugLog("INPUT: KeyPress VK=%s Char=%d (Stack: %d frames, ActiveIdx: %d)", vtinput.VKString(ev.VirtualKeyCode), ev.Char, len(fm.frames), fm.ActiveIdx)
 
 		// 1. If Menu is Active, it has priority.
 		// We allow it even if topFrame is modal, provided topFrame IS the menu itself
@@ -1119,7 +1119,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 			return // Don't pass keys to background frames when menu is active
 		}
 	} else if (ev.Type == vtinput.KeyEventType && !ev.KeyDown) {
-		DebugLog("INPUT: KeyRelease VK=0x%X Char=%d (Stack: %d frames, ActiveIdx: %d)", ev.VirtualKeyCode, ev.Char, len(fm.frames), fm.ActiveIdx)
+		DebugLog("INPUT: KeyRelease VK=%s Char=%d (Stack: %d frames, ActiveIdx: %d)", vtinput.VKString(ev.VirtualKeyCode), ev.Char, len(fm.frames), fm.ActiveIdx)
 	}
 
 	// 3. Regular Dispatch (MDI Hit-Testing)
