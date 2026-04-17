@@ -290,14 +290,20 @@ func (t *Table) ProcessKey(e *vtinput.InputEvent) bool {
 
 func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 	if t.IsDisabled() { return false }
-	
+
 	// Pre-process for CellSelection before generic HandleMouse
+	originalCol := t.SelectCol
+	colChanged := false
+
 	if e.Type == vtinput.MouseEventType && e.ButtonState != 0 && e.KeyDown {
 		if t.CellSelection && t.HitTest(int(e.MouseX), int(e.MouseY)) {
 			currX := t.X1
 			for i, col := range t.Columns {
 				if int(e.MouseX) >= currX && int(e.MouseX) < currX+col.Width {
-					t.SelectCol = i
+					if t.SelectCol != i {
+						t.SelectCol = i
+						colChanged = true
+					}
 					break
 				}
 				currX += col.Width
@@ -305,8 +311,12 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 			}
 		}
 	}
-	
-	return t.HandleMouse(e)
+
+	handled := t.HandleMouse(e)
+	if !handled && colChanged {
+		t.SelectCol = originalCol
+	}
+	return handled
 }
 
 func (t *Table) SetPosition(x1, y1, x2, y2 int) {

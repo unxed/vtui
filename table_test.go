@@ -94,6 +94,39 @@ func TestTable_SelectableRowRendering(t *testing.T) {
 	checkCell(t, scr, 0, 2, 'S', Palette[ColDialogHighlightSelectedButton])
 }
 
+func TestTable_CellSelection_EmptyClick(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(20, 5)
+
+	cols := []TableColumn{
+		{Title: "C1", Width: 5, Alignment: AlignLeft},
+		{Title: "C2", Width: 5, Alignment: AlignLeft},
+	}
+	tbl := NewTable(0, 0, 11, 3, cols)
+	tbl.CellSelection = true
+
+	// Set 1 row
+	row1 := mockMultiColSelectableRow{"L1", "R1", [2]bool{false, false}}
+	tbl.SetRows([]TableRow{row1})
+
+	// Click on empty row (row 2), col 1 (X=6)
+	// Y=0 is header, Y=1 is row 0, Y=2 is row 1 (empty)
+	handled := tbl.ProcessMouse(&vtinput.InputEvent{
+		Type:        vtinput.MouseEventType,
+		KeyDown:     true,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		MouseX:      6,
+		MouseY:      2,
+	})
+
+	if handled {
+		t.Error("Click on empty space should not be handled")
+	}
+	if tbl.SelectCol != 0 {
+		t.Errorf("SelectCol should have been reverted to 0, got %d", tbl.SelectCol)
+	}
+}
 func TestTable_CellSelection(t *testing.T) {
 	SetDefaultPalette()
 	scr := NewSilentScreenBuf()
