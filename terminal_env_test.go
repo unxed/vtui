@@ -83,3 +83,39 @@ func TestTerminalEnv_Suspend(t *testing.T) {
 		t.Error("Suspend did not restore default cursor")
 	}
 }
+
+func TestTerminalEnv_ManageCursorDisabled(t *testing.T) {
+	mock := &mockTermOut{}
+	oldGetTermOut := getTermOut
+	getTermOut = func() interface {
+		WriteString(string) (int, error)
+		Sync() error
+	} {
+		return mock
+	}
+	defer func() { getTermOut = oldGetTermOut }()
+
+	// 1. Disable cursor management
+	ManageCursorStyle = false
+	isPrepared = false
+	inAltScreen = false
+	inputRestore = func() {}
+
+	// 2. Resume
+	Resume()
+	if strings.Contains(mock.builder.String(), seqBlinkingUnderline) {
+		t.Error("seqBlinkingUnderline sent even though ManageCursorStyle is false")
+	}
+
+	mock.builder.Reset()
+
+	// 3. Suspend
+	isPrepared = true
+	Suspend()
+	if strings.Contains(mock.builder.String(), seqDefaultCursor) {
+		t.Error("seqDefaultCursor sent even though ManageCursorStyle is false")
+	}
+
+	// Reset global state for other tests
+	ManageCursorStyle = true
+}

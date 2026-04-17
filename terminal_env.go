@@ -18,8 +18,9 @@ const (
 var (
 	termMu       sync.Mutex
 	inputRestore func()
-	isPrepared   bool
-	inAltScreen  bool
+	isPrepared        bool
+	inAltScreen       bool
+	ManageCursorStyle bool = true
 )
 
 var getTermOut = func() interface {
@@ -51,7 +52,10 @@ func Suspend() {
 			out.WriteString(seqAltScreenOff)
 			inAltScreen = false
 		}
-		out.WriteString(seqDefaultCursor + seqResetPalette + seqResetAttributes)
+		if ManageCursorStyle {
+			out.WriteString(seqDefaultCursor)
+		}
+		out.WriteString(seqResetPalette + seqResetAttributes)
 		out.Sync()
 		if inputRestore != nil {
 			inputRestore()
@@ -74,7 +78,9 @@ func Resume() error {
 		inputRestore = r
 
 		out := getTermOut()
-		out.WriteString(seqBlinkingUnderline)
+		if ManageCursorStyle {
+			out.WriteString(seqBlinkingUnderline)
+		}
 		if !inAltScreen {
 			out.WriteString(seqAltScreenOn)
 			inAltScreen = true

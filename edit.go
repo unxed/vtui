@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"os"
 	"unicode"
 	"strings"
 
@@ -103,6 +104,13 @@ func (e *Edit) Show(scr *ScreenBuf) {
 	e.DisplayObject(scr)
 
 	if e.IsFocused() && !e.HideCursor {
+		if ManageCursorStyle {
+			if e.overtype {
+				os.Stdout.WriteString("\x1b[1 q") // Blinking Block
+			} else {
+				os.Stdout.WriteString("\x1b[3 q") // Blinking Underline
+			}
+		}
 		scr.SetCursorVisible(true)
 		headText := string(e.text[e.leftPos:e.curPos])
 		vOffset := runewidth.StringWidth(headText)
