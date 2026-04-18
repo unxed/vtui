@@ -51,6 +51,73 @@ func TestAutoComplete_TabCompletion(t *testing.T) {
 	}
 }
 
+func TestAutoComplete_ReturnLogic(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+	fm.injectedEvents = nil
+
+	// История: "go run ."
+	// Ввод: "g"
+	edit := NewEdit(0, 10, 20, "g")
+	edit.History = []string{"go run ."}
+
+	ac := NewAutoCompleteMenu(edit)
+	fm.Push(ac)
+
+	// Нажимаем Enter СРАЗУ, без навигации стрелками
+	ac.ProcessKey(&vtinput.InputEvent{
+		Type:           vtinput.KeyEventType,
+		KeyDown:        true,
+		VirtualKeyCode: vtinput.VK_RETURN,
+	})
+
+	// 1. Текст должен замениться на подсказку
+	if edit.GetText() != "go run ." {
+		t.Errorf("Enter should update text even without navigation. Got %q", edit.GetText())
+	}
+
+	// 2. Должно быть инжектировано событие Enter для выполнения
+	if len(fm.injectedEvents) == 0 || fm.injectedEvents[0].VirtualKeyCode != vtinput.VK_RETURN {
+		t.Error("Enter should inject Return event for immediate execution")
+	}
+
+	if !ac.IsDone() {
+		t.Error("Menu should close on Enter")
+	}
+}
+
+func TestAutoComplete_ShiftEnter(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+	fm.injectedEvents = nil
+
+	edit := NewEdit(0, 10, 20, "g")
+	edit.History = []string{"go run ."}
+
+	ac := NewAutoCompleteMenu(edit)
+	fm.Push(ac)
+
+	// Нажимаем Shift+Enter
+	ac.ProcessKey(&vtinput.InputEvent{
+		Type:            vtinput.KeyEventType,
+		KeyDown:         true,
+		VirtualKeyCode:  vtinput.VK_RETURN,
+		ControlKeyState: vtinput.ShiftPressed,
+	})
+
+	// 1. Текст должен замениться
+	if edit.GetText() != "go run ." {
+		t.Errorf("Shift+Enter should update text. Got %q", edit.GetText())
+	}
+
+	// 2. Событие инжектироваться НЕ должно (просто подстановка для редактирования)
+	if len(fm.injectedEvents) != 0 {
+		t.Error("Shift+Enter should NOT inject execution event")
+	}
+}
+
 func TestAutoComplete_ShiftDelete(t *testing.T) {
 	SetDefaultPalette()
 	GlobalHistoryProvider = &mockHistoryProvider{storage: make(map[string][]string)}

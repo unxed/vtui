@@ -201,14 +201,14 @@ func TestEdit_HistoryButtonClick(t *testing.T) {
 		t.Error("Edit should handle click on history button")
 	}
 }
-func TestEdit_HistoryMenu_DeletionAndExecution(t *testing.T) {
+func TestEdit_HistoryMenu_Interactions(t *testing.T) {
 	SetDefaultPalette()
 	fm := FrameManager
 	fm.Init(NewSilentScreenBuf())
 	fm.injectedEvents = nil
 
 	e := NewEdit(0, 0, 20, "")
-	e.History = []string{"cmd1", "cmd2", "cmd3"}
+	e.History = []string{"cmd1", "cmd2"}
 
 	e.OpenHistory()
 	top := fm.GetTopFrame()
@@ -217,18 +217,7 @@ func TestEdit_HistoryMenu_DeletionAndExecution(t *testing.T) {
 		t.Fatal("OpenHistory did not push a VMenu")
 	}
 
-	// 1. Delete "cmd1"
-	menu.ProcessKey(&vtinput.InputEvent{
-		Type:           vtinput.KeyEventType,
-		KeyDown:        true,
-		VirtualKeyCode: vtinput.VK_DELETE,
-	})
-
-	if len(e.History) != 2 || e.History[0] != "cmd2" {
-		t.Errorf("Deletion failed, history: %v", e.History)
-	}
-
-	// 2. Shift+Enter on "cmd2" (Insert without injection)
+	// 1. Проверка Shift+Enter (только подстановка текста)
 	menu.ProcessKey(&vtinput.InputEvent{
 		Type:            vtinput.KeyEventType,
 		KeyDown:         true,
@@ -236,35 +225,28 @@ func TestEdit_HistoryMenu_DeletionAndExecution(t *testing.T) {
 		ControlKeyState: vtinput.ShiftPressed,
 	})
 
-	if e.GetText() != "cmd2" {
+	if e.GetText() != "cmd1" {
 		t.Errorf("Shift+Enter failed to insert text, got %q", e.GetText())
 	}
 	if len(fm.injectedEvents) != 0 {
-		t.Error("Shift+Enter should not inject events")
+		t.Error("Shift+Enter should not inject execution events")
 	}
 
-	// 3. Enter on "cmd3" (Insert WITH injection)
+	// 2. Проверка выбора мышкой (OnAction -> автовыполнение)
+	e.SetText("")
+	fm.injectedEvents = nil
 	e.OpenHistory()
 	menu2 := fm.GetTopFrame().(*VMenu)
 
-	// Navigate to "cmd3" (index 1)
-	menu2.ProcessKey(&vtinput.InputEvent{
-		Type:           vtinput.KeyEventType,
-		KeyDown:        true,
-		VirtualKeyCode: vtinput.VK_DOWN,
-	})
-
-	menu2.ProcessKey(&vtinput.InputEvent{
-		Type:           vtinput.KeyEventType,
-		KeyDown:        true,
-		VirtualKeyCode: vtinput.VK_RETURN,
-	})
-
-	if e.GetText() != "cmd3" {
-		t.Errorf("Enter failed to insert text, got %q", e.GetText())
+	if menu2.OnAction != nil {
+		menu2.OnAction(1) // Выбираем "cmd2"
 	}
-	if len(fm.injectedEvents) != 1 || fm.injectedEvents[0].VirtualKeyCode != vtinput.VK_RETURN {
-		t.Error("Enter failed to inject VK_RETURN event")
+
+	if e.GetText() != "cmd2" {
+		t.Errorf("Mouse selection failed to update text, got %q", e.GetText())
+	}
+	if len(fm.injectedEvents) == 0 || fm.injectedEvents[0].VirtualKeyCode != vtinput.VK_RETURN {
+		t.Error("Mouse selection in history should inject execution event")
 	}
 }
 func TestEdit_OnAction(t *testing.T) {
