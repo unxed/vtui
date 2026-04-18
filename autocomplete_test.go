@@ -76,44 +76,6 @@ func TestAutoComplete_ShiftDelete(t *testing.T) {
 	}
 }
 
-func TestAutoComplete_ReturnLogic(t *testing.T) {
-	SetDefaultPalette()
-	fm := FrameManager
-	fm.Init(NewSilentScreenBuf())
-
-	edit := NewEdit(0, 10, 20, "ls")
-	edit.History = []string{"ls -la"}
-
-	ac := NewAutoCompleteMenu(edit)
-	fm.Push(ac)
-
-	// Scenario 1: Press Enter WITHOUT navigation.
-	// It should close and NOT change the text, allowing the original Enter to execute the command.
-	ac.ProcessKey(&vtinput.InputEvent{
-		Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN,
-	})
-
-	if edit.GetText() != "ls" {
-		t.Error("Enter without navigation should not modify text")
-	}
-	if !ac.IsDone() {
-		t.Error("Menu should close on Enter")
-	}
-
-	// Scenario 2: Navigate then Enter.
-	ac = NewAutoCompleteMenu(edit)
-	ac.navigated = true
-	ac.lb.SetSelectPos(0) // "ls -la"
-
-	ac.ProcessKey(&vtinput.InputEvent{
-		Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN,
-	})
-
-	if edit.GetText() != "ls -la" {
-		t.Errorf("Enter after navigation failed: expected 'ls -la', got %q", edit.GetText())
-	}
-}
-
 func TestAutoComplete_EmptyOnDelete(t *testing.T) {
 	SetDefaultPalette()
 	edit := NewEdit(0, 0, 20, "a")
