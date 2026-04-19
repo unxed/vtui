@@ -95,15 +95,21 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 			FrameManager.EmitCommand(CmMenuRight, nil)
 			return true
 		}
-		// If last item in standalone menu, let focus cycle
-		if m.SelectPos == m.ItemCount-1 { return false }
+		// If last item in standalone menu, let focus cycle (unless wrapping is on)
+		if m.SelectPos == m.ItemCount-1 && !m.Wrap { return false }
 		return m.HandleKey(e)
 	case vtinput.VK_UP:
-		if m.SelectPos == 0 && !isSubMenu { return false }
+		if m.SelectPos == 0 && !isSubMenu && !m.Wrap { return false }
 		return m.HandleKey(e)
 	case vtinput.VK_DOWN:
-		if m.SelectPos == m.ItemCount-1 && !isSubMenu { return false }
+		if m.SelectPos == m.ItemCount-1 && !isSubMenu && !m.Wrap { return false }
 		return m.HandleKey(e)
+	case vtinput.VK_PRIOR: // PgUp
+		m.SetSelectPos(0)
+		return true
+	case vtinput.VK_NEXT: // PgDn
+		m.SetSelectPos(m.ItemCount - 1)
+		return true
 	case vtinput.VK_ESCAPE, vtinput.VK_F10:
 		m.SetExitCode(-1); return FrameManager.GetTopFrame() == Frame(m)
 	case vtinput.VK_RETURN:
