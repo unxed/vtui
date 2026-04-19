@@ -1,7 +1,3 @@
-//go:build !windows
-
-package vtui
-
 //go:build !windows && !darwin
 
 package vtui
