@@ -31,9 +31,9 @@ func TestLayoutValidator_Logic(t *testing.T) {
 
 	t.Run("Padding violation", func(t *testing.T) {
 		dlg := NewDialog(0, 0, 20, 10, "Test")
-		btn := NewButton(1, 2, "Bad") // Touches border
+		btn := NewButton(0, 2, "Bad") // Overlaps the left border (X=0)
 		dlg.AddItem(btn)
-		
+
 		errs := ValidateLayout(dlg)
 		if len(errs) == 0 { t.Error("Failed to detect padding violation") }
 	})

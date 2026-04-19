@@ -41,7 +41,8 @@ func ValidateLayout(c Container) []error {
 		}
 
 		// 1. Boundary & Padding Check
-		minX, minY, maxX, maxY := px1+2, py1+2, px2-2, py2-2
+		// 1. Boundary & Padding Check (Relaxed to 1 cell for TUI compactness)
+		minX, minY, maxX, maxY := px1+1, py1+1, px2-1, py2-1
 		if _, ok := item.(*Separator); ok {
 			minX, maxX = px1, px2
 		}
