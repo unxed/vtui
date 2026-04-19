@@ -35,6 +35,7 @@ type Edit struct {
 	ColorUnchangedIdx int
 	ColorSelectedIdx  int
 	HistoryID         string
+	OnTextChange      func(string)
 }
 
 // HistoryProvider is an interface for external history persistence (e.g. from f4).
@@ -247,6 +248,9 @@ func (e *Edit) InsertString(text string) {
 	newText = append(newText, e.text[e.curPos:]...)
 	e.text = newText
 	e.curPos += len(runes)
+	if e.OnTextChange != nil {
+		e.OnTextChange(string(e.text))
+	}
 }
 
 func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
@@ -264,9 +268,13 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 				newText = append(newText, e.text[:e.curPos]...)
 				newText = append(newText, e.pasteBuffer...)
 				newText = append(newText, e.text[e.curPos:]...)
+
 				e.text = newText
 				e.curPos += len(e.pasteBuffer)
 				e.pasteBuffer = nil
+				if e.OnTextChange != nil {
+					e.OnTextChange(string(e.text))
+				}
 			}
 		}
 		return true
@@ -453,6 +461,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 			e.curPos--
 		}
 		e.clearFlag = false
+		if e.OnTextChange != nil { e.OnTextChange(string(e.text)) }
 		return true
 
 	case vtinput.VK_DELETE:
@@ -462,6 +471,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 			e.text = append(e.text[:e.curPos], e.text[e.curPos+1:]...)
 		}
 		e.clearFlag = false
+		if e.OnTextChange != nil { e.OnTextChange(string(e.text)) }
 		return true
 
 	case vtinput.VK_INSERT:
@@ -516,10 +526,9 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 			e.text = newText
 		}
 		e.curPos++
+		if e.OnTextChange != nil { e.OnTextChange(string(e.text)) }
 		return true
 	}
-
-	DebugLog("    Edit: Key NOT handled")
 	return false
 }
 

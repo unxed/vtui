@@ -129,6 +129,33 @@ func (v *LookupValidator) Error(owner Frame) {
 	}
 	ShowMessageOn(owner, " Invalid Input ", msg, []string{"&Ok"})
 }
+// OctalValidator ensures input is a valid octal number (0-7).
+type OctalValidator struct {
+	MaxDigits int
+}
+
+func (v *OctalValidator) Validate(s string) bool {
+	if s == "" { return true }
+	_, err := strconv.ParseUint(s, 8, 32)
+	return err == nil && len(s) <= v.MaxDigits
+}
+
+func (v *OctalValidator) IsValidInput(s string) bool {
+	if v.MaxDigits > 0 && len([]rune(s)) > v.MaxDigits {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '7' {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *OctalValidator) Error(owner Frame) {
+	msg := fmt.Sprintf("Invalid octal value.\nUse only digits 0-7.\nMax length: %d", v.MaxDigits)
+	ShowMessageOn(owner, " Invalid Input ", msg, []string{"&Ok"})
+}
 
 // MaskValidator enforces a specific input pattern.
 // # - Digit, ? - Letter, & - Letter (Upper), ! - Any (Upper), @ - Any.
