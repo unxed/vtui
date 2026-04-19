@@ -697,6 +697,10 @@ func (fm *frameManager) GetScreenSize() int {
 	if fm.scr == nil { return 80 }
 	return fm.scr.width
 }
+func (fm *frameManager) GetScreenHeight() int {
+	if fm.scr == nil { return 25 }
+	return fm.scr.height
+}
 func (fm *frameManager) GetSyncStats() string {
 	tLen, tCap := 0, 0
 	if fm.TaskChan != nil {
