@@ -37,6 +37,39 @@ var x11KeysymToVK = map[uint32]uint16{
 	0xffe9: vtinput.VK_MENU,    // Left Alt
 	0xffea: vtinput.VK_MENU,    // Right Alt
 	0x0020: vtinput.VK_SPACE,
+
+	// Numpad (Keysyms range 0xff80 - 0xffaf)
+	0xff8d: vtinput.VK_RETURN,   // KP_Enter
+	0xffaa: vtinput.VK_MULTIPLY, // KP_Multiply
+	0xffab: vtinput.VK_ADD,      // KP_Add
+	0xffad: vtinput.VK_SUBTRACT, // KP_Subtract
+	0xffae: vtinput.VK_DECIMAL,  // KP_Decimal
+	0xffaf: vtinput.VK_DIVIDE,   // KP_Divide
+
+	// Numpad Digits (when NumLock is ON)
+	0xffb0: vtinput.VK_NUMPAD0,
+	0xffb1: vtinput.VK_NUMPAD1,
+	0xffb2: vtinput.VK_NUMPAD2,
+	0xffb3: vtinput.VK_NUMPAD3,
+	0xffb4: vtinput.VK_NUMPAD4,
+	0xffb5: vtinput.VK_NUMPAD5,
+	0xffb6: vtinput.VK_NUMPAD6,
+	0xffb7: vtinput.VK_NUMPAD7,
+	0xffb8: vtinput.VK_NUMPAD8,
+	0xffb9: vtinput.VK_NUMPAD9,
+
+	// Numpad Navigation (when NumLock is OFF)
+	0xff95: vtinput.VK_HOME,
+	0xff96: vtinput.VK_LEFT,
+	0xff97: vtinput.VK_UP,
+	0xff98: vtinput.VK_RIGHT,
+	0xff99: vtinput.VK_DOWN,
+	0xff9a: vtinput.VK_PRIOR,  // PgUp
+	0xff9b: vtinput.VK_NEXT,   // PgDn
+	0xff9c: vtinput.VK_END,
+	0xff9d: vtinput.VK_CLEAR, // Center 5
+	0xff9e: vtinput.VK_INSERT,
+	0xff9f: vtinput.VK_DELETE,
 }
 
 func keysymToVK(keysym uint32) uint16 {

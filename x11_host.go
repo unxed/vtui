@@ -146,6 +146,9 @@ func (h *X11Host) translateModifiers(state uint16) vtinput.ControlKeyState {
 	if state&xproto.ModMask1 != 0 { // Usually Alt
 		mods |= vtinput.LeftAltPressed
 	}
+	if state&xproto.ModMask2 != 0 { // Usually NumLock
+		mods |= vtinput.NumLockOn
+	}
 	return mods
 }
 
@@ -235,6 +238,19 @@ func (h *X11Host) RunEventLoop() {
 			char := rune(0)
 			if keysym < 0x80 && keysym >= 0x20 {
 				char = rune(keysym)
+			} else if keysym >= 0xffb0 && keysym <= 0xffb9 {
+				// Numpad digits 0-9
+				char = rune('0' + (keysym - 0xffb0))
+			} else {
+				// Special characters from Numpad
+				switch keysym {
+				case 0xffaa: char = '*'
+				case 0xffab: char = '+'
+				case 0xffad: char = '-'
+				case 0xffae: char = '.'
+				case 0xffaf: char = '/'
+				case 0xff8d: char = '\r'
+				}
 			}
 
 			h.reader.NativeEventChan <- &vtinput.InputEvent{
