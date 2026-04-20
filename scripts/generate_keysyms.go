@@ -13,7 +13,6 @@ import (
 
 const (
 	urlKeysymdef = "https://cgit.freedesktop.org/xorg/proto/x11proto/plain/keysymdef.h"
-	urlXF86      = "https://cgit.freedesktop.org/xorg/proto/x11proto/plain/XF86keysym.h"
 	outputName   = "x11_keysym_map_generated.go"
 )
 
@@ -36,7 +35,7 @@ func main() {
 
 	mapping := make(map[uint32]rune)
 
-	for _, url := range []string{urlKeysymdef, urlXF86} {
+	for _, url := range []string{urlKeysymdef} {
 		if err := parseURL(url, mapping); err != nil {
 			fmt.Printf("Error parsing %s: %v\n", url, err)
 			os.Exit(1)
@@ -68,7 +67,7 @@ func parseURL(url string, mapping map[uint32]rune) error {
 
 	scanner := bufio.NewScanner(resp.Body)
 	// Ищем: #define XK_name 0xvalue /* U+unicode description */
-	re := regexp.MustCompile(`\#define\s+(?:XK_|XF86XK_)([a-zA-Z_0-9]+)\s+0x([0-9a-fA-F]+).*(?:U\+([0-9A-F]{4,6}))`)
+	re := regexp.MustCompile(`\#define\s+(?:XK_)([a-zA-Z_0-9]+)\s+0x([0-9a-fA-F]+).*(?:U\+([0-9A-F]{4,6}))`)
 
 	lineCount := 0
 	foundInFile := 0
