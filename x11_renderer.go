@@ -115,16 +115,22 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			// 3. Draw Background (Direct memory fill)
 			br, bg, bb := uint8(bgRGB>>16), uint8(bgRGB>>8), uint8(bgRGB)
 			bgColor := color.RGBA{R: br, G: bg, B: bb, A: 255}
-			for iy := 0; iy < ch; iy++ {
-				// Safety: skip if we're drawing outside the current physical buffer (possible during rapid resize)
-				if py+iy >= int(r.host.height) { break }
-				rowStart := ((py+iy)*img.Stride + px*4)
-				for ix := 0; ix < drawW; ix++ {
-					if px+ix >= int(r.host.width) { break }
-					off := rowStart + ix*4
-					if off+3 < len(img.Pix) {
-						img.Pix[off], img.Pix[off+1], img.Pix[off+2], img.Pix[off+3] = br, bg, bb, 255
-					}
+
+			// Оптимизация: заполняем первую строку сегмента и копируем её в остальные
+			baseOff := py*img.Stride + px*4
+			maxBytes := drawW * 4
+			if baseOff+maxBytes <= len(img.Pix) {
+				// Заполняем первые 4 байта (один пиксель)
+				img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = br, bg, bb, 255
+				// Размножаем цвет по всей ширине сегмента (экспоненциально)
+				for n := 4; n < maxBytes; n *= 2 {
+					copy(img.Pix[baseOff+n:baseOff+maxBytes], img.Pix[baseOff:baseOff+n])
+				}
+				// Копируем готовую строку во все остальные строки ячейки
+				for iy := 1; iy < ch; iy++ {
+					if py+iy >= int(r.host.height) { break }
+					lineOff := (py+iy)*img.Stride + px*4
+					copy(img.Pix[lineOff:lineOff+maxBytes], img.Pix[baseOff:baseOff+maxBytes])
 				}
 			}
 
@@ -285,11 +291,18 @@ func (r *X11Renderer) drawCustomChar(img *image.RGBA, char rune, px, py, cw, ch 
 		return true
 
 	case '█':
-		for y := py; y < py+ch; y++ {
-			rowStart := y*img.Stride + px*4
-			for x := 0; x < cw; x++ {
-				off := rowStart + x*4
-				img.Pix[off], img.Pix[off+1], img.Pix[off+2], img.Pix[off+3] = r8, g8, b8, 255
+		baseOff := py*img.Stride + px*4
+		maxBytes := cw * 4
+		if baseOff+maxBytes <= len(img.Pix) {
+			img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = r8, g8, b8, 255
+			for n := 4; n < maxBytes; n *= 2 {
+				copy(img.Pix[baseOff+n:baseOff+maxBytes], img.Pix[baseOff:baseOff+n])
+			}
+			for y := 1; y < ch; y++ {
+				lineOff := (py+y)*img.Stride + px*4
+				if lineOff+maxBytes <= len(img.Pix) {
+					copy(img.Pix[lineOff:lineOff+maxBytes], img.Pix[baseOff:baseOff+maxBytes])
+				}
 			}
 		}
 		return true
