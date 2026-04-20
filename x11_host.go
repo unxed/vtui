@@ -505,20 +505,20 @@ func (h *X11Host) flushImage() {
 			continue
 		}
 
-		// Found start of dirty span
 		spanStart := y
 		spanEnd := y
-		for spanEnd < h2 && h.dirtyLines[spanEnd] && (spanEnd-spanStart) < rowsPerReqLimit {
-			h.dirtyLines[spanEnd] = false // Reset dirty flag as we process it
+		// Жадное объединение грязных строк в один запрос PutImage
+		for spanEnd < h2 && (h.dirtyLines[spanEnd] || (spanEnd+1 < h2 && h.dirtyLines[spanEnd+1])) && (spanEnd-spanStart) < rowsPerReqLimit {
+			h.dirtyLines[spanEnd] = false
 			spanEnd++
 		}
 
-		rows := uint16(spanEnd - spanStart)
-		// МАКСИМАЛЬНАЯ ОПТИМИЗАЦИЯ: передаем срез оригинального Pix буфера.
-		// Так как Renderer теперь пишет в формате BGRA, конвертация не нужна.
-		data := pix[spanStart*lineStride : spanEnd*lineStride]
-		xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
-			uint16(w), rows, 0, int16(spanStart), 0, 24, data)
+		if spanEnd > spanStart {
+			rows := uint16(spanEnd - spanStart)
+			data := pix[spanStart*lineStride : spanEnd*lineStride]
+			xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
+				uint16(w), rows, 0, int16(spanStart), 0, 24, data)
+		}
 		y = spanEnd
 	}
 }

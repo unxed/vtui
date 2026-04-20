@@ -53,22 +53,31 @@ func (r *X11Renderer) SetCursor(x, y int, visible bool) {
 	r.cursorVis = visible
 }
 
+func (r *X11Renderer) getCellColors(cell CharInfo) (uint32, uint32) {
+	bg := GetRGBBack(cell.Attributes)
+	if cell.Attributes&IsBgRGB == 0 {
+		bg = ThemePalette[GetIndexBack(cell.Attributes)]
+	}
+	fg := GetRGBFore(cell.Attributes)
+	if cell.Attributes&IsFgRGB == 0 {
+		fg = ThemePalette[GetIndexFore(cell.Attributes)]
+	}
+	return fg, bg
+}
+
 func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool) {
 	r.host.mu.Lock()
 	defer r.host.mu.Unlock()
 
-	// Мигание на основе системного времени (период 1 сек: 500мс горит, 500мс нет)
-	blinkState := (time.Now().UnixNano() / int64(500*time.Millisecond)) % 2 == 0
-
+	blinkState := (time.Now().UnixNano()/int64(500*time.Millisecond))%2 == 0
 	r.w, r.h = w, h
 	img := r.host.imgBuf
 	cw, ch := r.host.cellW, r.host.cellH
 
 	for y := 0; y < h; y++ {
-		// Оптимизация: Проверяем, изменилась ли строка целиком
+		rowOff := y * w
 		rowDirty := forceRedraw || y == r.cursorY || y == r.oldCursorY
 		if !rowDirty {
-			rowOff := y * w
 			for x := 0; x < w; x++ {
 				if buf[rowOff+x] != shadow[rowOff+x] {
 					rowDirty = true
@@ -76,12 +85,10 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 				}
 			}
 		}
-
 		if !rowDirty {
 			continue
 		}
 
-		// Если строка грязная, помечаем все её скан-линии один раз
 		for iy := 0; iy < ch; iy++ {
 			lineIdx := y*ch + iy
 			if lineIdx >= 0 && lineIdx < len(r.host.dirtyLines) {
@@ -89,55 +96,39 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			}
 		}
 
-		for x := 0; x < w; x++ {
-			idx := y*w + x
+		for x := 0; x < w; {
+			idx := rowOff + x
+			cell := buf[idx]
+			_, bg := r.getCellColors(cell)
 
-			isCursorCell := (x == r.cursorX && y == r.cursorY && r.cursorVis && blinkState)
-			// Даже в грязной строке пропускаем ячейки без изменений
-			if !forceRedraw && buf[idx] == shadow[idx] && !isCursorCell && !(x == r.oldCursorX && y == r.oldCursorY) {
-				continue
+			// 1. Находим "спан" (группу ячеек) с одинаковым фоном
+			spanW := 0
+			for x+spanW < w {
+				nextCell := buf[rowOff+x+spanW]
+				if nextCell.Char == WideCharFiller {
+					spanW++
+					continue
+				}
+				_, nextBg := r.getCellColors(nextCell)
+				if nextBg != bg {
+					break
+				}
+				spanW++
 			}
 
-			cell := buf[idx]
+			// 2. Быстрая заливка фона для всего спана
 			px := x * cw
 			py := y * ch
+			spanPixW := spanW * cw
+			br, bgG, bb := uint8(bg>>16), uint8(bg>>8), uint8(bg)
 
-			if cell.Char == WideCharFiller {
-				continue // Already handled by the previous wide character cell
-			}
-
-			// 1. Extract Colors
-			bgRGB := GetRGBBack(cell.Attributes)
-			if cell.Attributes&IsBgRGB == 0 {
-				bgRGB = ThemePalette[GetIndexBack(cell.Attributes)]
-			}
-			fgRGB := GetRGBFore(cell.Attributes)
-			if cell.Attributes&IsFgRGB == 0 {
-				fgRGB = ThemePalette[GetIndexFore(cell.Attributes)]
-			}
-
-			// 2. Calculate widths
-			char := rune(cell.Char)
-			rw := runewidth.RuneWidth(char)
-			if rw < 1 { rw = 1 }
-			drawW := cw * rw
-
-			// 3. Draw Background (Direct memory fill)
-			br, bg, bb := uint8(bgRGB>>16), uint8(bgRGB>>8), uint8(bgRGB)
-			// Используем порядок BGRA для прямой совместимости с X11
-			bgColor := color.RGBA{R: br, G: bg, B: bb, A: 255}
-
-			// Оптимизация: заполняем первую строку сегмента и копируем её в остальные
 			baseOff := py*img.Stride + px*4
-			maxBytes := drawW * 4
+			maxBytes := spanPixW * 4
 			if baseOff+maxBytes <= len(img.Pix) {
-				// Заполняем первые 4 байта в порядке BGRA
-				img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = bb, bg, br, 255
-				// Размножаем цвет по всей ширине сегмента (экспоненциально)
+				img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = bb, bgG, br, 255
 				for n := 4; n < maxBytes; n *= 2 {
 					copy(img.Pix[baseOff+n:baseOff+maxBytes], img.Pix[baseOff:baseOff+n])
 				}
-				// Копируем готовую строку во все остальные строки ячейки
 				for iy := 1; iy < ch; iy++ {
 					if py+iy >= int(r.host.height) { break }
 					lineOff := (py+iy)*img.Stride + px*4
@@ -145,30 +136,48 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 				}
 			}
 
-			// 4. Draw Character
-			if char != 0 && char != ' ' {
-				fgColor := color.RGBA{R: uint8(fgRGB >> 16), G: uint8(fgRGB >> 8), B: uint8(fgRGB), A: 255}
-				if !r.drawCustomChar(img, char, px, py, cw, ch, fgColor) {
-					r.drawCachedGlyph(img, char, px, py, rw, fgRGB, bgRGB, fgColor, bgColor)
+			// 3. Отрисовка контента внутри спана
+			for sx := 0; sx < spanW; {
+				currX := x + sx
+				cIdx := rowOff + currX
+				currCell := buf[cIdx]
+				if currCell.Char == WideCharFiller {
+					sx++
+					continue
 				}
-			}
 
-			// 5. Draw Cursor (Inverted Underline)
-			if isCursorCell {
-				thickness := 2
-				if r.host.scale > 1 {
-					thickness = 4
-				}
-				for iy := ch - thickness; iy < ch; iy++ {
-					rowStart := (py+iy)*img.Stride + px*4
-					for ix := 0; ix < cw; ix++ {
-						off := rowStart + ix*4
-						img.Pix[off] = 255 - img.Pix[off]
-						img.Pix[off+1] = 255 - img.Pix[off+1]
-						img.Pix[off+2] = 255 - img.Pix[off+2]
+				char := rune(currCell.Char)
+				rw := runewidth.RuneWidth(char)
+				if rw < 1 { rw = 1 }
+
+				cpx := currX * cw
+				cfg, cbg := r.getCellColors(currCell)
+				fgColor := color.RGBA{R: uint8(cfg >> 16), G: uint8(cfg >> 8), B: uint8(cfg), A: 255}
+				bgColor := color.RGBA{R: uint8(cbg >> 16), G: uint8(cbg >> 8), B: uint8(cbg), A: 255}
+
+				if char != 0 && char != ' ' {
+					if !r.drawCustomChar(img, char, cpx, py, cw, ch, fgColor) {
+						r.drawCachedGlyph(img, char, cpx, py, rw, cfg, cbg, fgColor, bgColor)
 					}
 				}
+
+				// 4. Курсор
+				if currX == r.cursorX && y == r.cursorY && r.cursorVis && blinkState {
+					thickness := 2
+					if r.host.scale > 1 { thickness = 4 }
+					for iy := ch - thickness; iy < ch; iy++ {
+						rowStart := (py+iy)*img.Stride + cpx*4
+						for ix := 0; ix < cw; ix++ {
+							off := rowStart + ix*4
+							img.Pix[off] = 255 - img.Pix[off]
+							img.Pix[off+1] = 255 - img.Pix[off+1]
+							img.Pix[off+2] = 255 - img.Pix[off+2]
+						}
+					}
+				}
+				sx += rw
 			}
+			x += spanW
 		}
 	}
 	r.oldCursorX = r.cursorX
