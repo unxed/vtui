@@ -65,27 +65,37 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 	cw, ch := r.host.cellW, r.host.cellH
 
 	for y := 0; y < h; y++ {
+		// Оптимизация: Проверяем, изменилась ли строка целиком
+		rowDirty := forceRedraw || y == r.cursorY || y == r.oldCursorY
+		if !rowDirty {
+			rowOff := y * w
+			for x := 0; x < w; x++ {
+				if buf[rowOff+x] != shadow[rowOff+x] {
+					rowDirty = true
+					break
+				}
+			}
+		}
+
+		if !rowDirty {
+			continue
+		}
+
+		// Если строка грязная, помечаем все её скан-линии один раз
+		for iy := 0; iy < ch; iy++ {
+			lineIdx := y*ch + iy
+			if lineIdx >= 0 && lineIdx < len(r.host.dirtyLines) {
+				r.host.dirtyLines[lineIdx] = true
+			}
+		}
+
 		for x := 0; x < w; x++ {
 			idx := y*w + x
 
-			// Ячейка "грязная" если:
-			// 1. Изменился символ/цвет (стандартно)
-			// 2. Это новая позиция курсора (нужно инвертировать)
-			// 3. Это старая позиция курсора (нужно вернуть как было)
 			isCursorCell := (x == r.cursorX && y == r.cursorY && r.cursorVis && blinkState)
-			wasCursorCell := (x == r.oldCursorX && y == r.oldCursorY)
-
-			if !forceRedraw && buf[idx] == shadow[idx] && !isCursorCell && !wasCursorCell {
+			// Даже в грязной строке пропускаем ячейки без изменений
+			if !forceRedraw && buf[idx] == shadow[idx] && !isCursorCell && !(x == r.oldCursorX && y == r.oldCursorY) {
 				continue
-			}
-
-			// Mark scanlines as dirty for the host.
-			// Bounds check is required as X11 resize events are asynchronous.
-			for iy := 0; iy < ch; iy++ {
-				lineIdx := y*ch + iy
-				if lineIdx >= 0 && lineIdx < len(r.host.dirtyLines) {
-					r.host.dirtyLines[lineIdx] = true
-				}
 			}
 
 			cell := buf[idx]
@@ -114,14 +124,15 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 
 			// 3. Draw Background (Direct memory fill)
 			br, bg, bb := uint8(bgRGB>>16), uint8(bgRGB>>8), uint8(bgRGB)
+			// Используем порядок BGRA для прямой совместимости с X11
 			bgColor := color.RGBA{R: br, G: bg, B: bb, A: 255}
 
 			// Оптимизация: заполняем первую строку сегмента и копируем её в остальные
 			baseOff := py*img.Stride + px*4
 			maxBytes := drawW * 4
 			if baseOff+maxBytes <= len(img.Pix) {
-				// Заполняем первые 4 байта (один пиксель)
-				img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = br, bg, bb, 255
+				// Заполняем первые 4 байта в порядке BGRA
+				img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = bb, bg, br, 255
 				// Размножаем цвет по всей ширине сегмента (экспоненциально)
 				for n := 4; n < maxBytes; n *= 2 {
 					copy(img.Pix[baseOff+n:baseOff+maxBytes], img.Pix[baseOff:baseOff+n])
@@ -192,9 +203,15 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 			Dot:  fixed.Point26_6{X: fixed.I(0), Y: metrics.Ascent},
 		}
 		d.DrawString(string(char))
+
+		// Разовая оптимизация: меняем R и B местами во всем кэше глифа,
+		// чтобы потом копировать его в основной буфер одним махом без обработки.
+		for p := 0; p < len(cached.Pix); p += 4 {
+			cached.Pix[p], cached.Pix[p+2] = cached.Pix[p+2], cached.Pix[p]
+		}
+
 		r.glyphCache[key] = cached
 	}
-
 	for iy := 0; iy < ch; iy++ {
 		dstOff := (py+iy)*img.Stride + px*4
 		srcOff := iy * cached.Stride
@@ -294,7 +311,8 @@ func (r *X11Renderer) drawCustomChar(img *image.RGBA, char rune, px, py, cw, ch 
 		baseOff := py*img.Stride + px*4
 		maxBytes := cw * 4
 		if baseOff+maxBytes <= len(img.Pix) {
-			img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = r8, g8, b8, 255
+			// Пишем сразу в BGRA
+			img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = b8, g8, r8, 255
 			for n := 4; n < maxBytes; n *= 2 {
 				copy(img.Pix[baseOff+n:baseOff+maxBytes], img.Pix[baseOff:baseOff+n])
 			}

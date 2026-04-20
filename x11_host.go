@@ -477,19 +477,14 @@ func (h *X11Host) flushImage() {
 	}
 
 	pix := h.imgBuf.Pix
-	bgra := h.bgraBuf
 	lineStride := w * 4
 
-	// 1. Process dirty lines: Convert only what changed
+	// Проверяем, есть ли вообще изменения
 	anyDirty := false
 	for y := 0; y < h2; y++ {
 		if h.dirtyLines[y] {
 			anyDirty = true
-			off := y * lineStride
-			for x := 0; x < lineStride; x += 4 {
-				p := off + x
-				bgra[p], bgra[p+1], bgra[p+2], bgra[p+3] = pix[p+2], pix[p+1], pix[p], 0xFF
-			}
+			break
 		}
 	}
 
@@ -519,7 +514,9 @@ func (h *X11Host) flushImage() {
 		}
 
 		rows := uint16(spanEnd - spanStart)
-		data := bgra[spanStart*lineStride : spanEnd*lineStride]
+		// МАКСИМАЛЬНАЯ ОПТИМИЗАЦИЯ: передаем срез оригинального Pix буфера.
+		// Так как Renderer теперь пишет в формате BGRA, конвертация не нужна.
+		data := pix[spanStart*lineStride : spanEnd*lineStride]
 		xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
 			uint16(w), rows, 0, int16(spanStart), 0, 24, data)
 		y = spanEnd
