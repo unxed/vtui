@@ -464,9 +464,10 @@ func (h *X11Host) RunEventLoop() {
 
 // flushImage converts the Go image.RGBA into an X11 PutImage request.
 // In Phase 3, this will be replaced with MIT-SHM for zero-copy performance.
-func (h *X11Host) flushImage() {
+func (h *X11Host) flushImage() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	putCalls := 0
 
 	b := h.imgBuf.Bounds()
 	w, h2 := b.Dx(), b.Dy()
@@ -489,7 +490,7 @@ func (h *X11Host) flushImage() {
 	}
 
 	if !anyDirty {
-		return
+		return 0
 	}
 
 	// 2. Find and send contiguous spans of dirty lines
@@ -512,13 +513,14 @@ func (h *X11Host) flushImage() {
 			h.dirtyLines[spanEnd] = false
 			spanEnd++
 		}
-
 		if spanEnd > spanStart {
 			rows := uint16(spanEnd - spanStart)
 			data := pix[spanStart*lineStride : spanEnd*lineStride]
 			xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
 				uint16(w), rows, 0, int16(spanStart), 0, 24, data)
+			putCalls++
 		}
 		y = spanEnd
 	}
+	return putCalls
 }

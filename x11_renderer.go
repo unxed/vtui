@@ -21,6 +21,17 @@ type glyphKey struct {
 	w  int
 }
 
+type renderStats struct {
+	frameCount int
+	totalDraw  time.Duration
+	totalFlush time.Duration
+	totalRows  int
+	dirtyRows  int
+	glyphs     int
+	putImages  int
+	lastReport time.Time
+}
+
 type X11Renderer struct {
 	host       *X11Host
 	face       font.Face
@@ -33,6 +44,8 @@ type X11Renderer struct {
 	// Состояние для управления миганием и очистки "шлейфа"
 	oldCursorX int
 	oldCursorY int
+
+	stats renderStats
 }
 
 func NewX11Renderer(host *X11Host, face font.Face) *X11Renderer {
@@ -66,6 +79,7 @@ func (r *X11Renderer) getCellColors(cell CharInfo) (uint32, uint32) {
 }
 
 func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool) {
+	start := time.Now()
 	r.host.mu.Lock()
 	defer r.host.mu.Unlock()
 
@@ -75,6 +89,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 	cw, ch := r.host.cellW, r.host.cellH
 
 	for y := 0; y < h; y++ {
+		r.stats.totalRows++
 		rowOff := y * w
 		rowDirty := forceRedraw || y == r.cursorY || y == r.oldCursorY
 		if !rowDirty {
@@ -88,6 +103,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 		if !rowDirty {
 			continue
 		}
+		r.stats.dirtyRows++
 
 		for iy := 0; iy < ch; iy++ {
 			lineIdx := y*ch + iy
@@ -156,6 +172,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 				bgColor := color.RGBA{R: uint8(cbg >> 16), G: uint8(cbg >> 8), B: uint8(cbg), A: 255}
 
 				if char != 0 && char != ' ' {
+					r.stats.glyphs++
 					if !r.drawCustomChar(img, char, cpx, py, cw, ch, fgColor) {
 						r.drawCachedGlyph(img, char, cpx, py, rw, cfg, cbg, fgColor, bgColor)
 					}
@@ -182,6 +199,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 	}
 	r.oldCursorX = r.cursorX
 	r.oldCursorY = r.cursorY
+	r.stats.totalDraw += time.Since(start)
 }
 
 func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int, fg, bg uint32, fgCol, bgCol color.RGBA) {
@@ -230,7 +248,36 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 }
 
 func (r *X11Renderer) Flush() {
-	r.host.flushImage()
+	start := time.Now()
+	calls := r.host.flushImage()
+	r.stats.totalFlush += time.Since(start)
+	r.stats.putImages += calls
+	r.stats.frameCount++
+
+	if time.Since(r.stats.lastReport) >= 2*time.Second {
+		r.reportStats()
+	}
+}
+
+func (r *X11Renderer) reportStats() {
+	if r.stats.frameCount == 0 {
+		r.stats.lastReport = time.Now()
+		return
+	}
+
+	avgDraw := r.stats.totalDraw / time.Duration(r.stats.frameCount)
+	avgFlush := r.stats.totalFlush / time.Duration(r.stats.frameCount)
+
+	DebugLog("[GUI PERF] FPS: %d, AvgDraw: %v, AvgFlush: %v, Dirty: %d/%d rows, PutImages: %d, Glyphs: %d",
+		r.stats.frameCount/2, // за 2 секунды
+		avgDraw,
+		avgFlush,
+		r.stats.dirtyRows/r.stats.frameCount,
+		r.stats.totalRows/r.stats.frameCount,
+		r.stats.putImages/r.stats.frameCount,
+		r.stats.glyphs/r.stats.frameCount)
+
+	r.stats = renderStats{lastReport: time.Now()}
 }
 
 // drawCustomChar performs pixel-perfect drawing of lines and blocks.
