@@ -4,6 +4,7 @@ import (
 	"sort"
     "unicode/utf8"
 
+	"github.com/unxed/vtui"
 	"github.com/unxed/vtui/piecetable"
 	"github.com/mattn/go-runewidth"
 )
@@ -23,6 +24,7 @@ type WrapEngine struct {
 	wrapWidth  int
 	wordWrap   bool
 	fragmentCache [][]LineFragment
+	tabSize    int
 
 	// rowOffsets[i] хранит общее количество визуальных строк во всех
 	// логических строках ПЕРЕД строкой i.
@@ -40,7 +42,22 @@ func NewWrapEngine(pt *piecetable.PieceTable, li *piecetable.LineIndex) *WrapEng
 		wrapWidth:     80,
 		wordWrap:      true,
 		fragmentCache: nil,
+		tabSize:       8,
 	}
+}
+
+func (we *WrapEngine) SetTabSize(size int) {
+	if size <= 0 { size = 8 }
+	if we.tabSize != size {
+		we.tabSize = size
+		we.InvalidateCache()
+	}
+}
+
+func (we *WrapEngine) SetPointers(pt *piecetable.PieceTable, li *piecetable.LineIndex) {
+	we.pt = pt
+	we.li = li
+	we.InvalidateCache()
 }
 
 // SetWidth устанавливает ширину для свертки. При изменении сбрасывает кэш.
@@ -154,7 +171,9 @@ func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
 		for len(tmpData) > 0 {
 			r, size := utf8.DecodeRune(tmpData)
 			rw := 1
-			if r >= 0x7F {
+			if r == '\t' {
+				rw = we.tabSize - (width % we.tabSize)
+			} else if r >= 0x7F {
 				rw = runewidth.RuneWidth(r)
 			}
 			if rw < 0 { rw = 1 }
@@ -188,7 +207,9 @@ func (we *WrapEngine) GetFragments(logLineIdx int) []LineFragment {
 		for scanPos < dataLen {
 			r, size := utf8.DecodeRune(lineData[scanPos:])
 			w := 1
-			if r >= 0x7F {
+			if r == '\t' {
+				w = we.tabSize - (visualWidth % we.tabSize)
+			} else if r >= 0x7F {
 				w = runewidth.RuneWidth(r)
 			}
 			if w < 0 { w = 1 }
@@ -378,7 +399,9 @@ func (we *WrapEngine) LogicalToVisual(byteOffset int) (visualRow, visualCol int)
 				for len(data) > 0 {
 					r, size := utf8.DecodeRune(data)
 					rw := 1
-					if r >= 0x7F {
+					if r == '\t' {
+						rw = we.tabSize - (width % we.tabSize)
+					} else if r >= 0x7F {
 						rw = runewidth.RuneWidth(r)
 					}
 					if rw <= 0 { rw = 1 }
@@ -405,12 +428,15 @@ func (we *WrapEngine) VisualToLogical(visualRow, visualCol int) int {
 	logLineIdx, fragIdx := we.GetLogLineAtVisualRow(visualRow)
 	fragments := we.GetFragments(logLineIdx)
 	if fragments == nil {
+		vtui.DebugLog("DEBUG_V2L_FAIL: No fragments for LogLine %d", logLineIdx)
 		return 0
 	}
 	if fragIdx >= len(fragments) {
 		fragIdx = len(fragments) - 1
 	}
 	frag := fragments[fragIdx]
+
+	vtui.DebugLog("DEBUG_V2L_START: Row:%d Col:%d -> LogLine:%d Frag:%d StartOff:%d EndOff:%d", visualRow, visualCol, logLineIdx, fragIdx, frag.ByteOffsetStart, frag.ByteOffsetEnd)
 
 	if frag.ByteOffsetStart >= frag.ByteOffsetEnd || visualCol <= 0 {
 		return frag.ByteOffsetStart
@@ -425,7 +451,9 @@ func (we *WrapEngine) VisualToLogical(visualRow, visualCol int) int {
 	for len(lineData) > 0 {
 		r, size := utf8.DecodeRune(lineData)
 		rw := 1
-		if r >= 0x7F {
+		if r == '\t' {
+			rw = we.tabSize - (currentCol % we.tabSize)
+		} else if r >= 0x7F {
 			rw = runewidth.RuneWidth(r)
 		}
 		if rw <= 0 {
