@@ -129,6 +129,73 @@ func TestWrapEngine_Navigation(t *testing.T) {
 	}
 }
 
+func TestWrapEngine_TabsVariableWidth(t *testing.T) {
+	// TabSize = 4.
+	// "1\t" -> '1' (col 0), '\t' starts at col 1. Width should be 4 - (1%4) = 3. Total width 4.
+	// "\t"  -> starts at col 0. Width 4.
+	pt := piecetable.New([]byte("1\t\t"))
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+	we := NewWrapEngine(pt, li)
+	we.SetTabSize(4)
+	we.ToggleWrap(false)
+
+	frags := we.GetFragments(0)
+	// '1' (1) + tab1 (3) + tab2 (4) = 8
+	if frags[0].VisualWidth != 8 {
+		t.Errorf("Variable tab width failed: expected 8, got %d", frags[0].VisualWidth)
+	}
+
+	// Test mapping inside the first tab (visual columns 1, 2, 3)
+	// All should map to the same logical offset 1 (the first tab)
+	for col := 1; col <= 3; col++ {
+		off := we.VisualToLogical(0, col)
+		if off != 1 {
+			t.Errorf("VisualToLogical(col %d) inside tab: expected offset 1, got %d", col, off)
+		}
+	}
+}
+
+func TestWrapEngine_SetTabSize(t *testing.T) {
+	pt := piecetable.New([]byte("\t"))
+	li := piecetable.NewLineIndex()
+	li.Rebuild(pt)
+	we := NewWrapEngine(pt, li)
+	we.ToggleWrap(false)
+
+	we.SetTabSize(4)
+	if we.GetFragments(0)[0].VisualWidth != 4 {
+		t.Errorf("TabSize 4 failed: got %d", we.GetFragments(0)[0].VisualWidth)
+	}
+
+	we.SetTabSize(8)
+	// Changing tab size must invalidate cache
+	if we.GetFragments(0)[0].VisualWidth != 8 {
+		t.Errorf("TabSize 8 failed: got %d", we.GetFragments(0)[0].VisualWidth)
+	}
+}
+
+func TestWrapEngine_SetPointersSync(t *testing.T) {
+	pt1 := piecetable.New([]byte("old"))
+	li1 := piecetable.NewLineIndex()
+	li1.Rebuild(pt1)
+	we := NewWrapEngine(pt1, li1)
+	we.GetFragments(0) // Warm up cache
+
+	pt2 := piecetable.New([]byte("new data"))
+	li2 := piecetable.NewLineIndex()
+	li2.Rebuild(pt2)
+
+	// Update pointers
+	we.SetPointers(pt2, li2)
+
+	frags := we.GetFragments(0)
+	data, _ := pt2.GetRange(frags[0].ByteOffsetStart, frags[0].ByteOffsetEnd-frags[0].ByteOffsetStart)
+	if string(data) != "new data" {
+		t.Errorf("SetPointers failed to sync data: expected 'new data', got %q", string(data))
+	}
+}
+
 func TestWrapEngine_Performance10MB(t *testing.T) {
 	// Создаем 10 МБ текста
 	chunk := "The quick brown fox jumps over the lazy dog. " // 45 bytes
