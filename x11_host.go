@@ -172,7 +172,18 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 		data := make([]byte, 4)
 		xgb.Put32(data, uint32(deleteAtom.Atom))
 		xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, protocolsAtom.Atom,
-			xproto.AtomAtom, 32, 1, data)
+xproto.AtomAtom, 32, 1, data)
+	}
+
+	// Request maximization via EWMH
+	stateAtom, _ := xproto.InternAtom(conn, false, 13, "_NET_WM_STATE").Reply()
+	maxVertAtom, _ := xproto.InternAtom(conn, false, 28, "_NET_WM_STATE_MAXIMIZED_VERT").Reply()
+	maxHorzAtom, _ := xproto.InternAtom(conn, false, 28, "_NET_WM_STATE_MAXIMIZED_HORZ").Reply()
+	if stateAtom != nil && maxVertAtom != nil && maxHorzAtom != nil {
+		data := make([]byte, 8)
+		xgb.Put32(data, uint32(maxVertAtom.Atom))
+		xgb.Put32(data[4:], uint32(maxHorzAtom.Atom))
+		xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, stateAtom.Atom, xproto.AtomAtom, 32, 2, data)
 	}
 
 	xproto.MapWindow(conn, host.wid)
