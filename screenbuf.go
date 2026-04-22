@@ -346,8 +346,8 @@ func (s *ScreenBuf) Flush() {
 	}
 
 	s.Renderer.SetPalette(activePal)
-	s.Renderer.Render(s.buf, s.shadow, s.width, s.height, s.dirty)
 	s.Renderer.SetCursor(s.cursorX, s.cursorY, s.cursorVisible)
+	s.Renderer.Render(s.buf, s.shadow, s.width, s.height, s.dirty || s.cursorDirty)
 	s.Renderer.Flush()
 
 	s.dirty = false

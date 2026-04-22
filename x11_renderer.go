@@ -61,9 +61,13 @@ func (r *X11Renderer) SetPalette(pal *[256]uint32) {
 }
 
 func (r *X11Renderer) SetCursor(x, y int, visible bool) {
-	r.cursorX = x
-	r.cursorY = y
-	r.cursorVis = visible
+	if r.cursorX != x || r.cursorY != y || r.cursorVis != visible {
+		r.oldCursorX = r.cursorX
+		r.oldCursorY = r.cursorY
+		r.cursorX = x
+		r.cursorY = y
+		r.cursorVis = visible
+	}
 }
 
 func (r *X11Renderer) getCellColors(cell CharInfo) (uint32, uint32) {
@@ -213,8 +217,6 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			x += spanW
 		}
 	}
-	r.oldCursorX = r.cursorX
-	r.oldCursorY = r.cursorY
 	r.stats.totalDraw += time.Since(start)
 }
 
