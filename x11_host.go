@@ -3,15 +3,55 @@
 package vtui
 
 import (
+	"fmt"
 	"image"
 	"sync"
-	"fmt"
-	"unicode"
+	"syscall"
+	"unsafe"
 
 	"github.com/BurntSushi/xgb"
+	"github.com/BurntSushi/xgb/shm"
 	"github.com/BurntSushi/xgb/xproto"
 	"github.com/unxed/vtinput"
 )
+
+var (
+	shmId   int
+	shmAddr uintptr
+	shmData []byte
+)
+
+func init() {
+	// Constants for Linux IPC
+	const (
+		ipcPrivate = 0
+		ipcCreat   = 01000
+		ipcRmid    = 0
+	)
+
+	// Allocate a 32MB segment (enough for 4K display)
+	size := 3840 * 2160 * 4
+	
+	r1, _, err := syscall.Syscall(syscall.SYS_SHMGET, uintptr(ipcPrivate), uintptr(size), uintptr(ipcCreat|0600))
+	if err != 0 {
+		DebugLog("X11: shmget failed: %v", err)
+		return
+	}
+	id := int(r1)
+
+	r1, _, err = syscall.Syscall(syscall.SYS_SHMAT, uintptr(id), 0, 0)
+	if err != 0 {
+		syscall.Syscall(syscall.SYS_SHMCTL, uintptr(id), uintptr(ipcRmid), 0)
+		DebugLog("X11: shmat failed: %v", err)
+		return
+	}
+	addr := r1
+
+	shmId = id
+	shmAddr = addr
+	shmData = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), size)
+	DebugLog("X11: Allocated shared memory segment (ID: %d)", shmId)
+}
 
 // X11Host encapsulates the connection to the X server and window management.
 type X11Host struct {
@@ -21,6 +61,7 @@ type X11Host struct {
 	screen       *xproto.ScreenInfo
 	gc           xproto.Gcontext
 	pixmap       xproto.Pixmap
+	shmSeg       shm.Seg // Shared memory segment
 	width        uint16
 	height       uint16
 	cellW        int
@@ -34,10 +75,10 @@ type X11Host struct {
 	keyMap       []xproto.Keysym
 	keysPerCode  byte
 	minKeyCode   xproto.Keycode
-	atomDelete     xproto.Atom
-	dirtyLines     []bool
-	lCtrl, rCtrl   bool
-	lAlt, rAlt     bool
+	atomDelete   xproto.Atom
+	dirtyLines   []bool
+	lCtrl, rCtrl bool
+	lAlt, rAlt   bool
 	lShift, rShift bool
 }
 
@@ -50,8 +91,6 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	setup := xproto.Setup(conn)
 	screen := setup.DefaultScreen(conn)
 
-	// Calculate DPI and Scaling Factor
-	// Standard DPI is 96.
 	dpi := 96.0
 	if screen.WidthInMillimeters > 0 {
 		dpi = (float64(screen.WidthInPixels) * 25.4) / float64(screen.WidthInMillimeters)
@@ -61,25 +100,21 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	if dpi > 120 {
 		scale = 2
 	}
-	if dpi > 210 {
-		scale = 3
-	}
 
 	host := &X11Host{
-		conn:      conn,
-		screen:    screen,
-		cellW:     cellW,
+		conn:       conn,
+		screen:     screen,
+		cellW:      cellW,
 		cellH:      cellH,
 		scale:      scale,
-		cols:      cols,
-		rows:      rows,
+		cols:       cols,
+		rows:       rows,
 		width:      uint16(cols * cellW),
 		height:     uint16(rows * cellH),
 		closeChan:  make(chan struct{}),
 		dirtyLines: make([]bool, rows*cellH),
 	}
 
-	// Create Window
 	host.wid, err = xproto.NewWindowId(conn)
 	if err != nil {
 		return nil, err
@@ -96,32 +131,10 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 				xproto.EventMaskStructureNotify,
 		})
 
-	// Set Window Title
-	title := "vtui X11 Application"
+	title := "f4 (X11)"
 	xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, xproto.AtomWmName,
 		xproto.AtomString, 8, uint32(len(title)), []byte(title))
 
-	// Set WM_CLASS for better WM compatibility (instance, class)
-	wmClassAtom, _ := xproto.InternAtom(conn, false, 8, "WM_CLASS").Reply()
-	if wmClassAtom != nil {
-		xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, wmClassAtom.Atom,
-			xproto.AtomString, 8, 6, []byte("f4\x00f4\x00"))
-	}
-
-	// Request maximized state via EWMH before mapping the window
-	wmStateAtom, _ := xproto.InternAtom(conn, false, 13, "_NET_WM_STATE").Reply()
-	wmMaxVertAtom, _ := xproto.InternAtom(conn, false, 28, "_NET_WM_STATE_MAXIMIZED_VERT").Reply()
-	wmMaxHorzAtom, _ := xproto.InternAtom(conn, false, 28, "_NET_WM_STATE_MAXIMIZED_HORZ").Reply()
-
-	if wmStateAtom != nil && wmMaxVertAtom != nil && wmMaxHorzAtom != nil {
-		data := make([]byte, 8)
-		xgb.Put32(data, uint32(wmMaxVertAtom.Atom))
-		xgb.Put32(data[4:], uint32(wmMaxHorzAtom.Atom))
-		xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, wmStateAtom.Atom,
-			xproto.AtomAtom, 32, 2, data)
-	}
-
-	// Create GC
 	host.gc, err = xproto.NewGcontextId(conn)
 	if err == nil {
 		xproto.CreateGC(conn, host.gc, xproto.Drawable(host.wid),
@@ -129,182 +142,96 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 			[]uint32{screen.BlackPixel, screen.WhitePixel})
 	}
 
-	// Create backing image buffer
 	host.imgBuf = image.NewRGBA(image.Rect(0, 0, int(host.width), int(host.height)))
+	if shmId > 0 {
+		host.bgraBuf = shmData
+	} else {
+		host.bgraBuf = host.imgBuf.Pix
+	}
 
+	if shmId > 0 {
+		if err := shm.Init(conn); err == nil {
+			host.shmSeg, _ = shm.NewSegId(conn)
+			if host.shmSeg != 0 {
+				shm.Attach(conn, host.shmSeg, uint32(shmId), false)
+			}
+		}
+	}
 
-	// Fetch keyboard mapping
 	host.minKeyCode = setup.MinKeycode
-	maxKeyCode := setup.MaxKeycode
-	mapLen := byte(maxKeyCode - host.minKeyCode + 1)
-	kmReply, err := xproto.GetKeyboardMapping(conn, host.minKeyCode, mapLen).Reply()
+	kmReply, err := xproto.GetKeyboardMapping(conn, host.minKeyCode, byte(setup.MaxKeycode-host.minKeyCode+1)).Reply()
 	if err == nil {
 		host.keyMap = kmReply.Keysyms
 		host.keysPerCode = kmReply.KeysymsPerKeycode
 	}
 
-
-	// Intern WM_DELETE_WINDOW atom
 	protocolsAtom, _ := xproto.InternAtom(conn, false, 12, "WM_PROTOCOLS").Reply()
 	deleteAtom, _ := xproto.InternAtom(conn, false, 16, "WM_DELETE_WINDOW").Reply()
 	if protocolsAtom != nil && deleteAtom != nil {
 		host.atomDelete = deleteAtom.Atom
-		atomData := make([]byte, 4)
-		xgb.Put32(atomData, uint32(deleteAtom.Atom))
+		data := make([]byte, 4)
+		xgb.Put32(data, uint32(deleteAtom.Atom))
 		xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, protocolsAtom.Atom,
-			xproto.AtomAtom, 32, 1, atomData)
+			xproto.AtomAtom, 32, 1, data)
 	}
 
 	xproto.MapWindow(conn, host.wid)
-
 	return host, nil
 }
 
 func (h *X11Host) translateModifiers(state uint16, vk uint16, isDown bool) vtinput.ControlKeyState {
 	var mods vtinput.ControlKeyState
-
-	// Sync internal state with X11 state bitmask to prevent "stuck" modifiers
-	// (happens if Release event is swallowed by system shortcuts)
-	if state&xproto.ModMaskControl == 0 {
-		h.lCtrl = false
-		h.rCtrl = false
-	}
-	if state&xproto.ModMask1 == 0 {
-		h.lAlt = false
-		h.rAlt = false
-	}
-	if state&xproto.ModMaskShift == 0 {
-		h.lShift = false
-		h.rShift = false
-	}
-
-	if h.lCtrl { mods |= vtinput.LeftCtrlPressed }
-	if h.rCtrl { mods |= vtinput.RightCtrlPressed | vtinput.EnhancedKey }
-	if h.lAlt { mods |= vtinput.LeftAltPressed }
-	if h.rAlt { mods |= vtinput.RightAltPressed | vtinput.EnhancedKey }
-	if h.lShift || h.rShift { mods |= vtinput.ShiftPressed }
-
-	// Fallbacks for desync (e.g. window lost focus during key release).
-	// Only apply fallback if we are NOT actively releasing a key of this category.
-	isReleasingShift := !isDown && (vk == vtinput.VK_LSHIFT || vk == vtinput.VK_RSHIFT)
-	if state&xproto.ModMaskShift != 0 && !h.lShift && !h.rShift && !isReleasingShift {
-		mods |= vtinput.ShiftPressed
-	}
-
-	isReleasingCtrl := !isDown && (vk == vtinput.VK_LCONTROL || vk == vtinput.VK_RCONTROL)
-	if state&xproto.ModMaskControl != 0 && !h.lCtrl && !h.rCtrl && !isReleasingCtrl {
-		mods |= vtinput.LeftCtrlPressed
-	}
-
-	isReleasingAlt := !isDown && (vk == vtinput.VK_LMENU || vk == vtinput.VK_RMENU)
-	if state&xproto.ModMask1 != 0 && !h.lAlt && !h.rAlt && !isReleasingAlt { // Usually Alt
-		mods |= vtinput.LeftAltPressed
-	}
-
-	if state&xproto.ModMaskLock != 0 { // CapsLock
-		mods |= vtinput.CapsLockOn
-	}
-	if state&xproto.ModMask2 != 0 { // Usually NumLock
-		mods |= vtinput.NumLockOn
-	}
-
+	if state&xproto.ModMaskControl != 0 { mods |= vtinput.LeftCtrlPressed }
+	if state&xproto.ModMask1 != 0 { mods |= vtinput.LeftAltPressed }
+	if state&xproto.ModMaskShift != 0 { mods |= vtinput.ShiftPressed }
+	if state&xproto.ModMaskLock != 0 { mods |= vtinput.CapsLockOn }
+	if state&xproto.ModMask2 != 0 { mods |= vtinput.NumLockOn }
 	return mods
 }
 
 func (h *X11Host) getKeysym(detail xproto.Keycode, state uint16) xproto.Keysym {
-	if h.keyMap == nil {
-		return 0
-	}
+	if h.keyMap == nil { return 0 }
 	baseIdx := int(detail-h.minKeyCode) * int(h.keysPerCode)
-	if baseIdx < 0 || baseIdx >= len(h.keyMap) {
-		return 0
-	}
-
 	shift := state&xproto.ModMaskShift != 0
-	//numLock := state&xproto.ModMask2 != 0
-
-	// Extract XKB Group (Layout)
 	group := (state >> 13) & 0x03
-	// Heuristic: Mod5 (0x80) often indicates secondary layout if XKB group bits are not set
-	if group == 0 && state&xproto.ModMask5 != 0 && h.keysPerCode > 2 {
-		group = 1
-	}
-
-	col := int(group) * 2
-	if shift {
-		col += 1
-	}
-
-	// Safety: if group column exceeds available mapping, fallback to first group
-	if col >= int(h.keysPerCode) {
-		col = col % 2
-	}
-
+	col := int(group)*2
+	if shift { col += 1 }
+	if col >= int(h.keysPerCode) { col = col % 2 }
 	sym := h.keyMap[baseIdx+col]
-	if sym == 0 && col > 0 {
-		// Fallback to base keysym if specific column is empty
-		sym = h.keyMap[baseIdx]
-	}
-
+	if sym == 0 && col > 0 { sym = h.keyMap[baseIdx] }
 	return sym
 }
 
 func (h *X11Host) Close() {
+	if h.shmSeg != 0 { shm.Detach(h.conn, h.shmSeg) }
 	h.conn.Close()
 	close(h.closeChan)
 }
 
-// RunEventLoop starts the X11 event loop. It translates X11 events to vtinput events.
 func (h *X11Host) RunEventLoop() {
 	for {
 		ev, err := h.conn.WaitForEvent()
-		if ev == nil && err == nil {
-			return
-		}
-
+		if ev == nil && err == nil { return }
 		switch e := ev.(type) {
 		case xproto.ExposeEvent:
-			// X11 says our window needs repainting (e.g. just appeared).
-			// We must mark all lines as dirty to force a full refresh.
 			h.mu.Lock()
-			for i := range h.dirtyLines {
-				h.dirtyLines[i] = true
-			}
+			for i := range h.dirtyLines { h.dirtyLines[i] = true }
 			h.mu.Unlock()
-			if e.Count == 0 {
-				h.flushImage()
-			}
+			if e.Count == 0 { h.flushImage() }
 		case xproto.ConfigureNotifyEvent:
 			if e.Width != h.width || e.Height != h.height {
-				newCols := int(e.Width) / h.cellW
-				newRows := int(e.Height) / h.cellH
-				if newCols < 1 { newCols = 1 }
-				if newRows < 1 { newRows = 1 }
-
 				h.mu.Lock()
-				h.width = e.Width
-				h.height = e.Height
-				h.cols = newCols
-				h.rows = newRows
+				h.width, h.height = e.Width, e.Height
+				h.cols, h.rows = int(e.Width)/h.cellW, int(e.Height)/h.cellH
 				h.imgBuf = image.NewRGBA(image.Rect(0, 0, int(h.width), int(h.height)))
 				h.dirtyLines = make([]bool, int(e.Height))
-				for i := range h.dirtyLines {
-					h.dirtyLines[i] = true
-				}
+				for i := range h.dirtyLines { h.dirtyLines[i] = true }
 				h.mu.Unlock()
-
-				if h.reader != nil && h.reader.NativeEventChan != nil {
-					h.reader.NativeEventChan <- &vtinput.InputEvent{
-						Type:        vtinput.ResizeEventType,
-						InputSource: "x11",
-					}
+				if h.reader != nil {
+					h.reader.NativeEventChan <- &vtinput.InputEvent{Type: vtinput.ResizeEventType}
 				}
 			}
-
 		case xproto.KeyPressEvent, xproto.KeyReleaseEvent:
-			if h.reader == nil || h.reader.NativeEventChan == nil {
-				continue
-			}
 			var detail xproto.Keycode
 			var state uint16
 			isDown := false
@@ -313,89 +240,16 @@ func (h *X11Host) RunEventLoop() {
 			} else if kr, ok := e.(xproto.KeyReleaseEvent); ok {
 				detail, state, isDown = kr.Detail, kr.State, false
 			}
-
 			keysym := h.getKeysym(detail, state)
-			baseKeysym := h.getKeysym(detail, 0)
-			
 			vk := keysymToVK(uint32(keysym))
-			if vk == 0 {
-				vk = keysymToVK(uint32(baseKeysym))
-			}
-
 			char := keysymToRune(uint32(keysym))
-
-			// Heuristic: if we got a control keysym (like Return) but it's used with Alt,
-			// some apps might expect the ASCII char equivalent in the event.
-			if char == 0 {
-				switch keysym {
-				case 0xff0d, 0xff8d: char = '\r'
-				case 0xff09, 0xff89: char = '\t'
-				case 0xff08: char = '\b'
-				case 0xff1b: char = 27
+			if h.reader != nil {
+				h.reader.NativeEventChan <- &vtinput.InputEvent{
+					Type: vtinput.KeyEventType, KeyDown: isDown, VirtualKeyCode: vk,
+					Char: char, ControlKeyState: h.translateModifiers(state, vk, isDown),
 				}
 			}
-
-			if isDown {
-				switch vk {
-				case vtinput.VK_LCONTROL: h.lCtrl = true
-				case vtinput.VK_RCONTROL: h.rCtrl = true
-				case vtinput.VK_LMENU:    h.lAlt = true
-				case vtinput.VK_RMENU:    h.rAlt = true
-				case vtinput.VK_LSHIFT:   h.lShift = true
-				case vtinput.VK_RSHIFT:   h.rShift = true
-				}
-			} else {
-				switch vk {
-				case vtinput.VK_LCONTROL: h.lCtrl = false
-				case vtinput.VK_RCONTROL: h.rCtrl = false
-				case vtinput.VK_LMENU:    h.lAlt = false
-				case vtinput.VK_RMENU:    h.rAlt = false
-				case vtinput.VK_LSHIFT:   h.lShift = false
-				case vtinput.VK_RSHIFT:   h.rShift = false
-				}
-			}
-
-			mods := h.translateModifiers(state, vk, isDown)
-
-			// Universal CapsLock + Shift logic for alphabetical characters
-			if unicode.IsLetter(char) {
-				shift := mods.Contains(vtinput.ShiftPressed)
-				caps := mods.Contains(vtinput.CapsLockOn)
-				if shift != caps {
-					char = unicode.ToUpper(char)
-				} else {
-					char = unicode.ToLower(char)
-				}
-			}
-
-			typeName := "PRESS"
-			if !isDown {
-				typeName = "RELEASE"
-			}
-			DebugLog("X11_KEY: %s code=%d state=0x%04x keysym=0x%04x vk=%s char=%q",
-				typeName, detail, state, keysym, vtinput.VKString(vk), char)
-
-			scancode := uint16(0)
-			if vk == vtinput.VK_RSHIFT {
-				scancode = vtinput.ScanCodeRightShift
-			} else if vk == vtinput.VK_LSHIFT {
-				scancode = vtinput.ScanCodeLeftShift
-			}
-
-			h.reader.NativeEventChan <- &vtinput.InputEvent{
-				Type:            vtinput.KeyEventType,
-				KeyDown:         isDown,
-				VirtualKeyCode:  vk,
-				VirtualScanCode: scancode,
-				Char:            char,
-				ControlKeyState: mods,
-				InputSource:     "x11",
-			}
-
 		case xproto.ButtonPressEvent, xproto.ButtonReleaseEvent:
-			if h.reader == nil || h.reader.NativeEventChan == nil {
-				continue
-			}
 			var bx, by int16
 			var detail xproto.Button
 			var state uint16
@@ -406,119 +260,80 @@ func (h *X11Host) RunEventLoop() {
 				br := e.(xproto.ButtonReleaseEvent)
 				bx, by, detail, state, isDown = br.EventX, br.EventY, br.Detail, br.State, false
 			}
-
 			event := &vtinput.InputEvent{
-				Type:            vtinput.MouseEventType,
-				MouseX:          uint16(int(bx) / h.cellW),
-				MouseY:          uint16(int(by) / h.cellH),
-				KeyDown:         isDown,
+				Type:            vtinput.MouseEventType, MouseX: uint16(int(bx) / h.cellW),
+				MouseY:          uint16(int(by) / h.cellH), KeyDown: isDown,
 				ControlKeyState: h.translateModifiers(state, 0, false),
-				InputSource:     "x11",
 			}
-
 			switch detail {
-			case 1:
-				event.ButtonState = vtinput.FromLeft1stButtonPressed
-			case 2:
-				event.ButtonState = vtinput.FromLeft2ndButtonPressed
-			case 3:
-				event.ButtonState = vtinput.RightmostButtonPressed
-			case 4: // Wheel Up
-				if isDown {
-					event.WheelDirection = 1
-				} else {
-					continue
-				}
-			case 5: // Wheel Down
-				if isDown {
-					event.WheelDirection = -1
-				} else {
-					continue
-				}
+			case 1: event.ButtonState = vtinput.FromLeft1stButtonPressed
+			case 2: event.ButtonState = vtinput.FromLeft2ndButtonPressed
+			case 3: event.ButtonState = vtinput.RightmostButtonPressed
+			case 4: if isDown { event.WheelDirection = 1 } else { continue }
+			case 5: if isDown { event.WheelDirection = -1 } else { continue }
 			}
-			h.reader.NativeEventChan <- event
-
+			if h.reader != nil { h.reader.NativeEventChan <- event }
 		case xproto.MotionNotifyEvent:
-			if h.reader == nil || h.reader.NativeEventChan == nil {
-				continue
-			}
-			h.reader.NativeEventChan <- &vtinput.InputEvent{
-				Type:            vtinput.MouseEventType,
-				MouseX:          uint16(int(e.EventX) / h.cellW),
-				MouseY:          uint16(int(e.EventY) / h.cellH),
-				MouseEventFlags: vtinput.MouseMoved,
-				ControlKeyState: h.translateModifiers(e.State, 0, false),
-				InputSource:     "x11",
-			}
-
-		case xproto.ClientMessageEvent:
-			// Handle WM_DELETE_WINDOW to quit gracefully
-			if e.Type == h.atomDelete || (len(e.Data.Data32) > 0 && xproto.Atom(e.Data.Data32[0]) == h.atomDelete) {
-				if FrameManager != nil {
-					FrameManager.EmitCommand(CmQuit, nil)
+			if h.reader != nil {
+				h.reader.NativeEventChan <- &vtinput.InputEvent{
+					Type:            vtinput.MouseEventType, MouseX: uint16(int(e.EventX) / h.cellW),
+					MouseY:          uint16(int(e.EventY) / h.cellH), MouseEventFlags: vtinput.MouseMoved,
 				}
 			}
+		case xproto.ClientMessageEvent:
+			if e.Type == h.atomDelete { FrameManager.EmitCommand(CmQuit, nil) }
 		}
 	}
 }
 
-// flushImage converts the Go image.RGBA into an X11 PutImage request.
-// In Phase 3, this will be replaced with MIT-SHM for zero-copy performance.
 func (h *X11Host) flushImage() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	putCalls := 0
-
 	b := h.imgBuf.Bounds()
 	w, h2 := b.Dx(), b.Dy()
-	pix := h.imgBuf.Pix
-	lineStride := w * 4
+	if w <= 0 || h2 <= 0 { return 0 }
+	minY, maxY := -1, -1
+	for y := 0; y < h2; y++ {
+		if h.dirtyLines[y] {
+			if minY == -1 { minY = y }
+			maxY = y
+		}
+	}
+	if minY == -1 { return 0 }
+	for y := minY; y <= maxY; y++ { h.dirtyLines[y] = false }
+
+	if h.shmSeg != 0 {
+		stride := w * 4
+		for y := minY; y <= maxY; y++ {
+			srcOff, dstOff := y*stride, y*stride
+			if dstOff+stride > len(h.bgraBuf) || srcOff+stride > len(h.imgBuf.Pix) { continue }
+			srcRow, dstRow := h.imgBuf.Pix[srcOff:srcOff+stride], h.bgraBuf[dstOff:dstOff+stride]
+			for i := 0; i < stride; i += 4 {
+				dstRow[i], dstRow[i+1], dstRow[i+2], dstRow[i+3] = srcRow[i+2], srcRow[i+1], srcRow[i], 255
+			}
+		}
+		// shm.PutImage: 16 arguments
+		shm.PutImage(h.conn, xproto.Drawable(h.wid), h.gc,
+			uint16(w), uint16(h2), // total_width, total_height
+			0, 0, // src_x, src_y (0 because we use offset)
+			uint16(w), uint16(maxY-minY+1), // src_width, src_height
+			0, int16(minY), // dst_x, dst_y
+			24, 2, 0, // depth, format (ZPixmap), send_event
+			h.shmSeg, uint32(minY*stride))
+		return 1
+	}
+
+	pix, lineStride := h.imgBuf.Pix, w*4
 	maxReq := int(xproto.Setup(h.conn).MaximumRequestLength) * 4
 	rowsPerReqLimit := (maxReq - 24) / lineStride
-	if rowsPerReqLimit < 1 {
-		rowsPerReqLimit = 1
+	putCalls := 0
+	for y := minY; y <= maxY; {
+		chunkEnd := y + rowsPerReqLimit
+		if chunkEnd > maxY+1 { chunkEnd = maxY + 1 }
+		xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
+			uint16(w), uint16(chunkEnd-y), 0, int16(y), 0, 24, pix[y*lineStride:chunkEnd*lineStride])
+		putCalls++
+		y = chunkEnd
 	}
-
-	// Новая логика: ищем непрерывные блоки "грязных" строк
-	for y := 0; y < h2; y++ {
-		if !h.dirtyLines[y] {
-			continue
-		}
-
-		// Нашли начало блока
-		spanStart := y
-
-		// Ищем конец блока
-		spanEnd := y + 1
-		for spanEnd < h2 && h.dirtyLines[spanEnd] {
-			spanEnd++
-		}
-
-		// Отправляем спан чанками, если он слишком большой
-		for currentY := spanStart; currentY < spanEnd; {
-			chunkEnd := currentY + rowsPerReqLimit
-			if chunkEnd > spanEnd {
-				chunkEnd = spanEnd
-			}
-
-			rows := uint16(chunkEnd - currentY)
-			data := pix[currentY*lineStride : chunkEnd*lineStride]
-
-			xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
-				uint16(w), rows, 0, int16(currentY), 0, 24, data)
-			putCalls++
-
-			currentY = chunkEnd
-		}
-
-		// Очищаем флаги для обработанного блока
-		for cl := spanStart; cl < spanEnd; cl++ {
-			h.dirtyLines[cl] = false
-		}
-
-		// Перескакиваем на конец обработанного блока
-		y = spanEnd - 1
-	}
-
 	return putCalls
 }

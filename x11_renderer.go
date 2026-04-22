@@ -141,7 +141,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			baseOff := py*img.Stride + px*4
 			maxBytes := spanPixW * 4
 			if baseOff+maxBytes <= len(img.Pix) {
-				img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = bb, bgG, br, 255
+				img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = br, bgG, bb, 255
 				for n := 4; n < maxBytes; n *= 2 {
 					copy(img.Pix[baseOff+n:baseOff+maxBytes], img.Pix[baseOff:baseOff+n])
 				}
@@ -247,11 +247,6 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 		}
 		d.DrawString(string(char))
 
-		// Разовая оптимизация: меняем R и B местами во всем кэше глифа,
-		// чтобы потом копировать его в основной буфер одним махом без обработки.
-		for p := 0; p < len(cached.Pix); p += 4 {
-			cached.Pix[p], cached.Pix[p+2] = cached.Pix[p+2], cached.Pix[p]
-		}
 
 		r.glyphCache[key] = cached
 	}
@@ -404,8 +399,7 @@ func (r *X11Renderer) drawCustomChar(img *image.RGBA, char rune, px, py, cw, ch 
 		baseOff := py*img.Stride + px*4
 		maxBytes := cw * 4
 		if baseOff+maxBytes <= len(img.Pix) {
-			// Пишем сразу в BGRA
-			img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = b8, g8, r8, 255
+			img.Pix[baseOff], img.Pix[baseOff+1], img.Pix[baseOff+2], img.Pix[baseOff+3] = r8, g8, b8, 255
 			for n := 4; n < maxBytes; n *= 2 {
 				copy(img.Pix[baseOff+n:baseOff+maxBytes], img.Pix[baseOff:baseOff+n])
 			}
