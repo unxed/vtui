@@ -454,6 +454,7 @@ func TestEdit_Selection(t *testing.T) {
 
 func TestEdit_Editing(t *testing.T) {
 	e := NewEdit(0, 0, 20, "test")
+	e.ClearSelection()
 	e.curPos = 4
 
 	// 1. Char input
@@ -487,6 +488,7 @@ func TestEdit_Rendering(t *testing.T) {
 	scr := NewSilentScreenBuf()
 	scr.AllocBuf(10, 1)
 	e := NewEdit(0, 0, 10, "abc")
+	e.ClearSelection()
 	e.curPos = 1
 	e.selStart = 1
 	e.selEnd = 2 // 'b' is selected
@@ -512,6 +514,7 @@ func TestEdit_Rendering(t *testing.T) {
 
 func TestEdit_Overtype(t *testing.T) {
 	e := NewEdit(0, 0, 10, "abc")
+	e.ClearSelection()
 	e.curPos = 0
 	e.overtype = true
 
@@ -532,6 +535,7 @@ func TestEdit_Unicode_Selection(t *testing.T) {
 	e := NewEdit(0, 0, 10, "A世B")
 	e.curPos = 0
 
+	e.ClearSelection()
 	// Select "A" (Shift + Right)
 	e.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RIGHT, ControlKeyState: vtinput.ShiftPressed})
 	if e.selStart != 0 || e.selEnd != 1 {

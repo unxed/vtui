@@ -11,6 +11,7 @@ func TestEdit_PasswordMode(t *testing.T) {
 	scr.AllocBuf(10, 1)
 
 	e := NewEdit(0, 0, 10, "abc")
+	e.ClearSelection()
 	e.PasswordMode = true
 	e.Show(scr)
 
@@ -383,6 +384,7 @@ func TestEdit_CtrlA_SelectAll(t *testing.T) {
 
 func TestEdit_InsertString_Selection(t *testing.T) {
 	e := NewEdit(0, 0, 20, "original")
+	e.ClearSelection()
 	// Select "rigin"
 	e.selStart = 1
 	e.selEnd = 6

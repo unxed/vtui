@@ -242,7 +242,10 @@ func getCharCategory(r rune) int {
 
 // InsertString inserts text at the current cursor position.
 func (e *Edit) InsertString(text string) {
-	if e.selStart != -1 {
+	if e.clearFlag {
+		e.SetText("")
+		e.ClearSelection()
+	} else if e.selStart != -1 {
 		e.DeleteBlock()
 	}
 	runes := []rune(text)
@@ -265,17 +268,41 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		} else {
 			e.pasting = false
 			if len(e.pasteBuffer) > 0 {
-				if e.selStart != -1 {
-					e.DeleteBlock()
+				var newText []rune
+				var newCurPos int
+
+				if e.clearFlag {
+					newText = make([]rune, len(e.pasteBuffer))
+					copy(newText, e.pasteBuffer)
+					newCurPos = len(e.pasteBuffer)
+				} else if e.selStart != -1 {
+					start, end := e.selStart, e.selEnd
+					if start > end {
+						start, end = end, start
+					}
+					newText = make([]rune, 0, len(e.text)-(end-start)+len(e.pasteBuffer))
+					newText = append(newText, e.text[:start]...)
+					newText = append(newText, e.pasteBuffer...)
+					newText = append(newText, e.text[end:]...)
+					newCurPos = start + len(e.pasteBuffer)
+				} else {
+					newText = make([]rune, 0, len(e.text)+len(e.pasteBuffer))
+					newText = append(newText, e.text[:e.curPos]...)
+					newText = append(newText, e.pasteBuffer...)
+					newText = append(newText, e.text[e.curPos:]...)
+					newCurPos = e.curPos + len(e.pasteBuffer)
 				}
-				newText := make([]rune, 0, len(e.text)+len(e.pasteBuffer))
-				newText = append(newText, e.text[:e.curPos]...)
-				newText = append(newText, e.pasteBuffer...)
-				newText = append(newText, e.text[e.curPos:]...)
+
+				if e.Validator != nil && !e.Validator.IsValidInput(string(newText)) {
+					e.pasteBuffer = nil
+					return true
+				}
 
 				e.text = newText
-				e.curPos += len(e.pasteBuffer)
+				e.curPos = newCurPos
+				e.ClearSelection()
 				e.pasteBuffer = nil
+
 				if e.OnTextChange != nil {
 					e.OnTextChange(string(e.text))
 				}
@@ -458,7 +485,10 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		return true
 
 	case vtinput.VK_BACK:
-		if e.selStart != -1 {
+		if e.clearFlag {
+			e.SetText("")
+			e.ClearSelection()
+		} else if e.selStart != -1 {
 			e.DeleteBlock()
 		} else if e.curPos > 0 {
 			e.text = append(e.text[:e.curPos-1], e.text[e.curPos:]...)
@@ -469,7 +499,10 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		return true
 
 	case vtinput.VK_DELETE:
-		if e.selStart != -1 {
+		if e.clearFlag {
+			e.SetText("")
+			e.ClearSelection()
+		} else if e.selStart != -1 {
 			e.DeleteBlock()
 		} else if e.curPos < len(e.text) {
 			e.text = append(e.text[:e.curPos], e.text[e.curPos+1:]...)
@@ -496,44 +529,60 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		}
 
 		DebugLog("    Edit: Typing char %d", event.Char)
-		if e.clearFlag {
-			e.SetText("")
-			e.clearFlag = false
-		}
 
-		if e.selStart != -1 {
-			e.DeleteBlock()
-		}
-
-		if e.overtype && e.curPos < len(e.text) {
-			e.text[e.curPos] = event.Char
-		} else {
-			var testChar = event.Char
-			// Auto-uppercase support for specific mask markers
-			if e.Validator != nil {
-				if mv, ok := e.Validator.(*MaskValidator); ok && e.curPos < len(mv.Mask) {
-					m := []rune(mv.Mask)[e.curPos]
-					if m == '&' || m == '!' {
-						testChar = unicode.ToUpper(testChar)
-					}
+		var testChar = event.Char
+		// Auto-uppercase support for specific mask markers
+		if e.Validator != nil {
+			if mv, ok := e.Validator.(*MaskValidator); ok && e.curPos < len(mv.Mask) {
+				m := []rune(mv.Mask)[e.curPos]
+				if m == '&' || m == '!' {
+					testChar = unicode.ToUpper(testChar)
 				}
 			}
+		}
 
-			newText := make([]rune, 0, len(e.text)+1)
+		var newText []rune
+		var newCurPos int
+
+		if e.clearFlag {
+			newText = []rune{testChar}
+			newCurPos = 1
+		} else if e.selStart != -1 {
+			start, end := e.selStart, e.selEnd
+			if start > end {
+				start, end = end, start
+			}
+			newText = make([]rune, 0, len(e.text)-(end-start)+1)
+			newText = append(newText, e.text[:start]...)
+			newText = append(newText, testChar)
+			newText = append(newText, e.text[end:]...)
+			newCurPos = start + 1
+		} else if e.overtype && e.curPos < len(e.text) {
+			newText = make([]rune, len(e.text))
+			copy(newText, e.text)
+			newText[e.curPos] = testChar
+			newCurPos = e.curPos + 1
+		} else {
+			newText = make([]rune, 0, len(e.text)+1)
 			newText = append(newText, e.text[:e.curPos]...)
 			newText = append(newText, testChar)
 			newText = append(newText, e.text[e.curPos:]...)
-
-			if e.Validator != nil && !e.Validator.IsValidInput(string(newText)) {
-				return true // Swallow invalid input
-			}
-			e.text = newText
+			newCurPos = e.curPos + 1
 		}
-		e.curPos++
+
+		if e.Validator != nil && !e.Validator.IsValidInput(string(newText)) {
+			return true // Swallow invalid input
+		}
+
+		e.text = newText
+		e.curPos = newCurPos
+		e.ClearSelection()
+
 		if e.OnTextChange != nil { e.OnTextChange(string(e.text)) }
 		return true
 	}
-	return false
+
+	return false;
 }
 
 func (e *Edit) beginSelection() {
@@ -562,6 +611,14 @@ func (e *Edit) endSelection() {
 	}
 }
 
+// ClearSelection removes any active text selection and resets the clear flag.
+func (e *Edit) ClearSelection() {
+	e.selStart = -1
+	e.selEnd = -1
+	e.selAnchor = -1
+	e.clearFlag = false
+}
+
 func (e *Edit) DeleteBlock() {
 	if e.selStart != -1 {
 		// Bounds check to prevent panics from stale selection state
@@ -571,9 +628,7 @@ func (e *Edit) DeleteBlock() {
 
 		e.text = append(e.text[:e.selStart], e.text[e.selEnd:]...)
 		e.curPos = e.selStart
-		e.selStart = -1
-		e.selEnd = -1
-		e.selAnchor = -1
+		e.ClearSelection()
 	}
 }
 
