@@ -62,6 +62,9 @@ func NewEdit(x, y, width int, defaultText string) *Edit {
 	e.canFocus = true
 	e.curPos = len(e.text)
 	e.SetPosition(x, y, x+width-1, y)
+	if len(e.text) > 0 {
+		e.SelectAll()
+	}
 	return e
 }
 // NewPasswordEdit creates an Edit control that masks input with asterisks.
@@ -200,6 +203,7 @@ func (e *Edit) GetData() any {
 func (e *Edit) SetData(val any) {
 	if s, ok := val.(string); ok {
 		e.SetText(s)
+		e.SelectAll()
 	}
 }
 func (e *Edit) WantsChars() bool {
