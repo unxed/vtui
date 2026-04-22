@@ -471,58 +471,54 @@ func (h *X11Host) flushImage() int {
 
 	b := h.imgBuf.Bounds()
 	w, h2 := b.Dx(), b.Dy()
-	totalBytes := w * h2 * 4
-
-	if len(h.bgraBuf) != totalBytes {
-		h.bgraBuf = make([]byte, totalBytes)
-	}
-
 	pix := h.imgBuf.Pix
 	lineStride := w * 4
-
-	// Находим первую и последнюю измененные строки (Bounding Box по Y)
-	minY := -1
-	maxY := -1
-	for y := 0; y < h2; y++ {
-		if h.dirtyLines[y] {
-			if minY == -1 {
-				minY = y
-			}
-			maxY = y
-		}
-	}
-
-	if minY == -1 {
-		return 0
-	}
-
-	// 2. Find and send contiguous spans of dirty lines
 	maxReq := int(xproto.Setup(h.conn).MaximumRequestLength) * 4
 	rowsPerReqLimit := (maxReq - 24) / lineStride
 	if rowsPerReqLimit < 1 {
 		rowsPerReqLimit = 1
 	}
 
-	// Оптимизация: передаем весь измененный блок целиком, игнорируя чистые строки внутри.
-	// Системные вызовы X11 (PutImage) занимают гораздо больше времени, чем пересылка лишних данных.
-	for y := minY; y <= maxY; {
-		chunkEnd := y + rowsPerReqLimit
-		if chunkEnd > maxY+1 {
-			chunkEnd = maxY + 1
+	// Новая логика: ищем непрерывные блоки "грязных" строк
+	for y := 0; y < h2; y++ {
+		if !h.dirtyLines[y] {
+			continue
 		}
 
-		rows := uint16(chunkEnd - y)
-		data := pix[y*lineStride : chunkEnd*lineStride]
-		xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
-			uint16(w), rows, 0, int16(y), 0, 24, data)
-		putCalls++
+		// Нашли начало блока
+		spanStart := y
 
-		// Очищаем флаги
-		for cl := y; cl < chunkEnd; cl++ {
+		// Ищем конец блока
+		spanEnd := y + 1
+		for spanEnd < h2 && h.dirtyLines[spanEnd] {
+			spanEnd++
+		}
+
+		// Отправляем спан чанками, если он слишком большой
+		for currentY := spanStart; currentY < spanEnd; {
+			chunkEnd := currentY + rowsPerReqLimit
+			if chunkEnd > spanEnd {
+				chunkEnd = spanEnd
+			}
+
+			rows := uint16(chunkEnd - currentY)
+			data := pix[currentY*lineStride : chunkEnd*lineStride]
+
+			xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
+				uint16(w), rows, 0, int16(currentY), 0, 24, data)
+			putCalls++
+
+			currentY = chunkEnd
+		}
+
+		// Очищаем флаги для обработанного блока
+		for cl := spanStart; cl < spanEnd; cl++ {
 			h.dirtyLines[cl] = false
 		}
 
-		y = chunkEnd
+		// Перескакиваем на конец обработанного блока
+		y = spanEnd - 1
 	}
+
 	return putCalls
 }
