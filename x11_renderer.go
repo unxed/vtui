@@ -116,6 +116,12 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			}
 		}
 
+		// Сбрасываем старый курсор, если он был на этой строке, но теперь переместился
+		if y == r.oldCursorY && (r.oldCursorX != r.cursorX || r.oldCursorY != r.cursorY) {
+			r.oldCursorX = -1
+			r.oldCursorY = -1
+		}
+
 		for x := 0; x < w; {
 			idx := rowOff + x
 			cell := buf[idx]
@@ -216,6 +222,11 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			}
 			x += spanW
 		}
+	}
+
+	if r.cursorVis {
+		r.oldCursorX = r.cursorX
+		r.oldCursorY = r.cursorY
 	}
 	r.stats.totalDraw += time.Since(start)
 }

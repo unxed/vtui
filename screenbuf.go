@@ -347,8 +347,7 @@ func (s *ScreenBuf) Flush() {
 
 	s.Renderer.SetPalette(activePal)
 	s.Renderer.SetCursor(s.cursorX, s.cursorY, s.cursorVisible)
-	s.Renderer.Render(s.buf, s.shadow, s.width, s.height, s.dirty || s.cursorDirty)
-	s.Renderer.SetCursor(s.cursorX, s.cursorY, s.cursorVisible)
+	s.Renderer.Render(s.buf, s.shadow, s.width, s.height, s.dirty)
 	s.Renderer.Flush()
 
 	s.dirty = false
@@ -361,6 +360,14 @@ type AnsiRenderer struct {
 	parent   *ScreenBuf
 	lastAttr uint64
 	frameOut strings.Builder
+
+	cursorX, cursorY int
+	cursorVis        bool
+
+	lastSentCursorX, lastSentCursorY int
+	lastSentCursorVis                bool
+	termCursorInvalid                bool
+	firstInit                        bool
 }
 
 func (r *AnsiRenderer) SetPalette(pal *[256]uint32) {
@@ -379,8 +386,23 @@ func (r *AnsiRenderer) SetPalette(pal *[256]uint32) {
 }
 
 func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
+	needsDraw := force
+	if !needsDraw {
+		for i := 0; i < w*h; i++ {
+			if buf[i] != shadow[i] {
+				needsDraw = true
+				break
+			}
+		}
+	}
+
+	if !needsDraw {
+		return
+	}
+
 	r.frameOut.WriteString("\x1b[?25l") // Hide cursor during draw
 
+	r.termCursorInvalid = true
 	lastX, lastY := -1, -1
 	r.lastAttr = ^uint64(0)
 
@@ -422,15 +444,26 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 }
 
 func (r *AnsiRenderer) SetCursor(x, y int, vis bool) {
-	r.frameOut.WriteString(fmt.Sprintf("\x1b[%d;%dH", y+1, x+1))
-	if vis {
-		r.frameOut.WriteString("\x1b[?25h")
-	} else {
-		r.frameOut.WriteString("\x1b[?25l")
-	}
+	r.cursorX = x
+	r.cursorY = y
+	r.cursorVis = vis
 }
 
 func (r *AnsiRenderer) Flush() {
+	if !r.firstInit || r.termCursorInvalid || r.cursorX != r.lastSentCursorX || r.cursorY != r.lastSentCursorY || r.cursorVis != r.lastSentCursorVis {
+		r.frameOut.WriteString(fmt.Sprintf("\x1b[%d;%dH", r.cursorY+1, r.cursorX+1))
+		if r.cursorVis {
+			r.frameOut.WriteString("\x1b[?25h")
+		} else {
+			r.frameOut.WriteString("\x1b[?25l")
+		}
+		r.lastSentCursorX = r.cursorX
+		r.lastSentCursorY = r.cursorY
+		r.lastSentCursorVis = r.cursorVis
+		r.termCursorInvalid = false
+		r.firstInit = true
+	}
+
 	payload := r.frameOut.String()
 	r.frameOut.Reset()
 	if payload == "" {

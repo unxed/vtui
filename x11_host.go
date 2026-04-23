@@ -326,11 +326,11 @@ func (h *X11Host) flushImage() int {
 		// shm.PutImage: 16 arguments
 		shm.PutImage(h.conn, xproto.Drawable(h.wid), h.gc,
 			uint16(w), uint16(h2), // total_width, total_height
-			0, 0, // src_x, src_y (0 because we use offset)
+			0, uint16(minY), // src_x, src_y
 			uint16(w), uint16(maxY-minY+1), // src_width, src_height
 			0, int16(minY), // dst_x, dst_y
 			24, 2, 0, // depth, format (ZPixmap), send_event
-			h.shmSeg, uint32(minY*stride))
+			h.shmSeg, 0) // offset должен быть 0, сдвиг задается через src_y
 		return 1
 	}
 
