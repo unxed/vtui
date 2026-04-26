@@ -353,6 +353,18 @@ func TestShowMessage_HeightTruncation(t *testing.T) {
 		t.Error("Truncation marker '... (truncated)' was not found in the dialog text")
 	}
 
+	// Ensure button is still there even if text is truncated
+	foundButton := false
+	for _, itm := range dlg.GetChildren() {
+		if _, ok := itm.(*Button); ok {
+			foundButton = true
+			break
+		}
+	}
+	if !foundButton {
+		t.Error("Button lost during height truncation")
+	}
+
 	// Should pass layout validation
 	AssertLayout(t, dlg)
 }
