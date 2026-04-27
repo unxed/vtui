@@ -461,7 +461,7 @@ func TestEdit_Validation_FinalTrigger(t *testing.T) {
 }
 
 func TestEdit_WordJumps_FarSpec(t *testing.T) {
-	// Спецификация Far2l для vtui.Edit (использует индексы рун)
+	// vtui.Edit использует индексы рун
 	// word...///next   ...spaces 🍏.apple
 	// 0123456789012345678901234567890123
 	//           10        20        30

@@ -9,8 +9,7 @@ import (
 	"sync"
 )
 
-// ScreenBuf is a complete analog of far2l/scrbuf.cpp.
-// It implements double buffering to minimize terminal write operations.
+// ScreenBuf implements double buffering to minimize terminal write operations.
 type ScreenBuf struct {
 	mu            sync.Mutex
 	buf           []CharInfo // 'buf' is the target screen state formed by UI logic.
