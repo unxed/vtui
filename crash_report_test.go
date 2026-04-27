@@ -61,7 +61,7 @@ func TestRecordCrash(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "=== F4 CRASH REPORT ===") {
+	if !strings.Contains(content, "CRASH REPORT ===") {
 		t.Error("Missing crash report header")
 	}
 	if !strings.Contains(content, "Test Panic") {

@@ -736,9 +736,9 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 			crashPath := RecordCrash(r, nil)
 			Suspend()
 			CleanupStderrLog()
-			fmt.Fprintf(os.Stderr, "\n[f4] FATAL PANIC: %v\n", r)
+			fmt.Fprintf(os.Stderr, "\n[%s] FATAL PANIC: %v\n", AppName, r)
 			if crashPath != "" {
-				fmt.Fprintf(os.Stderr, "[f4] Crash report saved to: %s\n", crashPath)
+				fmt.Fprintf(os.Stderr, "[%s] Crash report saved to: %s\n", AppName, crashPath)
 			}
 			os.Exit(2)
 		}

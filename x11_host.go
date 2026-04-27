@@ -131,7 +131,7 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 				xproto.EventMaskStructureNotify,
 		})
 
-	title := "f4 (X11)"
+	title := AppName + " (X11)"
 	xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, xproto.AtomWmName,
 		xproto.AtomString, 8, uint32(len(title)), []byte(title))
 

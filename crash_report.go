@@ -4,6 +4,7 @@ package vtui
 
 import (
 	"fmt"
+	"strings"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,6 +18,7 @@ var (
 	sessionPID       = os.Getpid()
 	stderrLogPath    string
 	stderrLogFile    *os.File
+	AppName          = "vtui_app"
 
 	crashMu     sync.Mutex
 	logRing     []string
@@ -94,13 +96,13 @@ func getMemLogs() []string {
 
 func getCrashDir() string {
 	if CrashDirBase != "" {
-		return filepath.Join(CrashDirBase, "f4", "crashes")
+		return filepath.Join(CrashDirBase, AppName, "crashes")
 	}
 	cd, err := os.UserCacheDir()
 	if err != nil {
 		cd = os.TempDir()
 	}
-	return filepath.Join(cd, "f4", "crashes")
+	return filepath.Join(cd, AppName, "crashes")
 }
 // SetupStderrLog redirects standard error to a file in the crash directory.
 // This allows capturing low-level Go runtime fatal errors (like Out Of Memory).
@@ -162,7 +164,7 @@ func RecordCrash(panicVal any, stack []byte) string {
 	}
 	defer f.Close()
 
-	fmt.Fprintf(f, "=== F4 CRASH REPORT ===\n")
+	fmt.Fprintf(f, "=== %s CRASH REPORT ===\n", strings.ToUpper(AppName))
 	fmt.Fprintf(f, "Date, Time: %s\n", now.Format("2006-01-02 15:04:05"))
 
 	if info, ok := debug.ReadBuildInfo(); ok {
