@@ -919,7 +919,13 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 		// 4. Queue "Drain"
 		// Burst process pending events and tasks to avoid redundant renders.
 		// This naturally throttles the UI when a background thread spams updates.
+		drainStart := time.Now()
 		for fm.running && !fm.IsShutdown() {
+			// Prevent event flood from starving the renderer (e.g. held down key)
+			if time.Since(drainStart) > 20*time.Millisecond {
+				break
+			}
+
 			idleTimer.Reset(2 * time.Millisecond)
 			select {
 			case ev, ok := <-fm.EventChan:
