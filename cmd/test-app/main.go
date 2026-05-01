@@ -250,7 +250,7 @@ func main() {
 		dlg.AddItem(btnDir)
 
 		btnFile := vtui.NewButton(x1+46, btnY, "&File")
-		btnFile.OnClick = func() { vtui.SelectFileDialog(" Open File ", ".", &localVFS{path: "."}) }
+		btnFile.OnClick = func() { vtui.SelectFileDialog(" Open File ", ".", &localVFS{path: "."}, nil) }
 		btnFile.SetGrowMode(vtui.GrowLoY | vtui.GrowHiY)
 		dlg.AddItem(btnFile)
 

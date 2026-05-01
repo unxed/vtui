@@ -246,7 +246,7 @@ func createMessageDialog(title string, text string, buttons []string) *Window {
 }
 
 // SelectFileDialog creates a standard file selection dialog.
-func SelectFileDialog(title string, initialPath string, vfs FSProvider) *Window {
+func SelectFileDialog(title string, initialPath string, vfs FSProvider, onOk func(string)) *Window {
 	width := 55
 	height := 20
 	dlg := NewCenteredDialog(width, height, title)
@@ -301,7 +301,12 @@ func SelectFileDialog(title string, initialPath string, vfs FSProvider) *Window 
 	}
 
 	btnOk := NewButton(0, 0, Msg("vtui.Ok")); btnCancel := NewButton(0, 0, Msg("vtui.Cancel"))
-	btnOk.OnClick = func() { dlg.SetExitCode(1) }
+	btnOk.OnClick = func() {
+		if onOk != nil {
+			onOk(vfs.Join(vfs.GetPath(), fileEdit.GetText()))
+		}
+		dlg.SetExitCode(1)
+	}
 	btnCancel.OnClick = func() { dlg.SetExitCode(-1) }
 
 	dlg.AddItem(lblPath); dlg.AddItem(pathEdit); dlg.AddItem(lb)
