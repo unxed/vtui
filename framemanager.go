@@ -224,8 +224,11 @@ func (fm *frameManager) AddScreenHeadless(f Frame) {
 
 func (fm *frameManager) AddScreenBackground(f Frame) {
 	fm.SyncCurrentScreen()
-	fm.Screens = append(fm.Screens, fm.createScreen(f, false))
-	// Notice: We intentionally do not call fm.SwitchScreen here
+	// Insert at the beginning of the slice so it remains the "oldest" workspace
+	// and doesn't interfere with the MRU fallback order (which is at the end).
+	fm.Screens = append([]*AppScreen{fm.createScreen(f, false)}, fm.Screens...)
+	fm.ActiveIdx++ // Keep the user on the current active screen
+	DebugLog("FM: Added background screen at index 0. Current ActiveIdx: %d", fm.ActiveIdx)
 }
 
 func (fm *frameManager) CloseActiveScreen() {

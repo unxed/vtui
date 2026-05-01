@@ -1796,3 +1796,44 @@ func TestAppScreen_GetProgress_DeepSearch(t *testing.T) {
 		t.Errorf("Expected progress 42 to peek through modal dialog, got %d", s.GetProgress())
 	}
 }
+
+func TestFrameManager_BackgroundScreenFallback_Fix(t *testing.T) {
+	// Сценарий бага:
+	// 1. Панели активны (Screen 0)
+	// 2. В фоне появляется Очередь (теперь Screen 0)
+	// 3. Открывается Редактор (Screen 2)
+	// 4. Редактор закрывается. Должны вернуться в Панели, а не в Очередь.
+
+	fm := &frameManager{}
+	fm.Init(NewSilentScreenBuf())
+	
+	pFrame := &titleFrame{title: "Panels"}
+	fm.frames = append(fm.frames, pFrame)
+	fm.Screens[0].Frames = fm.frames // Initial Panels screen
+
+	// 1. Добавляем фон (Очередь)
+	qFrame := &titleFrame{title: "Queue"}
+	fm.AddScreenBackground(qFrame)
+	
+	if len(fm.Screens) != 2 { t.Fatal("Queue screen not added") }
+	if fm.Screens[fm.ActiveIdx].GetTitle() != "Panels" {
+		t.Errorf("Focus stolen by background screen. Current: %q", fm.Screens[fm.ActiveIdx].GetTitle())
+	}
+
+	// 2. Открываем Редактор (через AddScreen, он уйдет в конец)
+	eFrame := &titleFrame{title: "Editor"}
+	fm.AddScreen(eFrame)
+
+	if fm.Screens[fm.ActiveIdx].GetTitle() != "Editor" { t.Fatal("Editor not active") }
+
+	// 3. Закрываем Редактор
+	eFrame.SetExitCode(0)
+	fm.cleanupDoneFrames()
+
+	// Проверка: мы должны вернуться к Panels, а не к Queue
+	currentTitle := fm.Screens[fm.ActiveIdx].GetTitle()
+	if currentTitle != "Panels" {
+		t.Errorf("FALLBACK BUG: Closed editor and landed in %q instead of Panels", currentTitle)
+	}
+}
+
