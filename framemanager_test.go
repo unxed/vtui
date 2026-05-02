@@ -1686,7 +1686,7 @@ func TestFrameManager_DoubleClickDetection(t *testing.T) {
 
 	dispatch := func(e *vtinput.InputEvent) {
 		// Simplified dispatch from fm.Run()
-		if e.Type == vtinput.MouseEventType && e.ButtonState != 0 && e.KeyDown {
+		if e.Type == vtinput.MouseEventType && e.ButtonState != 0 && e.KeyDown && (e.MouseEventFlags&vtinput.MouseMoved) == 0 {
 			now := time.Now()
 			if e.ButtonState == fm.lastMouseButton && int(e.MouseX) == fm.lastMouseX && int(e.MouseY) == fm.lastMouseY && now.Sub(fm.lastMouseClickTime) < 400*time.Millisecond {
 				e.MouseEventFlags |= vtinput.DoubleClick

@@ -1103,7 +1103,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	}
 
 	// Generate DoubleClick flag from sequence of clicks
-	if ev.Type == vtinput.MouseEventType && ev.ButtonState != 0 && ev.KeyDown {
+	if ev.Type == vtinput.MouseEventType && ev.ButtonState != 0 && ev.KeyDown && (ev.MouseEventFlags&vtinput.MouseMoved) == 0 {
 		now := time.Now()
 		if ev.ButtonState == fm.lastMouseButton && int(ev.MouseX) == fm.lastMouseX && int(ev.MouseY) == fm.lastMouseY && now.Sub(fm.lastMouseClickTime) < 400*time.Millisecond {
 			ev.MouseEventFlags |= vtinput.DoubleClick
