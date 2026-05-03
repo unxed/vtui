@@ -235,6 +235,7 @@ func TestFrameManager_GetTopFrameType(t *testing.T) {
 func TestFrameManager_SwitchScreen_MRU(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 	fm.Push(NewDesktop()) // Screen 0: Desktop
 	fm.AddScreen(NewWindow(0, 0, 10, 10, "W1")) // Screen 1: W1
 	fm.AddScreen(NewWindow(0, 0, 10, 10, "W2")) // Screen 2: W2
@@ -1025,6 +1026,7 @@ func TestFrameManager_ResizeRobustness(t *testing.T) {
 func TestFrameManager_NoAutoCloseForHeadless(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 
 	// Добавляем фоновый экран 0
 	fm.Push(NewDesktop())
@@ -1279,6 +1281,7 @@ func TestAppScreen_AttentionState(t *testing.T) {
 func TestFrameManager_ScreenAutoClose(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf()) // Creates Screen 0
+	defer fm.Shutdown()
 
 	fm.Push(NewDesktop()) // Must explicitly push Desktop
 	w1 := NewWindow(0, 0, 10, 10, "W1")
@@ -1317,6 +1320,7 @@ func TestFrameManager_F12ScreensMenu(t *testing.T) {
 	scr := NewSilentScreenBuf()
 	scr.AllocBuf(80, 25)
 	fm.Init(scr)
+	defer fm.Shutdown()
 
 	f1 := &titleFrame{title: "Panel A"}
 	f1.SetPosition(0,0,10,10)
@@ -1439,6 +1443,8 @@ func TestFrameManager_BoundVsUnboundTask(t *testing.T) {
 func TestFrameManager_SwitcherLogic(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
+
 	fm.Push(NewDesktop()) // Screen 0: Desktop
 	fm.AddScreen(NewWindow(0,0,10,10, "W1")) // Screen 1: W1. ActiveIdx = 1.
 
@@ -1475,6 +1481,7 @@ func TestFrameManager_SwitcherLogic(t *testing.T) {
 func TestFrameManager_SwitcherRichContent(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 	fm.Push(NewDesktop())
 	
 	// Screen 1: With progress
@@ -1598,6 +1605,7 @@ func TestFrameManager_PushToFrameScreen_Background(t *testing.T) {
 func TestFrameManager_SwitchScreenFocus(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 
 	f1Focus := false
 	f1 := &mockFrame{}
@@ -1632,6 +1640,7 @@ func TestFrameManager_SwitchScreenFocus(t *testing.T) {
 func TestFrameManager_TargetedNotificationFlow(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 	fm.Push(NewDesktop()) // Screen 0
 
 	// 1. Добавляем диалог задачи на Screen 0. Screen 0: [Desktop, Task]
@@ -1739,6 +1748,7 @@ func TestFrameManager_DoubleClickDetection(t *testing.T) {
 func TestFrameManager_CloseActiveScreen_Shifting(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf()) 
+	defer fm.Shutdown()
 	fm.Push(NewDesktop()) // Screen 0
 
 	fm.AddScreen(NewWindow(0, 0, 10, 10, "W1")) // Screen 1
@@ -1767,6 +1777,7 @@ func TestFrameManager_CloseActiveScreen_Shifting(t *testing.T) {
 func TestFrameManager_CloseActiveScreen_CancelsTasks(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 	fm.Push(NewDesktop()) // Screen 0
 
 	// Screen 1
@@ -1829,6 +1840,7 @@ func TestFrameManager_BackgroundScreenFallback_Fix(t *testing.T) {
 
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 	
 	pFrame := &titleFrame{title: "Panels"}
 	fm.frames = append(fm.frames, pFrame)
