@@ -1,3 +1,5 @@
+//go:build linux || darwin || dragonfly || (openbsd && !arm64) || (netbsd && !arm64)
+
 package vtui
 
 import "github.com/unxed/vtinput"

@@ -1,4 +1,4 @@
-//go:build linux || freebsd || openbsd || netbsd || dragonfly || darwin
+//go:build linux || openbsd || netbsd || dragonfly || darwin
 
 package vtui
 
@@ -7,14 +7,13 @@ import (
 	"unsafe"
 	"sync"
 	"fmt"
-	"syscall"
 
 	"github.com/BurntSushi/xgb"
-	"github.com/BurntSushi/xgb/shm"
 	"github.com/BurntSushi/xgb/xproto"
 	"github.com/ebitengine/purego"
 	"github.com/unxed/vtinput"
 )
+
 
 // X11 Constants
 const (
@@ -142,9 +141,25 @@ var (
 )
 
 func initNative() error {
-	lib, err := purego.Dlopen("libX11.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	// Список возможных имен для libX11 на разных ОС
+	xlibNames := []string{
+		"libX11.so.6",      // Linux
+		"libX11.so",        // BSDs
+		"libX11.6.dylib",   // macOS (XQuartz)
+		"/usr/local/lib/libX11.so",
+		"/opt/X11/lib/libX11.6.dylib",
+	}
+
+	var lib uintptr
+	var err error
+	for _, name := range xlibNames {
+		lib, err = purego.Dlopen(name, purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
-		return fmt.Errorf("could not find libX11.so.6: %w", err)
+		return fmt.Errorf("could not find X11 library: %w", err)
 	}
 	libX11 = lib
 
@@ -158,7 +173,22 @@ func initNative() error {
 	xCreateICPtr, _ = purego.Dlsym(lib, "XCreateIC")
 	xutf8LookupStringPtr, _ = purego.Dlsym(lib, "Xutf8LookupString")
 
-	clib, _ := purego.Dlopen("libc.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	// Ищем стандартную библиотеку C (для setlocale)
+	libcNames := []string{
+		"libc.so.6",        // Linux
+		"libc.so.7",        // FreeBSD
+		"libc.so",          // Other BSDs
+		"libSystem.B.dylib", // macOS
+	}
+
+	var clib uintptr
+	for _, name := range libcNames {
+		clib, _ = purego.Dlopen(name, purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		if clib != 0 {
+			break
+		}
+	}
+
 	if clib != 0 {
 		purego.RegisterLibFunc(&setlocale, clib, "setlocale")
 	}
@@ -166,37 +196,6 @@ func initNative() error {
 	return nil
 }
 
-func init() {
-	// Константы для системных вызовов IPC (Linux)
-	const (
-		ipcPrivate = 0
-		ipcCreat   = 01000
-		ipcRmid    = 0
-	)
-
-	// Аллоцируем сегмент 32MB (хватит для 4K дисплея)
-	size := 3840 * 2160 * 4
-
-	r1, _, err := syscall.Syscall(syscall.SYS_SHMGET, uintptr(ipcPrivate), uintptr(size), uintptr(ipcCreat|0600))
-	if err != 0 {
-		DebugLog("X11: shmget failed: %v", err)
-		return
-	}
-	id := int(r1)
-
-	r1, _, err = syscall.Syscall(syscall.SYS_SHMAT, uintptr(id), 0, 0)
-	if err != 0 {
-		syscall.Syscall(syscall.SYS_SHMCTL, uintptr(id), uintptr(ipcRmid), 0)
-		DebugLog("X11: shmat failed: %v", err)
-		return
-	}
-	addr := r1
-
-	shmId = id
-	shmAddr = addr
-	shmData = unsafe.Slice((*byte)(unsafe.Pointer(shmAddr)), size)
-	DebugLog("X11: Allocated shared memory segment (ID: %d)", shmId)
-}
 // X11Host encapsulates the connection to the X server and window management.
 type X11Host struct {
 	mu         sync.Mutex
@@ -207,7 +206,7 @@ type X11Host struct {
 	screen     *xproto.ScreenInfo
 	gc         xproto.Gcontext
 	pixmap     xproto.Pixmap
-	shmSeg     shm.Seg // Shared memory segment
+	shmSeg     uint32 // Shared memory segment (shm.Seg)
 	width      uint16
 	height     uint16
 	cellW      int
@@ -303,12 +302,7 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	}
 
 	if shmId > 0 {
-		if err := shm.Init(conn); err == nil {
-			host.shmSeg, _ = shm.NewSegId(conn)
-			if host.shmSeg != 0 {
-				shm.Attach(conn, host.shmSeg, uint32(shmId), false)
-			}
-		}
+		host.shmSeg = x11shmInit(conn, shmId)
 	}
 
 	// Set up Xlib input
@@ -370,7 +364,7 @@ func (h *X11Host) translateModifiers(state uint16) vtinput.ControlKeyState {
 
 func (h *X11Host) Close() {
 	if h.shmSeg != 0 {
-		shm.Detach(h.conn, h.shmSeg)
+		x11shmDetach(h.conn, h.shmSeg)
 	}
 	h.conn.Close()
 	close(h.closeChan)
@@ -541,13 +535,7 @@ func (h *X11Host) flushImage() int {
 				dstRow[i], dstRow[i+1], dstRow[i+2], dstRow[i+3] = srcRow[i+2], srcRow[i+1], srcRow[i], 255
 			}
 		}
-		shm.PutImage(h.conn, xproto.Drawable(h.wid), h.gc,
-			uint16(w), uint16(h2),
-			0, uint16(minY),
-			uint16(w), uint16(maxY-minY+1),
-			0, int16(minY),
-			24, 2, 0,
-			h.shmSeg, 0)
+		x11shmPutImage(h.conn, h.wid, h.gc, uint16(w), uint16(h2), minY, maxY, h.shmSeg)
 		return 1
 	}
 
