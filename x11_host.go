@@ -627,51 +627,46 @@ func (h *X11Host) flushImage() int {
 	if w <= 0 || h2 <= 0 {
 		return 0
 	}
-	minY, maxY := -1, -1
-	for y := 0; y < h2; y++ {
-		if h.dirtyLines[y] {
-			if minY == -1 {
-				minY = y
-			}
-			maxY = y
-		}
-	}
-	if minY == -1 {
-		return 0
-	}
-	for y := minY; y <= maxY; y++ {
-		h.dirtyLines[y] = false
-	}
 
-	if h.shmSeg != 0 {
-		stride := w * 4
-		for y := minY; y <= maxY; y++ {
-			srcOff, dstOff := y*stride, y*stride
-			if dstOff+stride > len(h.bgraBuf) || srcOff+stride > len(h.imgBuf.Pix) {
-				continue
-			}
-			srcRow, dstRow := h.imgBuf.Pix[srcOff:srcOff+stride], h.bgraBuf[dstOff:dstOff+stride]
-			for i := 0; i < stride; i += 4 {
-				dstRow[i], dstRow[i+1], dstRow[i+2], dstRow[i+3] = srcRow[i+2], srcRow[i+1], srcRow[i], 255
-			}
-		}
-		x11shmPutImage(h.conn, h.wid, h.gc, uint16(w), uint16(h2), minY, maxY, h.shmSeg)
-		return 1
-	}
+	pix := h.imgBuf.Pix
+	lineStride := w * 4
+	putCalls := 0
 
-	pix, lineStride := h.imgBuf.Pix, w*4
 	maxReq := int(xproto.Setup(h.conn).MaximumRequestLength) * 4
 	rowsPerReqLimit := (maxReq - 24) / lineStride
-	putCalls := 0
-	for y := minY; y <= maxY; {
-		chunkEnd := y + rowsPerReqLimit
-		if chunkEnd > maxY+1 {
-			chunkEnd = maxY + 1
+
+	for y := 0; y < h2; {
+		if !h.dirtyLines[y] {
+			y++
+			continue
 		}
-		xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
-			uint16(w), uint16(chunkEnd-y), 0, int16(y), 0, 24, pix[y*lineStride:chunkEnd*lineStride])
+
+		// Находим непрерывный блок грязных строк
+		start := y
+		for y < h2 && h.dirtyLines[y] && (y-start) < rowsPerReqLimit {
+			h.dirtyLines[y] = false
+			y++
+		}
+		end := y // не включительно
+
+		if h.shmSeg != 0 {
+			for sy := start; sy < end; sy++ {
+				off := sy * lineStride
+				if off+lineStride > len(h.bgraBuf) || off+lineStride > len(pix) {
+					continue
+				}
+				srcRow, dstRow := pix[off:off+lineStride], h.bgraBuf[off:off+lineStride]
+				for i := 0; i < lineStride; i += 4 {
+					dstRow[i], dstRow[i+1], dstRow[i+2], dstRow[i+3] = srcRow[i+2], srcRow[i+1], srcRow[i], 255
+				}
+			}
+			x11shmPutImage(h.conn, h.wid, h.gc, uint16(w), uint16(h2), start, end-1, h.shmSeg)
+		} else {
+			xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
+				uint16(w), uint16(end-start), 0, int16(start), 0, 24, pix[start*lineStride:end*lineStride])
+		}
 		putCalls++
-		y = chunkEnd
 	}
+
 	return putCalls
 }
