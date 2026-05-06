@@ -149,13 +149,13 @@ var (
 	setlocale            func(int, string) uintptr
 )
 
-// initNative динамически загружает libX11.so и libc.so во время выполнения.
-// Мы используем purego, чтобы избежать зависимостей от CGO. Это позволяет
-// компилировать бинарный файл под любую ОС/архитектуру без тулчейна C,
-// сохраняя при этом возможность использовать логику метода ввода X11 (XIM)
-// из системной библиотеки (см. ГИБРИДНЫЙ МЕТОД ниже).
+// initNative dynamically loads libX11.so and libc.so at runtime.
+// We use purego to avoid CGO dependencies. This allows us to compile the
+// binary on any OS/architecture without a C toolchain, while still leveraging
+// the complex, battle-tested X11 Input Method (XIM) logic in the system
+// library (see the HYBRID METHOD section below).
 func initNative() error {
-	// Список возможных имен для libX11 на разных ОС
+	// List of possible names for libX11 on different operating systems
 	xlibNames := []string{
 		"libX11.so.6",      // Linux
 		"libX11.so",        // BSDs
@@ -191,7 +191,7 @@ func initNative() error {
 	xGetIMValuesPtr, _ = purego.Dlsym(lib, "XGetIMValues")
 	xutf8LookupStringPtr, _ = purego.Dlsym(lib, "Xutf8LookupString")
 
-	// Ищем стандартную библиотеку C (для setlocale)
+	// Search for the standard C library (required for setlocale)
 	libcNames := []string{
 		"",                 // Поиск в символах текущего процесса (самый надежный способ в Linux)
 		"libc.so.6",        // Linux
@@ -250,35 +250,36 @@ type X11Host struct {
 	dirtyLines []bool
 }
 
-// ГИБРИДНЫЙ МЕТОД: Мы используем Xlib для "правды" о вводе, а XGB для рисования.
-// Группы (layout indices) в сырых событиях X11 часто предоставляют неверные данные,
-// на которые нельзя полагаться. Надежная поддержка множества (3 и более) раскладок
-// возможна только через обращение к нативным функциям иксов (XIM).
-// При этом XGB используется для графики, так как он не блокирует планировщик Go.
+// HYBRID METHOD: We use Xlib as the "source of truth" for input, and XGB for drawing.
+// Raw X11 events often provide incorrect data for groups (keyboard layouts),
+// which cannot be reliably trusted. Robust support for multiple (3 or more)
+// layouts is only possible through native X Input Method (XIM) calls.
+// XGB is used for graphics because it is a pure Go protocol implementation
+// that doesn't block the Go scheduler.
 func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	if err := initNative(); err != nil {
 		return nil, fmt.Errorf("Native Library Error: %w", err)
 	}
 
-	// 0. Включаем многопоточность X11. КРИТИЧНО для стабильности Go-горутин
+	// 0. Enable X11 multithreading. CRITICAL for Go goroutine stability.
 	if xInitThreads != nil {
 		xInitThreads()
 		DebugLog("X11: XInitThreads called")
 	}
 
-	// 1. Инициализируем локали. Без этого X11 не отдаст Unicode и не откроет IM.
-	// ВАЖНО: Без этого Xutf8LookupString не будет возвращать UTF-8 текст для не-латинских раскладок.
-	// 6 — это константа LC_ALL в большинстве Linux систем.
+	// 1. Initialize locales. Without this, X11 won't provide Unicode or open XIM.
+	// IMPORTANT: Without this, Xutf8LookupString will not return UTF-8 text for
+	// non-Latin layouts. 6 corresponds to the LC_ALL constant in most Linux systems.
 	if setlocale != nil {
 		if res := setlocale(6, ""); res == 0 {
 			return nil, fmt.Errorf("setlocale(LC_ALL, \"\") failed. Check your LANG environment variable")
 		}
 	}
 
-	// 2. Сброс модификаторов на старте
+	// 2. Reset modifiers on start
 	xSetLocaleModifiers("")
 
-	// 3. Открываем дисплей
+	// 3. Open the display
 	dpy := xOpenDisplay("")
 	if dpy == 0 {
 		return nil, fmt.Errorf("XOpenDisplay failed. Is DISPLAY set and X-server running?")
@@ -389,14 +390,14 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	// Set up Xlib input
 	xSelectInput(dpy, uintptr(host.wid), KeyPressMask|KeyReleaseMask|ButtonPressMask|ButtonReleaseMask|PointerMotionMask|ExposureMask|StructureNotifyMask)
 	
-	// 4. Настройка метода ввода (XIM)
-	// Это единственный надежный способ обработки интернационального текстового ввода в X11.
-	// Важно: сначала пробуем пустые модификаторы (системные IBus/Fcitx)
+	// 4. Input Method (XIM) setup
+	// This is the only reliable way to handle internationalized text input in X11.
+	// Important: first try empty modifiers to connect to system IMs (IBus, Fcitx, etc.)
 	xSetLocaleModifiers("")
 	im := xOpenIM(dpy, 0, 0, 0)
 
 	if im == 0 {
-		// Хак для Wayland/XWayland: если системный IM не ответил, форсируем встроенный
+		// Wayland/XWayland hack: if the system IM didn't respond, force internal IM
 		DebugLog("X11: System XOpenIM returned NULL, trying @im=none...")
 		xSetLocaleModifiers("@im=none")
 		im = xOpenIM(dpy, 0, 0, 0)
@@ -407,7 +408,7 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	}
 	DebugLog("X11: XIM handle opened: 0x%X", im)
 
-	// 5. Запрос поддерживаемых стилей ввода для диагностики
+	// 5. Query supported input styles for diagnostics
 	var stylesPtr uintptr
 	nStyles := []byte("queryInputStyle\x00")
 	if xGetIMValuesPtr != 0 {
@@ -420,7 +421,7 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 		}
 	}
 
-	var bestStyle uintptr = XIMPreeditNothing | XIMStatusNothing // Дефолт: 0x410
+	var bestStyle uintptr = XIMPreeditNothing | XIMStatusNothing // Default: 0x410
 	if stylesPtr != 0 {
 		styles := (*ximStyles)(unsafe.Pointer(stylesPtr))
 		DebugLog("X11: Supported IM styles count: %d", styles.Count)
@@ -434,7 +435,7 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 				}
 			}
 			if !hasPreferred {
-				// Если 0x410 нет в списке, берем первый попавшийся PreeditNothing
+				// If 0x410 is not listed, pick the first available PreeditNothing style
 				for _, s := range styleSlice {
 					if s&XIMPreeditNothing != 0 {
 						bestStyle = s
@@ -446,13 +447,13 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 		}
 	}
 
-	// 6. Создание контекста ввода (XIC)
+	// 6. Create Input Context (XIC)
 	nInputStyle := []byte("inputStyle\x00")
 	nClientWindow := []byte("clientWindow\x00")
 	nFocusWindow := []byte("focusWindow\x00")
 
-	// На 64-битных системах все аргументы в вариативном вызове (Style, Window) ДОЛЖНЫ быть 8 байт.
-	// Обязательно передаем uintptr(0) в конце.
+	// On 64-bit systems, all arguments in variadic calls (Style, Window) MUST
+	// be 8 bytes wide. We must pass uintptr(0) at the end to terminate the list.
 	var ic uintptr
 	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
 		res, _, _ := purego.SyscallN(trampolineXCreateICAddr, im,
@@ -539,6 +540,9 @@ func (h *X11Host) RunEventLoop() {
 		// Он перехватывает события, используемые для внутреннего взаимодействия XKB/XIM
 		// (например, переключение раскладки или последовательности Compose), чтобы
 		// они не засоряли логику приложения.
+		// xFilterEvent is CRITICAL for Input Methods.
+		// It intercepts events used for internal XKB/XIM communication (like layout
+		// switching or Compose sequences) so they don't clutter the app logic.
 		if xFilterEvent(&ev, 0) {
 			continue
 		}
@@ -584,11 +588,11 @@ func (h *X11Host) RunEventLoop() {
 			var status int32   // Status is 4 bytes
 			var n uintptr
 
-			// ИСТОЧНИК ИСТИНЫ: Xutf8LookupString.
-			// Эта функция обрабатывает все сложности раскладок, включая несколько групп
-			// и кастомные модификаторы, которые простые таблицы маппинга упускают.
-			// Используем нативный XIM для получения Unicode символа и KeySym.
-			// NewX11Host гарантирует, что h.ic != 0, иначе программа бы не запустилась.
+			// SOURCE OF TRUTH: Xutf8LookupString.
+			// This function handles all layout complexities, including multiple groups
+			// and custom modifiers that simple mapping tables often miss.
+			// We use native XIM to retrieve both the Unicode character and the KeySym.
+			// NewX11Host ensures that h.ic != 0, otherwise initialization would have failed.
 			if h.ic != 0 {
 				n, _, _ = purego.SyscallN(xutf8LookupStringPtr, h.ic, uintptr(unsafe.Pointer(&ev)),
 					uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)),
@@ -697,7 +701,7 @@ func (h *X11Host) flushImage() int {
 			continue
 		}
 
-		// Находим непрерывный блок грязных строк
+		// Find a contiguous block of dirty lines
 		start := y
 		for y < h2 && h.dirtyLines[y] && (y-start) < rowsPerReqLimit {
 			h.dirtyLines[y] = false
@@ -705,8 +709,8 @@ func (h *X11Host) flushImage() int {
 		}
 		end := y // не включительно
 
-		// Конвертируем цвета из RGBA (Go) в BGRA (X11 ZPixmap на Little-Endian)
-		// Это необходимо делать независимо от того, используется SHM или нет.
+		// Convert colors from RGBA (Go) to BGRA (X11 ZPixmap on Little-Endian).
+		// This must be done regardless of whether SHM is used.
 		for sy := start; sy < end; sy++ {
 			off := sy * lineStride
 			if off+lineStride > len(h.bgraBuf) || off+lineStride > len(pix) {

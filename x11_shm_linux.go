@@ -18,7 +18,7 @@ var (
 )
 
 func init() {
-	// Аллоцируем сегмент 32MB (хватит для 4K дисплея)
+	// Allocate 32MB segment (sufficient for a 4K display)
 	size := 3840 * 2160 * 4
 
 	r1, _, err := unix.Syscall(unix.SYS_SHMGET, uintptr(unix.IPC_PRIVATE), uintptr(size), uintptr(unix.IPC_CREAT|0600))

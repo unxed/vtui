@@ -4,11 +4,11 @@ package vtui
 
 import "reflect"
 
-// Объявляем функции, реализованные в ассемблере
+// Declare functions implemented in assembly
 func trampolineXGetIMValues()
 func trampolineXCreateIC()
 
-// Получаем их адреса в памяти для передачи в purego
+// Retrieve their memory addresses for purego invocation
 var (
 	trampolineXGetIMValuesAddr = reflect.ValueOf(trampolineXGetIMValues).Pointer()
 	trampolineXCreateICAddr    = reflect.ValueOf(trampolineXCreateIC).Pointer()

@@ -42,7 +42,7 @@ type X11Renderer struct {
 	cursorVis  bool
 	cursorShape CursorShape
 
-	// Состояние для управления миганием и очистки "шлейфа"
+	// State for blink control and clearing the cursor "trail"
 	oldCursorX int
 	oldCursorY int
 
@@ -118,7 +118,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			}
 		}
 
-		// Сбрасываем старый курсор, если он был на этой строке, но теперь переместился
+		// Reset old cursor position if it was on this row but has moved
 		if y == r.oldCursorY && (r.oldCursorX != r.cursorX || r.oldCursorY != r.cursorY) {
 			r.oldCursorX = -1
 			r.oldCursorY = -1
@@ -129,7 +129,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			cell := buf[idx]
 			_, bg := r.getCellColors(cell)
 
-			// 1. Находим "спан" (группу ячеек) с одинаковым фоном
+			// 1. Find a "span" (group of cells) with the same background
 			spanW := 0
 			for x+spanW < w {
 				nextCell := buf[rowOff+x+spanW]
@@ -144,7 +144,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 				spanW++
 			}
 
-			// 2. Быстрая заливка фона для всего спана
+			// 2. Fast background fill for the entire span
 			px := x * cw
 			py := y * ch
 			spanPixW := spanW * cw
@@ -168,7 +168,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 				}
 			}
 
-			// 3. Отрисовка контента внутри спана
+			// 3. Render content within the span
 			for sx := 0; sx < spanW; {
 				currX := x + sx
 				cIdx := rowOff + currX
@@ -194,7 +194,7 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 					}
 				}
 
-				// 4. Курсор
+				// 4. Cursor
 				if currX == r.cursorX && y == r.cursorY && r.cursorVis && blinkState {
 					var startY int
 					if r.cursorShape == CursorShapeBlock {
@@ -250,7 +250,7 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 
 		for iy := 0; iy < ch; iy++ {
 			for ix := 0; ix < drawW; ix++ {
-				// Оптимизированное заполнение фона при создании нового глифа в кэше
+				// Optimized background fill when creating a new glyph in cache
 				off := iy*cached.Stride + ix*4
 				cached.Pix[off] = bgCol.R
 				cached.Pix[off+1] = bgCol.G
@@ -278,7 +278,7 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 		dstOff := (py+iy)*img.Stride + px*4
 		srcOff := iy * cached.Stride
 		if dstOff+drawW*4 <= len(img.Pix) {
-			// Прямое копирование строки пикселей из кэша глифа в основной буфер кадра
+			// Direct pixel row copy from glyph cache to the main frame buffer
 			copy(img.Pix[dstOff:dstOff+drawW*4], cached.Pix[srcOff:srcOff+drawW*4])
 		}
 	}
@@ -306,7 +306,7 @@ func (r *X11Renderer) reportStats() {
 	avgFlush := r.stats.totalFlush / time.Duration(r.stats.frameCount)
 
 	DebugLog("[GUI PERF] FPS: %d, AvgDraw: %v, AvgFlush: %v, Dirty: %d/%d rows, PutImages: %d, Glyphs: %d",
-		r.stats.frameCount/2, // за 2 секунды
+		r.stats.frameCount/2, // divided by 2 seconds
 		avgDraw,
 		avgFlush,
 		r.stats.dirtyRows/r.stats.frameCount,

@@ -4,7 +4,7 @@ package vtui
 
 import "github.com/unxed/vtinput"
 
-// x11KeysymToVK мапит стандартные X11 Keysyms в Windows Virtual Key Codes.
+// x11KeysymToVK maps standard X11 Keysyms to Windows Virtual Key Codes.
 var x11KeysymToVK = map[uint32]uint16{
 	0xff08: vtinput.VK_BACK,
 	0xff09: vtinput.VK_TAB,
