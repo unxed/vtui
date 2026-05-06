@@ -4,6 +4,7 @@ package vtui
 
 import (
 	"fmt"
+	"runtime"
 	"image"
 	"sync"
 	"unsafe"
@@ -375,7 +376,13 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	var stylesPtr uintptr
 	nStyles := []byte("queryInputStyle\x00")
 	if xGetIMValuesPtr != 0 {
-		purego.SyscallN(xGetIMValuesPtr, im, uintptr(unsafe.Pointer(&nStyles[0])), uintptr(unsafe.Pointer(&stylesPtr)), 0)
+		if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+			// Вызываем НАШ трамплин через purego
+			purego.SyscallN(trampolineXGetIMValuesAddr, im, uintptr(unsafe.Pointer(&nStyles[0])), uintptr(unsafe.Pointer(&stylesPtr)), uintptr(0))
+		} else {
+			// Вызываем X11 напрямую
+			purego.SyscallN(xGetIMValuesPtr, im, uintptr(unsafe.Pointer(&nStyles[0])), uintptr(unsafe.Pointer(&stylesPtr)), uintptr(0))
+		}
 	}
 
 	var bestStyle uintptr = XIMPreeditNothing | XIMStatusNothing // Дефолт: 0x410
@@ -411,11 +418,22 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 
 	// На 64-битных системах все аргументы в вариативном вызове (Style, Window) ДОЛЖНЫ быть 8 байт.
 	// Обязательно передаем uintptr(0) в конце.
-	ic, _, _ := purego.SyscallN(xCreateICPtr, im,
-		uintptr(unsafe.Pointer(&nInputStyle[0])), bestStyle,
-		uintptr(unsafe.Pointer(&nClientWindow[0])), uintptr(host.wid),
-		uintptr(unsafe.Pointer(&nFocusWindow[0])), uintptr(host.wid),
-		uintptr(0))
+	var ic uintptr
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+		res, _, _ := purego.SyscallN(trampolineXCreateICAddr, im,
+			uintptr(unsafe.Pointer(&nInputStyle[0])), bestStyle,
+			uintptr(unsafe.Pointer(&nClientWindow[0])), uintptr(host.wid),
+			uintptr(unsafe.Pointer(&nFocusWindow[0])), uintptr(host.wid),
+			uintptr(0))
+		ic = res
+	} else {
+		res, _, _ := purego.SyscallN(xCreateICPtr, im,
+			uintptr(unsafe.Pointer(&nInputStyle[0])), bestStyle,
+			uintptr(unsafe.Pointer(&nClientWindow[0])), uintptr(host.wid),
+			uintptr(unsafe.Pointer(&nFocusWindow[0])), uintptr(host.wid),
+			uintptr(0))
+		ic = res
+	}
 
 	if ic == 0 {
 		return nil, fmt.Errorf("XCreateIC failed: style 0x%X rejected. Check system log for Segfaults", bestStyle)
