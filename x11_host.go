@@ -236,6 +236,7 @@ type X11Host struct {
 	shmSeg     uint32 // Shared memory segment (shm.Seg)
 	width      uint16
 	height     uint16
+	depth      byte   // Window color depth
 	cellW      int
 	cellH      int
 	scale      int // Scaling factor (1 for standard, 2 for HiDPI, etc.)
@@ -339,6 +340,7 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	if visualID == 0 {
 		visualID = screen.RootVisual
 	}
+	host.depth = depth
 
 	host.wid, err = xproto.NewWindowId(conn)
 	if err != nil {
@@ -376,12 +378,9 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	host.imgBuf = image.NewRGBA(image.Rect(0, 0, int(host.width), int(host.height)))
 	if shmId > 0 {
 		host.bgraBuf = shmData
-	} else {
-		host.bgraBuf = host.imgBuf.Pix
-	}
-
-	if shmId > 0 {
 		host.shmSeg = x11shmInit(conn, shmId)
+	} else {
+		host.bgraBuf = make([]byte, len(host.imgBuf.Pix))
 	}
 
 	// Set up Xlib input
@@ -556,11 +555,14 @@ func (h *X11Host) RunEventLoop() {
 			cev := (*xConfigureEvent)(unsafe.Pointer(&ev[0]))
 			w, ht := uint16(cev.Width), uint16(cev.Height)
 			if w != h.width || ht != h.height {
-				h.mu.Lock()
-				h.width, h.height = w, ht
-				h.cols, h.rows = int(w)/h.cellW, int(ht)/h.cellH
-				h.imgBuf = image.NewRGBA(image.Rect(0, 0, int(h.width), int(h.height)))
-				h.dirtyLines = make([]bool, int(ht))
+			h.mu.Lock()
+			h.width, h.height = w, ht
+			h.cols, h.rows = int(w)/h.cellW, int(ht)/h.cellH
+			h.imgBuf = image.NewRGBA(image.Rect(0, 0, int(h.width), int(h.height)))
+			if h.shmSeg == 0 {
+				h.bgraBuf = make([]byte, len(h.imgBuf.Pix))
+			}
+			h.dirtyLines = make([]bool, int(ht))
 				for i := range h.dirtyLines {
 					h.dirtyLines[i] = true
 				}
@@ -700,21 +702,24 @@ func (h *X11Host) flushImage() int {
 		}
 		end := y // не включительно
 
-		if h.shmSeg != 0 {
-			for sy := start; sy < end; sy++ {
-				off := sy * lineStride
-				if off+lineStride > len(h.bgraBuf) || off+lineStride > len(pix) {
-					continue
-				}
-				srcRow, dstRow := pix[off:off+lineStride], h.bgraBuf[off:off+lineStride]
-				for i := 0; i < lineStride; i += 4 {
-					dstRow[i], dstRow[i+1], dstRow[i+2], dstRow[i+3] = srcRow[i+2], srcRow[i+1], srcRow[i], 255
-				}
+		// Конвертируем цвета из RGBA (Go) в BGRA (X11 ZPixmap на Little-Endian)
+		// Это необходимо делать независимо от того, используется SHM или нет.
+		for sy := start; sy < end; sy++ {
+			off := sy * lineStride
+			if off+lineStride > len(h.bgraBuf) || off+lineStride > len(pix) {
+				continue
 			}
+			srcRow, dstRow := pix[off:off+lineStride], h.bgraBuf[off:off+lineStride]
+			for i := 0; i < lineStride; i += 4 {
+				dstRow[i], dstRow[i+1], dstRow[i+2], dstRow[i+3] = srcRow[i+2], srcRow[i+1], srcRow[i], 255
+			}
+		}
+
+		if h.shmSeg != 0 {
 			x11shmPutImage(h.conn, h.wid, h.gc, uint16(w), uint16(h2), start, end-1, h.shmSeg)
 		} else {
 			xproto.PutImage(h.conn, xproto.ImageFormatZPixmap, xproto.Drawable(h.wid), h.gc,
-				uint16(w), uint16(end-start), 0, int16(start), 0, 24, pix[start*lineStride:end*lineStride])
+				uint16(w), uint16(end-start), 0, int16(start), 0, h.depth, h.bgraBuf[start*lineStride:end*lineStride])
 		}
 		putCalls++
 	}
