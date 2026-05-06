@@ -8,6 +8,7 @@ import (
 	"image"
 	"sync"
 	"unsafe"
+	"os"
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
@@ -376,7 +377,9 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	}
 
 	host.imgBuf = image.NewRGBA(image.Rect(0, 0, int(host.width), int(host.height)))
-	if shmId > 0 {
+
+	forceNoShm := os.Getenv("VTUI_NO_SHM") != ""
+	if shmId > 0 && !forceNoShm {
 		host.bgraBuf = shmData
 		host.shmSeg = x11shmInit(conn, shmId)
 	} else {
