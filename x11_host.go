@@ -315,18 +315,51 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 		dirtyLines: make([]bool, rows*cellH),
 	}
 
+	// Find a 24/32 bit TrueColor visual. This is essential for correct color handling
+	// on some X servers, particularly XQuartz on macOS where the default visual
+	// might be an 8-bit indexed palette.
+	var visualID xproto.Visualid
+	var depth byte = screen.RootDepth
+
+	for _, d := range screen.AllowedDepths {
+		if d.Depth == 24 || d.Depth == 32 {
+			for _, v := range d.Visuals {
+				if v.Class == xproto.VisualClassTrueColor {
+					visualID = v.VisualId
+					depth = d.Depth
+					break
+				}
+			}
+		}
+		if visualID != 0 {
+			break
+		}
+	}
+
+	if visualID == 0 {
+		visualID = screen.RootVisual
+	}
+
 	host.wid, err = xproto.NewWindowId(conn)
 	if err != nil {
 		return nil, err
 	}
 
+	cmap, err := xproto.NewColormapId(conn)
+	if err != nil {
+		return nil, err
+	}
+	xproto.CreateColormap(conn, xproto.ColormapAllocNone, cmap, screen.Root, visualID)
+
 	// CwEventMask MUST NOT be set here, because Xlib will select events!
-	xproto.CreateWindow(conn, screen.RootDepth, host.wid, screen.Root,
+	// We now explicitly provide the correct depth, visual, and a new colormap.
+	xproto.CreateWindow(conn, depth, host.wid, screen.Root,
 		0, 0, host.width, host.height, 0,
-		xproto.WindowClassInputOutput, screen.RootVisual,
-		xproto.CwBackPixel,
+		xproto.WindowClassInputOutput, visualID,
+		xproto.CwBackPixel|xproto.CwColormap,
 		[]uint32{
 			screen.BlackPixel,
+			uint32(cmap),
 		})
 
 	title := AppName + " (X11)"
