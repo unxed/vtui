@@ -32,6 +32,15 @@ func (f *BorderedFrame) SetTitle(title string) {
 func (f *BorderedFrame) GetTitle() string {
 	return f.title
 }
+func (f *BorderedFrame) getControlOffset() int {
+	offset := 4
+	if FrameManager != nil && FrameManager.scr != nil && len(FrameManager.Screens) > 1 {
+		if f.X2 >= FrameManager.scr.width-1 {
+			offset = 6
+		}
+	}
+	return offset
+}
 // IsBorderClick returns true if the coordinates hit the frame border.
 func (f *BorderedFrame) IsBorderClick(x, y int) bool {
 	if f.boxType == NoBox {
@@ -62,6 +71,6 @@ func (f *BorderedFrame) DisplayObject(scr *ScreenBuf) {
 	p.DrawTitle(f.X1, f.Y1, f.X2, f.title, Palette[f.ColorTitleIdx])
 
 	if f.ShowClose {
-		p.DrawCloseButton(f.X2, f.Y1, Palette[f.ColorBoxIdx])
+		p.DrawCloseButton(f.X2, f.Y1, f.getControlOffset(), Palette[f.ColorBoxIdx])
 	}
 }

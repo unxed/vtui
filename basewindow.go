@@ -92,7 +92,7 @@ func (bw *BaseWindow) Show(scr *ScreenBuf) {
 
 	if bw.ShowZoom {
 		zoomStr := string(UIStrings.CloseBrackets[0]) + string(UIStrings.ZoomSymbol) + string(UIStrings.CloseBrackets[1])
-		offset := 4
+		offset := bw.frame.getControlOffset()
 		if bw.ShowClose {
 			offset += 3
 		}
@@ -245,14 +245,20 @@ func (bw *BaseWindow) handleWindowOperations(e *vtinput.InputEvent) bool {
 		return true
 	}
 
+
+
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+		offset := bw.frame.getControlOffset()
+
 		// Border clicks
-		if bw.ShowClose && my == bw.Y1 && mx >= bw.X2-4 && mx <= bw.X2-2 {
+		if bw.ShowClose && my == bw.Y1 && mx >= bw.X2-offset && mx <= bw.X2-offset+2 {
 			bw.Close()
 			return true
 		}
-		offset := 4
-		if bw.ShowClose { offset += 3 }
+
+		if bw.ShowClose {
+			offset += 3
+		}
 		if bw.ShowZoom && my == bw.Y1 && mx >= bw.X2-offset && mx <= bw.X2-offset+2 {
 			bw.ToggleZoom()
 			return true

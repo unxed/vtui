@@ -309,7 +309,7 @@ func TestDialog_CloseButton(t *testing.T) {
 	d.ProcessMouse(&vtinput.InputEvent{
 		Type:        vtinput.MouseEventType,
 		KeyDown:     true,
-		MouseX:      27,
+		MouseX:      25,
 		MouseY:      10,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
 	})
