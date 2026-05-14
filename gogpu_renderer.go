@@ -12,6 +12,10 @@ import (
 	"github.com/gogpu/gg/text"
 )
 
+var (
+	debugLastPhysW, debugLastPhysH int = -1, -1
+	debugDrawCount                 int = 0
+)
 type GogpuRenderer struct {
 	mu           sync.Mutex
 	host         *GogpuHost
@@ -83,18 +87,21 @@ func (r *GogpuRenderer) Flush() {
 	if len(r.renderBuf) == 0 {
 		return
 	}
-
+	
 	w, h := ctx.Width(), ctx.Height()
-	// Total logical size
-	logW := r.host.cols * r.cellW
-	logH := r.host.rows * r.cellH
+	logW := r.host.cols * r.host.cellW
+	logH := r.host.rows * r.host.cellH
+
+	// ГИПОТЕЗА: ctx.Width() врет из-за кривого HiDPI в gogpu (отдает 400 вместо 800).
+	// Форсируем размер текстуры канваса до требуемого логического размера (800x630).
+	canvasW, canvasH := logW, logH
 
 	if r.canvas == nil {
 		provider := r.host.app.GPUContextProvider()
 		if provider == nil { return }
-		r.canvas, _ = ggcanvas.New(provider, w, h)
+		r.canvas, _ = ggcanvas.New(provider, canvasW, canvasH)
 	} else {
-		r.canvas.Resize(w, h)
+		r.canvas.Resize(canvasW, canvasH)
 	}
 
 	if r.dirty {
@@ -102,11 +109,13 @@ func (r *GogpuRenderer) Flush() {
 			dc.SetRGB(0, 0, 0)
 			dc.Clear()
 
-			// Scale the drawing context to map physical window pixels to logical grid cells.
-			// This fixes HiDPI squeezing.
-			scaleX := float64(w) / float64(logW)
-			scaleY := float64(h) / float64(logH)
-			dc.Scale(scaleX, scaleY)
+			// Убираем сжатие. Рисуем пиксель в пиксель.
+			dc.Identity()
+
+			// Логируем размеры для отладки
+			if debugDrawCount % 10 == 0 {
+				DebugLog("GOGPU_PROBE: Ctx=%dx%d CanvasForced=%dx%d", w, h, canvasW, canvasH)
+			}
 
 			if r.face != nil {
 				dc.SetFont(r.face)
