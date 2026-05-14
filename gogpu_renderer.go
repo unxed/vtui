@@ -5,6 +5,7 @@ package vtui
 import (
 	"image/color"
 	"time"
+	"sync"
 
 	"github.com/gogpu/gg"
 	"github.com/gogpu/gg/integration/ggcanvas"
@@ -12,9 +13,10 @@ import (
 )
 
 type GogpuRenderer struct {
+	mu           sync.Mutex
 	host         *GogpuHost
 	face         text.Face
-	cellW, cellH int
+	cellW, cellH int // logical cell sizes from font measurement
 
 	cursorX, cursorY int
 	cursorVis        bool
@@ -22,6 +24,7 @@ type GogpuRenderer struct {
 
 	canvas    *ggcanvas.Canvas
 	renderBuf []CharInfo
+	dirty     bool
 }
 
 func NewGogpuRenderer(host *GogpuHost, face text.Face, cw, ch int) *GogpuRenderer {
@@ -34,13 +37,27 @@ func NewGogpuRenderer(host *GogpuHost, face text.Face, cw, ch int) *GogpuRendere
 }
 
 func (r *GogpuRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
-	// Render is called by ScreenBuf.Flush while the mutex is held.
-	// We copy data to a local buffer so Flush() can draw it asynchronously
-	// without deadlocking on GetCell calls.
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	needsRedraw := force
+	if !needsRedraw {
+		for i := 0; i < len(buf); i++ {
+			if buf[i] != shadow[i] {
+				needsRedraw = true
+				break
+			}
+		}
+	}
+	if !needsRedraw {
+		return
+	}
+
 	if len(r.renderBuf) != len(buf) {
 		r.renderBuf = make([]CharInfo, len(buf))
 	}
 	copy(r.renderBuf, buf)
+	r.dirty = true
 }
 
 func (r *GogpuRenderer) SetCursor(x, y int, visible bool, shape CursorShape) {
@@ -52,14 +69,25 @@ func (r *GogpuRenderer) SetCursor(x, y int, visible bool, shape CursorShape) {
 func (r *GogpuRenderer) SetPalette(pal *[256]uint32) {}
 
 func (r *GogpuRenderer) Flush() {
-	if r.host.ctx == nil || len(r.renderBuf) == 0 {
+	r.host.mu.Lock()
+	ctx := r.host.ctx
+	r.host.mu.Unlock()
+
+	if ctx == nil {
 		return
 	}
 
-	w, h := r.host.ctx.Width(), r.host.ctx.Height()
-	// Dynamically calculate cell size to support HiDPI scaling
-	r.cellW = w / r.host.cols
-	r.cellH = h / r.host.rows
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if len(r.renderBuf) == 0 {
+		return
+	}
+
+	w, h := ctx.Width(), ctx.Height()
+	// Total logical size
+	logW := r.host.cols * r.cellW
+	logH := r.host.rows * r.cellH
 
 	if r.canvas == nil {
 		provider := r.host.app.GPUContextProvider()
@@ -69,46 +97,64 @@ func (r *GogpuRenderer) Flush() {
 		r.canvas.Resize(w, h)
 	}
 
-	r.canvas.Draw(func(dc *gg.Context) {
-		if r.face != nil {
-			dc.SetFont(r.face)
-		}
+	if r.dirty {
+		r.canvas.Draw(func(dc *gg.Context) {
+			dc.SetRGB(0, 0, 0)
+			dc.Clear()
 
-		for y := 0; y < r.host.rows; y++ {
-			rowOff := y * r.host.cols
-			for x := 0; x < r.host.cols; x++ {
-				cell := r.renderBuf[rowOff+x]
-				if cell.Char == WideCharFiller {
-					continue
+			// Scale the drawing context to map physical window pixels to logical grid cells.
+			// This fixes HiDPI squeezing.
+			scaleX := float64(w) / float64(logW)
+			scaleY := float64(h) / float64(logH)
+			dc.Scale(scaleX, scaleY)
+
+			if r.face != nil {
+				dc.SetFont(r.face)
+			}
+			metrics := r.face.Metrics()
+			ascent := float64(metrics.Ascent)
+
+			for y := 0; y < r.host.rows; y++ {
+				rowOff := y * r.host.cols
+				for x := 0; x < r.host.cols; x++ {
+					cell := r.renderBuf[rowOff+x]
+					if cell.Char == WideCharFiller {
+						continue
+					}
+
+					fg, bg := r.getCellColors(cell)
+					lx := float64(x * r.cellW)
+					ly := float64(y * r.cellH)
+
+					dc.SetColor(bg)
+					dc.DrawRectangle(lx, ly, float64(r.cellW), float64(r.cellH))
+					dc.Fill()
+
+					if cell.Char != 0 && cell.Char != ' ' && r.face != nil {
+						dc.SetColor(fg)
+						// Monospace font character alignment inside the cell using ascent baseline
+						dc.DrawString(string(rune(cell.Char)), lx, ly+ascent)
+					}
 				}
+			}
 
-				fg, bg := r.getCellColors(cell)
-
-				dc.SetColor(bg)
-				dc.DrawRectangle(float64(x*r.cellW), float64(y*r.cellH), float64(r.cellW), float64(r.cellH))
+			if r.cursorVis && (time.Now().UnixMilli()/500)%2 == 0 {
+				dc.SetColor(color.White)
+				cx := float64(r.cursorX * r.cellW)
+				cy := float64(r.cursorY * r.cellH)
+				if r.cursorShape == CursorShapeUnderline {
+					cy += float64(r.cellH) - 2
+					dc.DrawRectangle(cx, cy, float64(r.cellW), 2)
+				} else {
+					dc.DrawRectangle(cx, cy, float64(r.cellW), float64(r.cellH))
+				}
 				dc.Fill()
-
-				if cell.Char != 0 && cell.Char != ' ' && r.face != nil {
-					dc.SetColor(fg)
-					dc.DrawStringAnchored(string(rune(cell.Char)), float64(x*r.cellW), float64(y*r.cellH), 0, 0.85)
-				}
 			}
-		}
+		})
+		r.dirty = false
+	}
 
-		if r.cursorVis && (time.Now().UnixMilli()/500)%2 == 0 {
-			dc.SetColor(color.White)
-			cy := float64(r.cursorY * r.cellH)
-			if r.cursorShape == CursorShapeUnderline {
-				cy += float64(r.cellH) - 2
-				dc.DrawRectangle(float64(r.cursorX*r.cellW), cy, float64(r.cellW), 2)
-			} else {
-				dc.DrawRectangle(float64(r.cursorX*r.cellW), cy, float64(r.cellW), float64(r.cellH))
-			}
-			dc.Fill()
-		}
-	})
-
-	r.canvas.Render(r.host.ctx.RenderTarget())
+	r.canvas.Render(ctx.RenderTarget())
 }
 
 func (r *GogpuRenderer) getCellColors(cell CharInfo) (color.Color, color.Color) {

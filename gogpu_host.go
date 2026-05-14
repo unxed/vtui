@@ -17,6 +17,7 @@ type GogpuHost struct {
 	mu       sync.Mutex
 	app      *gogpu.App
 	reader   *vtinput.Reader
+	scr      *ScreenBuf
 	cols     int
 	rows     int
 	ctx      *gogpu.Context
@@ -24,10 +25,13 @@ type GogpuHost struct {
 }
 
 func RunGogpuHost(cols, rows int, setupApp func()) error {
-	DebugLog("GOGPU_HOST: Starting RunGogpuHost %dx%d (font scaling: 10x20)", cols, rows)
+	fontSize := 18.0
+	face, cellW, cellH := loadGogpuFont(fontSize)
+
+	DebugLog("GOGPU_HOST: Starting RunGogpuHost %dx%d (Cell: %dx%d)", cols, rows, cellW, cellH)
 	config := gogpu.DefaultConfig().
 		WithTitle(AppName).
-		WithSize(cols*10, rows*20)
+		WithSize(cols*cellW, rows*cellH)
 
 	app := gogpu.NewApp(config)
 	host := &GogpuHost{
@@ -36,10 +40,8 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 		rows: rows,
 	}
 
-	fontSize := 18.0
-	face, cellW, cellH := loadGogpuFont(fontSize)
-
 	scr := NewScreenBuf()
+	host.scr = scr
 	scr.AllocBuf(cols, rows)
 	renderer := NewGogpuRenderer(host, face, cellW, cellH)
 	scr.Renderer = renderer
@@ -58,20 +60,24 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	})
 
 	app.EventSource().OnKeyPress(func(key gpucontext.Key, mods gpucontext.Modifiers) {
-		DebugLog("GOGPU_HOST: Hardware KeyPress: %v", key)
+		vk := gogpuKeyToVK(key)
+		if vk == 0 { return }
 		host.reader.NativeEventChan <- &vtinput.InputEvent{
 			Type:            vtinput.KeyEventType,
 			KeyDown:         true,
-			VirtualKeyCode:  uint16(key),
+			VirtualKeyCode:  vk,
+			Char:            gogpuKeyToChar(key, false /*mods.IsShift()*/),
 			ControlKeyState: translateGogpuMods(mods),
 		}
 	})
 
 	app.EventSource().OnKeyRelease(func(key gpucontext.Key, mods gpucontext.Modifiers) {
+		vk := gogpuKeyToVK(key)
+		if vk == 0 { return }
 		host.reader.NativeEventChan <- &vtinput.InputEvent{
 			Type:            vtinput.KeyEventType,
 			KeyDown:         false,
-			VirtualKeyCode:  uint16(key),
+			VirtualKeyCode:  vk,
 			ControlKeyState: translateGogpuMods(mods),
 		}
 	})
@@ -121,10 +127,15 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	})
 
 	app.OnDraw(func(dc *gogpu.Context) {
+		host.mu.Lock()
 		host.ctx = dc
-		DebugLog("GOGPU_HOST: OnDraw callback from GPU driver")
-		FrameManager.renderPhase()
+		host.mu.Unlock()
+
+		host.scr.Renderer.Flush()
+
+		host.mu.Lock()
 		host.ctx = nil
+		host.mu.Unlock()
 	})
 
 	GetTerminalSize = func() (int, int, error) {
@@ -150,8 +161,84 @@ func translateGogpuMods(m gpucontext.Modifiers) vtinput.ControlKeyState {
 	if m.IsAlt() {
 		mods |= vtinput.LeftAltPressed
 	}
+	if m.IsSuper() {
+		mods |= vtinput.EnhancedKey
+	}
 	*/
 	return mods
+}
+
+func gogpuKeyToVK(k gpucontext.Key) uint16 {
+	switch k {
+	case gpucontext.KeyEscape: return vtinput.VK_ESCAPE
+	case gpucontext.KeyF1: return vtinput.VK_F1
+	case gpucontext.KeyF2: return vtinput.VK_F2
+	case gpucontext.KeyF3: return vtinput.VK_F3
+	case gpucontext.KeyF4: return vtinput.VK_F4
+	case gpucontext.KeyF5: return vtinput.VK_F5
+	case gpucontext.KeyF6: return vtinput.VK_F6
+	case gpucontext.KeyF7: return vtinput.VK_F7
+	case gpucontext.KeyF8: return vtinput.VK_F8
+	case gpucontext.KeyF9: return vtinput.VK_F9
+	case gpucontext.KeyF10: return vtinput.VK_F10
+	case gpucontext.KeyF11: return vtinput.VK_F11
+	case gpucontext.KeyF12: return vtinput.VK_F12
+	case gpucontext.KeyInsert: return vtinput.VK_INSERT
+	case gpucontext.KeyDelete: return vtinput.VK_DELETE
+	case gpucontext.KeyHome: return vtinput.VK_HOME
+	case gpucontext.KeyEnd: return vtinput.VK_END
+	case gpucontext.KeyPageUp: return vtinput.VK_PRIOR
+	case gpucontext.KeyPageDown: return vtinput.VK_NEXT
+	case gpucontext.KeyUp: return vtinput.VK_UP
+	case gpucontext.KeyDown: return vtinput.VK_DOWN
+	case gpucontext.KeyLeft: return vtinput.VK_LEFT
+	case gpucontext.KeyRight: return vtinput.VK_RIGHT
+	case gpucontext.KeyBackspace: return vtinput.VK_BACK
+	case gpucontext.KeyEnter: return vtinput.VK_RETURN
+	case gpucontext.KeyTab: return vtinput.VK_TAB
+	case gpucontext.KeySpace: return vtinput.VK_SPACE
+	case gpucontext.KeyLeftControl, gpucontext.KeyRightControl: return vtinput.VK_CONTROL
+	case gpucontext.KeyLeftShift, gpucontext.KeyRightShift: return vtinput.VK_SHIFT
+	case gpucontext.KeyLeftAlt, gpucontext.KeyRightAlt: return vtinput.VK_MENU
+	}
+
+	if k >= gpucontext.KeyA && k <= gpucontext.KeyZ {
+		return uint16(k)
+	}
+	if k >= gpucontext.Key0 && k <= gpucontext.Key9 {
+		return uint16(k)
+	}
+
+	return 0
+}
+
+func gogpuKeyToChar(k gpucontext.Key, shift bool) rune {
+	if k >= gpucontext.KeyA && k <= gpucontext.KeyZ {
+		if shift { return rune(k) }
+		return rune(k + 32)
+	}
+	if k >= gpucontext.Key0 && k <= gpucontext.Key9 {
+		if shift {
+			chars := ")!@#$%^&*("
+			return rune(chars[k-gpucontext.Key0])
+		}
+		return rune(k)
+	}
+	switch k {
+	case gpucontext.KeySpace: return ' '
+	case gpucontext.KeyMinus: if shift { return '_' } else { return '-' }
+	case gpucontext.KeyEqual: if shift { return '+' } else { return '=' }
+	case gpucontext.KeyLeftBracket: if shift { return '{' } else { return '[' }
+	case gpucontext.KeyRightBracket: if shift { return '}' } else { return ']' }
+	case gpucontext.KeyBackslash: if shift { return '|' } else { return '\\' }
+	case gpucontext.KeySemicolon: if shift { return ':' } else { return ';' }
+	case gpucontext.KeyApostrophe: if shift { return '"' } else { return '\'' }
+	case gpucontext.KeyComma: if shift { return '<' } else { return ',' }
+	case gpucontext.KeyPeriod: if shift { return '>' } else { return '.' }
+	case gpucontext.KeySlash: if shift { return '?' } else { return '/' }
+	//case gpucontext.KeyGraveAccent: if shift { return '~' } else { return '`' }
+	}
+	return 0
 }
 
 func loadGogpuFont(size float64) (text.Face, int, int) {

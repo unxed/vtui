@@ -897,19 +897,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 			return
 		}
 
-		// In GPU mode, rendering is driven by the hardware thread callback (OnDraw).
-		// We skip the manual renderPhase in the main loop to avoid contention 
-		// on the ScreenBuf mutex and potential deadlocks.
-		skipRender := false
-		if fm.scr != nil && fm.scr.Renderer != nil {
-			if _, ok := fm.scr.Renderer.(*GogpuRenderer); ok {
-				skipRender = true
-			}
-		}
-
-		if !skipRender {
-			fm.renderPhase()
-		}
+		fm.renderPhase()
 
 		// 3. Event waiting (Blocking)
 		var e *vtinput.InputEvent
