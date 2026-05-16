@@ -135,7 +135,9 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 
 	app.EventSource().OnKeyPress(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		vk := gogpuKeyToVK(key)
-		DebugLog("GOGPU_HOST: OnKeyPress key=%v, vk=%d", key, vk)
+		if vk != 0 {
+			DebugLog("GOGPU_HOST_EVENT: OnKeyPress key=%v, vk=%d", key, vk)
+		}
 
 		host.mu.Lock()
 		currMods := host.syncMods(vk, mods, true)
@@ -170,7 +172,7 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	})
 
 	app.EventSource().OnTextInput(func(text string) {
-		DebugLog("GOGPU_HOST: OnTextInput text=%q", text)
+		DebugLog("GOGPU_HOST_EVENT: OnTextInput text=%q", text)
 		host.mu.Lock()
 		defer host.mu.Unlock()
 

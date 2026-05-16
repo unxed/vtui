@@ -112,12 +112,16 @@ func (r *GogpuRenderer) Flush() {
 
 	if r.dirty {
 		drawStart := time.Now()
+		var totalFills, totalGlyphs int
+		var timeFills, timeGlyphs time.Duration
+
 		r.canvas.Draw(func(dc *gg.Context) {
 			dc.SetRGB(0, 0, 0)
 			dc.Clear()
 
 			// Убираем сжатие. Рисуем пиксель в пиксель.
 			dc.Identity()
+			// GetMatrix не поддерживается, логируем доступные параметры контекста через PROBE ниже
 
 			// Логируем размеры для отладки
 			if debugDrawCount % 100 == 0 {
@@ -158,9 +162,12 @@ func (r *GogpuRenderer) Flush() {
 					ly := float64(y * r.cellH)
 					spanPixW := float64(spanW * r.cellW)
 
+					t_fill_0 := time.Now()
 					dc.SetColor(bg)
 					dc.DrawRectangle(lx, ly, spanPixW, float64(r.cellH))
 					dc.Fill()
+					timeFills += time.Since(t_fill_0)
+					totalFills++
 
 					for sx := 0; sx < spanW; sx++ {
 						currX := x + sx
@@ -169,11 +176,14 @@ func (r *GogpuRenderer) Flush() {
 							continue
 						}
 						if currCell.Char != 0 && currCell.Char != ' ' && r.face != nil {
+							t_glyph_0 := time.Now()
 							cx := float64(currX * r.cellW)
 							cfg, _ := r.getCellColors(currCell)
 							dc.SetColor(cfg)
 							dc.DrawString(string(rune(currCell.Char)), cx, ly+ascent)
-
+							timeGlyphs += time.Since(t_glyph_0)
+							totalGlyphs++
+							
 							if debugDrawCount == 1 && y == 0 && currX == 0 {
 								DebugLog("GOGPU_PROBE_COORD: First char '%c' drawn at cx=%f, ly+ascent=%f", currCell.Char, cx, ly+ascent)
 							}
@@ -200,7 +210,8 @@ func (r *GogpuRenderer) Flush() {
 		r.dirty = false
 		drawDur := time.Since(drawStart)
 		if drawDur > 5*time.Millisecond {
-			DebugLog("GOGPU_RENDERER: ggcanvas.Draw took %v", drawDur)
+			DebugLog("GOGPU_RENDERER_PERF: DrawTotal: %v, Fills(%d): %v, Glyphs(%d): %v",
+				drawDur, totalFills, timeFills, totalGlyphs, timeGlyphs)
 		}
 	}
 
