@@ -122,10 +122,6 @@ func (r *GogpuRenderer) Flush() {
 			dc.Clear()
 			timeClear = time.Since(t_clear_0)
 
-			if debugDrawCount == 1 {
-				DebugLog("GOGPU_PROBE_INNER: DC size inside Draw: %f x %f", dc.Width(), dc.Height())
-			}
-
 			// Убираем сжатие. Рисуем пиксель в пиксель.
 			dc.Identity()
 			// GetMatrix не поддерживается, логируем доступные параметры контекста через PROBE ниже
