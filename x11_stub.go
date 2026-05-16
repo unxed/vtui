@@ -4,14 +4,6 @@ package vtui
 
 import "fmt"
 
-var (
-	shmId   int
-	shmAddr uintptr
-	shmData []byte
-)
-
-func setupX11SHM() {}
-
-func RunInX11Window(cols, rows int, setupApp func()) error {
-	return fmt.Errorf("GUI mode is not supported on this platform (BSD on arm64) due to upstream library limitations")
+func runInX11Window(cols, rows int, setupApp func()) error {
+	return fmt.Errorf("X11 (purego) GUI mode is not supported on this platform. Use purex11 backend")
 }

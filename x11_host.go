@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"image"
+	"io"
 	"sync"
 	"unsafe"
 	"os"
@@ -736,4 +737,50 @@ func (h *X11Host) flushImage() int {
 	}
 
 	return putCalls
+}
+func runInX11Window(cols, rows int, setupApp func()) error {
+	fontSize := 22.0
+	tempConn, _ := xgb.NewConn()
+	dpi := 96.0
+	if tempConn != nil {
+		setup := xproto.Setup(tempConn)
+		screen := setup.DefaultScreen(tempConn)
+		if screen.WidthInMillimeters > 0 {
+			dpi = (float64(screen.WidthInPixels) * 25.4) / float64(screen.WidthInMillimeters)
+		}
+		tempConn.Close()
+	}
+
+	face, cellW, cellH := loadBestFont(fontSize, dpi)
+
+	host, err := NewX11Host(cols, rows, cellW, cellH)
+	if err != nil {
+		return err
+	}
+	defer host.Close()
+
+	scr := NewScreenBuf()
+	scr.AllocBuf(cols, rows)
+	scr.Renderer = NewX11Renderer(host, face)
+
+	FrameManager.Init(scr)
+
+	pr, _ := io.Pipe()
+	reader := vtinput.NewReader(pr)
+	if reader.NativeEventChan == nil {
+		reader.NativeEventChan = make(chan *vtinput.InputEvent, 1024)
+	}
+	host.reader = reader
+
+	GetTerminalSize = func() (int, int, error) {
+		host.mu.Lock()
+		defer host.mu.Unlock()
+		return host.cols, host.rows, nil
+	}
+
+	go host.RunEventLoop()
+	setupApp()
+	FrameManager.Run(reader)
+
+	return nil
 }
