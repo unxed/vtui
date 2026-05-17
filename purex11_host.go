@@ -132,6 +132,7 @@ func NewPureX11Host(cols, rows, cellW, cellH int) (*PureX11Host, error) {
 	if p, err := exec.LookPath("xkbcomp"); err == nil {
 		xkbcompPath = p
 	} else if runtime.GOOS == "windows" {
+		fmt.Fprintln(os.Stderr, "XKB: xkbcomp not in PATH, searching common X-server locations...")
 		commonPaths := []string{
 			`C:\Program Files\VcXsrv\xkbcomp.exe`,
 			`C:\Program Files (x86)\VcXsrv\xkbcomp.exe`,
@@ -156,27 +157,27 @@ func NewPureX11Host(cols, rows, cellW, cellH int) (*PureX11Host, error) {
 		if display == "" {
 			display = ":0"
 		}
-		DebugLog("XKB: Executing %s %s -", xkbcompPath, display)
+		fmt.Fprintf(os.Stderr, "XKB: Found xkbcomp at %q, requesting keymap for %q...\n", xkbcompPath, display)
 		cmd := exec.Command(xkbcompPath, display, "-")
 		var out bytes.Buffer
-		var stderr bytes.Buffer
+		var outErr bytes.Buffer
 		cmd.Stdout = &out
-		cmd.Stderr = &stderr
+		cmd.Stderr = &outErr
 		if err := cmd.Run(); err == nil && out.Len() > 0 {
 			var kerr error
 			keymap, kerr = xkbCtx.NewKeymapFromString(out.Bytes(), xkb.KeymapFormatTextV1)
-			DebugLog("XKB: Loaded keymap from xkbcomp (%d bytes), err=%v", out.Len(), kerr)
+			fmt.Fprintf(os.Stderr, "XKB: Keymap loaded (%d bytes), parse_err: %v\n", out.Len(), kerr)
 		} else {
-			DebugLog("XKB: xkbcomp failed: %v, stderr: %s", err, stderr.String())
+			fmt.Fprintf(os.Stderr, "XKB: xkbcomp execution failed: %v\nOutput: %s\n", err, outErr.String())
 		}
 	} else {
-		DebugLog("XKB: No xkbcomp executable found.")
+		fmt.Fprintln(os.Stderr, "XKB: No xkbcomp executable found in common paths.")
 	}
 
 	// Attempt 2: Fallback to RMLVO names from root window properties.
 	// This works for Windows X servers (Xming/VcXsrv) where xkbcomp might be missing.
 	if keymap == nil {
-		DebugLog("XKB: Trying fallback via _XKB_RULES_NAMES...")
+		fmt.Fprintln(os.Stderr, "XKB: xkbcomp failed or not found, trying _XKB_RULES_NAMES fallback...")
 		rulesAtomCookie := xproto.InternAtom(conn, true, uint16(len("_XKB_RULES_NAMES")), "_XKB_RULES_NAMES")
 		rulesAtomReply, err := rulesAtomCookie.Reply()
 		if err != nil {

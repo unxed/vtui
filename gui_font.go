@@ -4,7 +4,7 @@ package vtui
 
 import (
 	"os"
-	"path/filepath"
+	"fmt"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -18,7 +18,8 @@ func loadBestFont(size float64, dpi float64) (font.Face, int, int) {
 	fontPaths := []string{
 		`C:\Windows\Fonts\consola.ttf`,
 		`C:\Windows\Fonts\lucon.ttf`,
-		`C:\Windows\Fonts\cour.ttf`, // Courier New
+		`C:\Windows\Fonts\cour.ttf`,
+		`C:\Windows\Fonts\arial.ttf`,
 		"/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
 		"/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
 		"/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
@@ -29,15 +30,12 @@ func loadBestFont(size float64, dpi float64) (font.Face, int, int) {
 	for _, path := range fontPaths {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			if !os.IsNotExist(err) {
-				DebugLog("GUI_FONT: Error reading %s: %v", path, err)
-			}
 			continue
 		}
 
 		f, err := opentype.Parse(data)
 		if err != nil {
-			DebugLog("GUI_FONT: Error parsing %s: %v", path, err)
+			fmt.Fprintf(os.Stderr, "GUI_FONT: Error parsing %s: %v\n", path, err)
 			continue
 		}
 
@@ -47,19 +45,18 @@ func loadBestFont(size float64, dpi float64) (font.Face, int, int) {
 			Hinting: font.HintingFull,
 		})
 		if err != nil {
-			DebugLog("GUI_FONT: Error creating face for %s: %v", path, err)
+			fmt.Fprintf(os.Stderr, "GUI_FONT: Error creating face for %s: %v\n", path, err)
 			continue
 		}
 
-		// Calculate cell size from metrics
 		metrics := face.Metrics()
 		cellH := (metrics.Ascent + metrics.Descent).Ceil()
-
-		// For monospaced fonts, advance of any character (e.g. 'A') is the cell width
 		advance, _ := face.GlyphAdvance('A')
 		cellW := advance.Ceil()
 
-		DebugLog("GUI_FONT: Successfully loaded %s, metrics: %dx%d", filepath.Base(path), cellW, cellH)
+		msg := fmt.Sprintf("GUI_FONT: Successfully loaded %s (%dx%d)", path, cellW, cellH)
+		fmt.Fprintln(os.Stderr, msg)
+		DebugLog(msg)
 		return face, cellW, cellH
 	}
 
