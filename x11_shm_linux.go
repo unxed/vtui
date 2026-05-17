@@ -5,9 +5,9 @@ package vtui
 import (
 	"unsafe"
 
-	"github.com/BurntSushi/xgb"
-	"github.com/BurntSushi/xgb/shm"
-	"github.com/BurntSushi/xgb/xproto"
+	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/shm"
+	"github.com/jezek/xgb/xproto"
 	"golang.org/x/sys/unix"
 )
 
