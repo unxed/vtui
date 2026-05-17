@@ -153,6 +153,8 @@ func main() {
 		} else if arg == "--gui=purex11" {
 			guiMode = true
 			guiBackend = "purex11"
+		} else if arg == "--debug" {
+			os.Setenv("VTUI_DEBUG", "1")
 		}
 	}
 
