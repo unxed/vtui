@@ -103,9 +103,6 @@ type PureX11Host struct {
 func NewPureX11Host(cols, rows, cellW, cellH int) (*PureX11Host, error) {
 	conn, err := xgb.NewConn()
 	if err != nil {
-		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("failed to connect to X11 (ensure VcXsrv or Xming is running): %v", err)
-		}
 		return nil, fmt.Errorf("failed to connect to X11 via XGB: %v", err)
 	}
 
