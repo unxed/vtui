@@ -32,6 +32,12 @@ func detectColorProfile(goos string) ColorProfile {
 		return ColorProfile16
 	}
 
+	// Special case for FreeBSD: many users have TERM=xterm in console,
+	// but the vt(4) driver only supports 16 colors and has a tiny SGR buffer.
+	if goos == "freebsd" && os.Getenv("DISPLAY") == "" && os.Getenv("SSH_CLIENT") == "" && os.Getenv("TMUX") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		return ColorProfile16
+	}
+
 	colorTerm := os.Getenv("COLORTERM")
 	if colorTerm == "truecolor" || colorTerm == "24bit" {
 		return ColorProfileTrueColor

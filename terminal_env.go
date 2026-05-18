@@ -94,6 +94,9 @@ func Resume() error {
 		if ManageCursorStyle {
 			out.WriteString(seqBlinkingUnderline)
 		}
+		// Terminal probing: request status (DSR) and device attributes (DA)
+		// This serves as a sync point and helps identifying legacy terminals.
+		out.WriteString("\x1b[5n\x1b[c")
 		out.Sync()
 		isPrepared = true
 
