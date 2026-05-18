@@ -19,9 +19,19 @@ const (
 )
 
 func DetectColorProfile() ColorProfile {
-	if runtime.GOOS == "windows" {
+	return detectColorProfile(runtime.GOOS)
+}
+
+func detectColorProfile(goos string) ColorProfile {
+	if goos == "windows" {
 		return ColorProfileTrueColor
 	}
+
+	// Detect bare FreeBSD console (no X11, no SSH, no TMUX, no Wayland)
+	if goos == "freebsd" && os.Getenv("DISPLAY") == "" && os.Getenv("SSH_CLIENT") == "" && os.Getenv("TMUX") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		return ColorProfile16
+	}
+
 	colorTerm := os.Getenv("COLORTERM")
 	if colorTerm == "truecolor" || colorTerm == "24bit" {
 		return ColorProfileTrueColor
@@ -34,7 +44,6 @@ func DetectColorProfile() ColorProfile {
 		return ColorProfile16
 	}
 	// Fallback for general 'xterm' and others. Most modern terminals support 256 colors.
-	// FreeBSD console (vt) maps 256-color sequences to 16 colors perfectly.
 	return ColorProfile256
 }
 

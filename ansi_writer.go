@@ -11,50 +11,51 @@ func attributesToANSI(attr, lastAttr uint64, activePal *[256]uint32, profile Col
 		return ""
 	}
 
-	var params []string
+	var sb strings.Builder
 
 	resetTriggered := false
 	const flagsMask = (ForegroundIntensity | ForegroundDim | CommonLvbUnderscore | CommonLvbReverse | CommonLvbStrikeout)
 	if (lastAttr&flagsMask)&^(attr&flagsMask) != 0 {
-		params = append(params, "0")
+		sb.WriteString("\x1b[0m")
 		lastAttr = 0
 		resetTriggered = true
 	}
 
 	// 1. Style Flags
+	var styles []string
 	if attr&ForegroundIntensity != 0 && lastAttr&ForegroundIntensity == 0 {
-		params = append(params, "1")
+		styles = append(styles, "1")
 	}
 	if attr&ForegroundDim != 0 && lastAttr&ForegroundDim == 0 {
-		params = append(params, "2")
+		styles = append(styles, "2")
 	}
 	if attr&CommonLvbUnderscore != 0 && lastAttr&CommonLvbUnderscore == 0 {
-		params = append(params, "4")
+		styles = append(styles, "4")
 	}
 	if attr&CommonLvbReverse != 0 && lastAttr&CommonLvbReverse == 0 {
-		params = append(params, "7")
+		styles = append(styles, "7")
 	}
 	if attr&CommonLvbStrikeout != 0 && lastAttr&CommonLvbStrikeout == 0 {
-		params = append(params, "9")
+		styles = append(styles, "9")
+	}
+
+	if len(styles) > 0 {
+		sb.WriteString("\x1b[" + strings.Join(styles, ";") + "m")
 	}
 
 	// 2. Foreground Color
 	fgMask := IsFgRGB | (0xFF << 16)
 	if resetTriggered || attr&fgMask != lastAttr&fgMask || (attr&IsFgRGB != 0 && GetRGBFore(attr) != GetRGBFore(lastAttr)) {
-		params = append(params, colorToANSI(false, attr, activePal, profile, quantCache))
+		sb.WriteString("\x1b[" + colorToANSI(false, attr, activePal, profile, quantCache) + "m")
 	}
 
 	// 3. Background Color
 	bgMask := IsBgRGB | (0xFF << 40)
 	if resetTriggered || attr&bgMask != lastAttr&bgMask || (attr&IsBgRGB != 0 && GetRGBBack(attr) != GetRGBBack(lastAttr)) {
-		params = append(params, colorToANSI(true, attr, activePal, profile, quantCache))
+		sb.WriteString("\x1b[" + colorToANSI(true, attr, activePal, profile, quantCache) + "m")
 	}
 
-	if len(params) == 0 {
-		return ""
-	}
-
-	return "\x1b[" + strings.Join(params, ";") + "m"
+	return sb.String()
 }
 
 func colorToANSI(isBg bool, attr uint64, activePal *[256]uint32, profile ColorProfile, quantCache map[uint32]uint8) string {

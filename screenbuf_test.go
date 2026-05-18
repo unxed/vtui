@@ -2,14 +2,15 @@ package vtui
 
 import (
 	"testing"
+	"os"
 )
 
 func TestAttributesToANSI(t *testing.T) {
 	// 1. Simple Bold + Index Red
 	attr := ForegroundIntensity | SetIndexFore(0, 9)
 	got := attributesToANSI(attr, 0, nil, ColorProfileTrueColor, nil)
-	// Expected: 1 (Bold), 38;5;9
-	want := "\x1b[1;38;5;9m"
+	// Expected: 1 (Bold) and 38;5;9 as separate chunks
+	want := "\x1b[1m\x1b[38;5;9m"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -28,7 +29,7 @@ func TestAttributesToANSI(t *testing.T) {
 	attr2 := SetIndexFore(0, 4)
 	gotReset := attributesToANSI(attr2, attr1, nil, ColorProfileTrueColor, nil)
 	// attr1 has underscore, attr2 does NOT. Should trigger reset '0'.
-	if gotReset[:4] != "\x1b[0;" {
+	if gotReset[:4] != "\x1b[0m" {
 		t.Errorf("Reset expected, got %q", gotReset)
 	}
 }
@@ -46,6 +47,48 @@ func TestAttributesToANSI_ResetBug(t *testing.T) {
 		t.Errorf("Foreground color missing after reset! Got: %q", got)
 	}
 }
+
+func TestAttributesToANSI_FullSplitting(t *testing.T) {
+	// Verify that style, foreground, and background are all split into separate escape sequences.
+	// This is critical for FreeBSD console compatibility.
+	attr := ForegroundIntensity | SetIndexFore(0, 1) | SetIndexBack(0, 2)
+	got := attributesToANSI(attr, 0, nil, ColorProfileTrueColor, nil)
+
+	// We expect three separate \x1b[...]m blocks
+	want := "\x1b[1m\x1b[38;5;1m\x1b[48;5;2m"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestDetectColorProfile_FreeBSD(t *testing.T) {
+	// Clean environment
+	os.Unsetenv("DISPLAY")
+	os.Unsetenv("SSH_CLIENT")
+	os.Unsetenv("TMUX")
+	os.Unsetenv("WAYLAND_DISPLAY")
+	os.Unsetenv("COLORTERM")
+	os.Setenv("TERM", "xterm-256color")
+
+	// 1. Bare FreeBSD console should force 16 colors
+	if p := detectColorProfile("freebsd"); p != ColorProfile16 {
+		t.Errorf("Bare FreeBSD console: expected 16 colors, got %v", p)
+	}
+
+	// 2. FreeBSD under TMUX should allow 256 colors
+	os.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
+	if p := detectColorProfile("freebsd"); p != ColorProfile256 {
+		t.Errorf("FreeBSD under TMUX: expected 256 colors, got %v", p)
+	}
+
+	// 3. FreeBSD under SSH should allow 256 colors
+	os.Unsetenv("TMUX")
+	os.Setenv("SSH_CLIENT", "1.2.3.4 1234 22")
+	if p := detectColorProfile("freebsd"); p != ColorProfile256 {
+		t.Errorf("FreeBSD under SSH: expected 256 colors, got %v", p)
+	}
+}
+
 func TestScreenBuf_OverlayMode(t *testing.T) {
 	scr := NewSilentScreenBuf()
 	scr.AllocBuf(5, 5)
