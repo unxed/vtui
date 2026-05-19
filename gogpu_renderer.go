@@ -11,7 +11,6 @@ import (
 
 	"github.com/gogpu/gg"
 	"github.com/gogpu/gg/integration/ggcanvas"
-	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/gg/text"
 	_ "github.com/gogpu/gg/gpu" // Включаем аппаратное ускорение рендеринга
 )
@@ -20,12 +19,6 @@ var (
 	debugLastPhysW, debugLastPhysH int = -1, -1
 	debugDrawCount                 int = 0
 )
-// deviceOnlyProvider wraps DeviceProvider to HIDE the ScaleFactor() method from ggcanvas.
-// This prevents ggcanvas from applying automatic internal scaling, allowing vtui
-// to control scaling manually and bypass the quadrant rendering bug (#327).
-type deviceOnlyProvider struct {
-	gpucontext.DeviceProvider
-}
 
 type GogpuRenderer struct {
 	mu           sync.Mutex
@@ -88,7 +81,7 @@ func (r *GogpuRenderer) SetCursor(x, y int, visible bool, shape CursorShape) {
 func (r *GogpuRenderer) SetPalette(pal *[256]uint32) {}
 
 func (r *GogpuRenderer) drawCustomChar(dc *gg.Context, char rune, x, y, w, h float64) bool {
-	thick := math.Max(1, math.Floor(r.host.gogpuScale))
+	thick := 1.0
 
 	mx := math.Floor(x + w/2 - thick/2)
 	my := math.Floor(y + h/2 - thick/2)
@@ -306,6 +299,9 @@ func (r *GogpuRenderer) Flush() {
 	}
 
 	w, h := ctx.Width(), ctx.Height()
+	if w <= 0 || h <= 0 {
+		return
+	}
 
 	if debugLastCtxW != w || debugLastCtxH != h {
 		DebugLog("GOGPU_RENDERER_RESIZE: CtxLog:%dx%d HostCell:%dx%d HostGrid:%dx%d ExpectedLog:%dx%d",
@@ -313,27 +309,22 @@ func (r *GogpuRenderer) Flush() {
 		debugLastCtxW, debugLastCtxH = w, h
 	}
 
-	// Workaround for gogpu bug #327: Use PHYSICAL dimensions for the canvas
-	// but tell ggcanvas to ignore system scaling by using deviceOnlyProvider.
-	fw, fh := ctx.FramebufferWidth(), ctx.FramebufferHeight()
-
 	if r.canvas == nil {
 		provider := app.GPUContextProvider()
 		if provider == nil { return }
-		r.canvas, _ = ggcanvas.New(&deviceOnlyProvider{provider}, fw, fh)
+		r.canvas, _ = ggcanvas.New(provider, w, h)
 	} else {
-		r.canvas.Resize(fw, fh)
+		r.canvas.Resize(w, h)
 	}
 
 	if r.dirty {
 		drawStart := time.Now()
 		var totalFills, totalGlyphs int
 		var timeFills, timeGlyphs time.Duration
-		
+
 		r.canvas.Draw(func(dc *gg.Context) {
-			// Workaround for gogpu bug #328: Clear state before drawing.
-			dc.Identity()
-			dc.ClearPath()
+			dc.SetRGB(0, 0, 0)
+			dc.Clear()
 
 			drawCols := r.cols
 			drawRows := r.rows

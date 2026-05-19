@@ -5,12 +5,9 @@ package vtui
 import (
 	"io"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
-	"github.com/jezek/xgb"
-	"github.com/jezek/xgb/xproto"
 	"github.com/gogpu/gg/text"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gpucontext"
@@ -22,41 +19,19 @@ var (
 	debugLastCtxW, debugLastCtxH     int     = -1, -1
 )
 
-func getX11ManualScale() float64 {
-	if runtime.GOOS == "linux" && os.Getenv("WAYLAND_DISPLAY") == "" && os.Getenv("DISPLAY") != "" {
-		dpi := 96.0
-		tempConn, err := xgb.NewConn()
-		if err == nil && tempConn != nil {
-			setup := xproto.Setup(tempConn)
-			screen := setup.DefaultScreen(tempConn)
-			if screen.WidthInMillimeters > 0 {
-				dpi = (float64(screen.WidthInPixels) * 25.4) / float64(screen.WidthInMillimeters)
-			}
-			tempConn.Close()
-		}
-		if dpi > 120 {
-			return 2.0
-		}
-	}
-	return 1.0
-}
-
 type GogpuHost struct {
-	mu                   sync.Mutex
-	app                  *gogpu.App
-	reader               *vtinput.Reader
-	scr                  *ScreenBuf
-	cols, rows           int
-	physCellW, physCellH int
-	logCellW, logCellH   int
-	face                 text.Face // Physical face for rendering
-	gogpuScale           float64
-	lastW, lastH         int
-	ctx                  *gogpu.Context
-	mouseBtn             uint32
-	currentMods          vtinput.ControlKeyState
-	pendingKeyEvent      *vtinput.InputEvent
-	pendingKeyTimer      *time.Timer
+	mu              sync.Mutex
+	app             *gogpu.App
+	reader          *vtinput.Reader
+	scr             *ScreenBuf
+	cols, rows      int
+	cellW, cellH    int
+	face            text.Face
+	ctx             *gogpu.Context
+	mouseBtn        uint32
+	currentMods     vtinput.ControlKeyState
+	pendingKeyEvent *vtinput.InputEvent
+	pendingKeyTimer *time.Timer
 }
 
 func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) vtinput.ControlKeyState {
@@ -78,38 +53,16 @@ func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) 
 	h.currentMods = sysMods
 	return sysMods
 }
-func (h *GogpuHost) updateSizedAssets(scale float64) {
-	baseFontSize := 18.0
-
-	// Get logical cell size for TUI grid calculations
-	logFace, logW, logH := loadGogpuFont(baseFontSize)
-	if logFace == nil { // fallback
-		h.logCellW, h.logCellH = 8, 16
-		h.physCellW, h.physCellH = int(8*scale), int(16*scale)
-		h.face = nil
-		return
-	}
-	h.logCellW, h.logCellH = logW, logH
-
-	// Get physical font face and cell size for crisp rendering
-	physFace, physW, physH := loadGogpuFont(baseFontSize * scale)
-	h.physCellW, h.physCellH = physW, physH
-	h.face = physFace
-
-	DebugLog("GOGPU_HOST: Sized assets updated for scale %.1f. Logical cell: %dx%d, Physical cell: %dx%d",
-		scale, h.logCellW, h.logCellH, h.physCellW, h.physCellH)
-}
 
 func RunGogpuHost(cols, rows int, setupApp func()) error {
 	baseFontSize := 18.0
-	manualScale := getX11ManualScale()
-	_, logW, logH := loadGogpuFont(baseFontSize)
+	face, cellW, cellH := loadGogpuFont(baseFontSize)
 
-	DebugLog("GOGPU_HOST: Starting RunGogpuHost %dx%d (Logical Cell: %dx%d, X11 Scale Hint: %.1f)", cols, rows, logW, logH, manualScale)
+	DebugLog("GOGPU_HOST: Starting RunGogpuHost %dx%d (Cell: %dx%d)", cols, rows, cellW, cellH)
 
 	config := gogpu.DefaultConfig().
 		WithTitle(AppName).
-		WithSize(int(float64(cols*logW)*manualScale), int(float64(rows*logH)*manualScale))
+		WithSize(cols*cellW, rows*cellH)
 
 	app := gogpu.NewApp(config)
 
@@ -117,15 +70,15 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 		app:        app,
 		cols:       cols,
 		rows:       rows,
-		gogpuScale: app.ScaleFactor(),
+		cellW:      cellW,
+		cellH:      cellH,
+		face:       face,
 	}
-
-	host.updateSizedAssets(host.gogpuScale)
 
 	scr := NewScreenBuf()
 	host.scr = scr
 	scr.AllocBuf(cols, rows)
-	renderer := NewGogpuRenderer(host, host.face, host.physCellW, host.physCellH)
+	renderer := NewGogpuRenderer(host, face, cellW, cellH)
 	scr.Renderer = renderer
 
 	FrameManager.Init(scr)
@@ -248,8 +201,8 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	app.EventSource().OnMouseMove(func(x, y float64) {
 		host.mu.Lock()
 		btn := host.mouseBtn
-		cW := host.physCellW
-		cH := host.physCellH
+		cW := host.cellW
+		cH := host.cellH
 		host.mu.Unlock()
 
 		if x != debugLastMouseX || y != debugLastMouseY {
@@ -270,8 +223,8 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 
 		host.mu.Lock()
 		host.mouseBtn = btn
-		cW := host.physCellW
-		cH := host.physCellH
+		cW := host.cellW
+		cH := host.cellH
 		host.mu.Unlock()
 
 		host.reader.NativeEventChan <- &vtinput.InputEvent{
@@ -286,8 +239,8 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	app.EventSource().OnMouseRelease(func(button gpucontext.MouseButton, x, y float64) {
 		host.mu.Lock()
 		host.mouseBtn = 0
-		cW := host.physCellW
-		cH := host.physCellH
+		cW := host.cellW
+		cH := host.cellH
 		host.mu.Unlock()
 
 		host.reader.NativeEventChan <- &vtinput.InputEvent{
@@ -301,25 +254,6 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 
 	var infoLogged sync.Once
 	app.OnDraw(func(dc *gogpu.Context) {
-		host.mu.Lock()
-		currentScale := dc.ScaleFactor()
-		if host.gogpuScale != currentScale {
-			DebugLog("GOGPU_HOST: Scale changed %.1f -> %.1f. Recalculating assets.", host.gogpuScale, currentScale)
-			host.gogpuScale = currentScale
-			host.updateSizedAssets(currentScale)
-			if r, ok := host.scr.Renderer.(*GogpuRenderer); ok {
-				r.mu.Lock()
-				r.face = host.face
-				r.cellW = host.physCellW
-				r.cellH = host.physCellH
-				r.mu.Unlock()
-			}
-			if host.reader != nil && host.reader.NativeEventChan != nil {
-				host.reader.NativeEventChan <- &vtinput.InputEvent{Type: vtinput.ResizeEventType}
-			}
-		}
-		host.mu.Unlock()
-
 		infoLogged.Do(func() {
 			if provider := app.GPUContextProvider(); provider != nil {
 				info := provider.AdapterInfo()
@@ -345,18 +279,13 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	})
 
 	GetTerminalSize = func() (int, int, error) {
-		fw, fh := app.PhysicalSize()
-		s := app.ScaleFactor()
-		if s <= 0 {
-			s = 1.0
-		}
-		w, h := int(float64(fw)/s), int(float64(fh)/s)
+		w, h := app.Size()
 
 		host.mu.Lock()
 		defer host.mu.Unlock()
-		if host.logCellW > 0 && host.logCellH > 0 && w > 0 && h > 0 {
-			c := w / host.logCellW
-			r := h / host.logCellH
+		if host.cellW > 0 && host.cellH > 0 && w > 0 && h > 0 {
+			c := w / host.cellW
+			r := h / host.cellH
 			if c != host.cols || r != host.rows {
 				host.cols = c
 				host.rows = r

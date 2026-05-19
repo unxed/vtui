@@ -4,15 +4,15 @@ go 1.25.5
 
 require (
 	github.com/ebitengine/purego v0.10.0
-	github.com/gogpu/gg v0.46.8
-	github.com/gogpu/gogpu v0.37.7
+	github.com/gogpu/gg v0.47.3
+	github.com/gogpu/gogpu v0.37.9
 	github.com/gogpu/gpucontext v0.19.0
 	github.com/jezek/xgb v1.3.1
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/neurlang/wayland v0.4.2
 	github.com/unxed/vtinput v0.0.0
 	github.com/unxed/xkb-go v0.1.3
-	golang.org/x/image v0.39.0
+	golang.org/x/image v0.40.0
 	golang.org/x/sys v0.44.0
 	golang.org/x/term v0.40.0
 )
@@ -25,7 +25,7 @@ require (
 	github.com/go-webgpu/webgpu v0.4.3 // indirect
 	github.com/gogpu/gputypes v0.5.0 // indirect
 	github.com/gogpu/naga v0.17.13 // indirect
-	github.com/gogpu/wgpu v0.28.1 // indirect
+	github.com/gogpu/wgpu v0.28.3 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/neurlang/winc v0.1.2 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
@@ -35,7 +35,7 @@ require (
 	golang.design/x/clipboard v0.7.0 // indirect
 	golang.org/x/exp v0.0.0-20190731235908-ec7cb31e5a56 // indirect
 	golang.org/x/mobile v0.0.0-20230301163155-e0f57694e12c // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 )
 
 // This line tells Go to use a local copy of vtinput
