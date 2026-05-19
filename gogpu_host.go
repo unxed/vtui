@@ -32,6 +32,10 @@ type GogpuHost struct {
 	currentMods     vtinput.ControlKeyState
 	pendingKeyEvent *vtinput.InputEvent
 	pendingKeyTimer *time.Timer
+
+	// Cached sizes to prevent deadlocks and speed up GetTerminalSize
+	lastAppW, lastAppH int
+	resizePending      bool
 }
 
 func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) vtinput.ControlKeyState {
@@ -67,12 +71,14 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	app := gogpu.NewApp(config)
 
 	host := &GogpuHost{
-		app:        app,
-		cols:       cols,
-		rows:       rows,
-		cellW:      cellW,
-		cellH:      cellH,
-		face:       face,
+		app:      app,
+		cols:     cols,
+		rows:     rows,
+		cellW:    cellW,
+		cellH:    cellH,
+		face:     face,
+		lastAppW: cols * cellW,
+		lastAppH: rows * cellH,
 	}
 
 	scr := NewScreenBuf()
@@ -198,8 +204,6 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 		}
 	})
 
-	app.EventSource().OnMouseMove(func(x, y float64) {
-		host.mu.Lock()
 		btn := host.mouseBtn
 		cW := host.cellW
 		cH := host.cellH
@@ -254,6 +258,21 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 
 	var infoLogged sync.Once
 	app.OnDraw(func(dc *gogpu.Context) {
+		w, h := dc.Width(), dc.Height()
+
+		host.mu.Lock()
+		sizeChanged := (host.lastAppW != w || host.lastAppH != h)
+		host.lastAppW, host.lastAppH = w, h
+		host.ctx = dc
+		if sizeChanged {
+			host.resizePending = true
+		}
+		host.mu.Unlock()
+
+		if sizeChanged && host.reader != nil && host.reader.NativeEventChan != nil {
+			host.reader.NativeEventChan <- &vtinput.InputEvent{Type: vtinput.ResizeEventType}
+		}
+
 		infoLogged.Do(func() {
 			if provider := app.GPUContextProvider(); provider != nil {
 				info := provider.AdapterInfo()
@@ -261,28 +280,19 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 			}
 		})
 
-		startDraw := time.Now()
-		host.mu.Lock()
-		host.ctx = dc
-		host.mu.Unlock()
-
 		host.scr.Renderer.Flush()
 
 		host.mu.Lock()
 		host.ctx = nil
 		host.mu.Unlock()
-
-		dur := time.Since(startDraw)
-		if dur > 5*time.Millisecond {
-			DebugLog("GOGPU_HOST: OnDraw execution time: %v", dur)
-		}
 	})
 
 	GetTerminalSize = func() (int, int, error) {
-		w, h := app.Size()
-
 		host.mu.Lock()
 		defer host.mu.Unlock()
+
+		w, h := host.lastAppW, host.lastAppH
+
 		if host.cellW > 0 && host.cellH > 0 && w > 0 && h > 0 {
 			c := w / host.cellW
 			r := h / host.cellH

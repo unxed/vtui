@@ -15,11 +15,6 @@ import (
 	_ "github.com/gogpu/gg/gpu" // Включаем аппаратное ускорение рендеринга
 )
 
-var (
-	debugLastPhysW, debugLastPhysH int = -1, -1
-	debugDrawCount                 int = 0
-)
-
 type GogpuRenderer struct {
 	mu           sync.Mutex
 	host         *GogpuHost
@@ -282,13 +277,17 @@ func (r *GogpuRenderer) Flush() {
 	r.host.mu.Lock()
 	ctx := r.host.ctx
 	app := r.host.app
+	forceDirty := r.host.resizePending
+	r.host.resizePending = false
 	r.host.mu.Unlock()
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// CRITICAL: If Flush is called from the background FrameManager thread
+	// (ctx == nil), we MUST NOT proceed with heavy drawing or library calls.
 	if ctx == nil {
-		if r.dirty && app != nil {
+		if (r.dirty || forceDirty) && app != nil {
 			app.RequestRedraw()
 		}
 		return
@@ -298,30 +297,30 @@ func (r *GogpuRenderer) Flush() {
 		return
 	}
 
+	if forceDirty {
+		r.dirty = true
+	}
+
 	w, h := ctx.Width(), ctx.Height()
 	if w <= 0 || h <= 0 {
 		return
 	}
 
 	if debugLastCtxW != w || debugLastCtxH != h {
-		DebugLog("GOGPU_RENDERER_RESIZE: CtxLog:%dx%d HostCell:%dx%d HostGrid:%dx%d ExpectedLog:%dx%d",
-			w, h, r.cellW, r.cellH, r.host.cols, r.host.rows, r.host.cols*r.cellW, r.host.rows*r.cellH)
 		debugLastCtxW, debugLastCtxH = w, h
+		if r.canvas != nil {
+			r.canvas.Resize(w, h)
+		}
+		r.dirty = true
 	}
 
 	if r.canvas == nil {
 		provider := app.GPUContextProvider()
 		if provider == nil { return }
 		r.canvas, _ = ggcanvas.New(provider, w, h)
-	} else {
-		r.canvas.Resize(w, h)
 	}
 
 	if r.dirty {
-		drawStart := time.Now()
-		var totalFills, totalGlyphs int
-		var timeFills, timeGlyphs time.Duration
-
 		r.canvas.Draw(func(dc *gg.Context) {
 			dc.SetRGB(0, 0, 0)
 			dc.Clear()
@@ -359,13 +358,9 @@ func (r *GogpuRenderer) Flush() {
 					ly := float64(y * r.cellH)
 					spanPixW := float64(spanW * r.cellW)
 
-					t_fill_0 := time.Now()
 					dc.SetColor(bg)
 					dc.DrawRectangle(lx, ly, spanPixW, float64(r.cellH))
 					dc.Fill()
-					timeFills += time.Since(t_fill_0)
-					totalFills++
-
 					var sb strings.Builder
 					batchX := lx
 					dc.SetColor(fg)
@@ -389,13 +384,10 @@ func (r *GogpuRenderer) Flush() {
 
 						if isBox {
 							if sb.Len() > 0 {
-								t_glyph_0 := time.Now()
 								dc.DrawString(sb.String(), batchX, ly+ascent)
-								timeGlyphs += time.Since(t_glyph_0)
 								sb.Reset()
 							}
 							if r.drawCustomChar(dc, char, lx+float64(sx*r.cellW), ly, float64(rw*r.cellW), float64(r.cellH)) {
-								totalGlyphs++
 								sx += rw
 								continue
 							}
@@ -406,12 +398,9 @@ func (r *GogpuRenderer) Flush() {
 								batchX = lx + float64(sx*r.cellW)
 							}
 							sb.WriteRune(char)
-							totalGlyphs++
 						} else {
 							if sb.Len() > 0 {
-								t_glyph_0 := time.Now()
 								dc.DrawString(sb.String(), batchX, ly+ascent)
-								timeGlyphs += time.Since(t_glyph_0)
 								sb.Reset()
 							}
 						}
@@ -419,9 +408,7 @@ func (r *GogpuRenderer) Flush() {
 					}
 
 					if sb.Len() > 0 && r.face != nil {
-						t_glyph_0 := time.Now()
 						dc.DrawString(sb.String(), batchX, ly+ascent)
-						timeGlyphs += time.Since(t_glyph_0)
 					}
 
 					x += spanW
@@ -442,19 +429,9 @@ func (r *GogpuRenderer) Flush() {
 			}
 		})
 		r.dirty = false
-		drawDur := time.Since(drawStart)
-		if drawDur > 5*time.Millisecond {
-			DebugLog("GOGPU_RENDERER_PERF: DrawTotal: %v, Fills(%d): %v, Glyphs(%d): %v",
-				drawDur, totalFills, timeFills, totalGlyphs, timeGlyphs)
-		}
 	}
 
-	renderStart := time.Now()
 	r.canvas.Render(ctx.RenderTarget())
-	renderDur := time.Since(renderStart)
-	if renderDur > 5*time.Millisecond {
-		DebugLog("GOGPU_RENDERER: ggcanvas.Render took %v", renderDur)
-	}
 }
 
 func (r *GogpuRenderer) getCellColors(cell CharInfo) (color.Color, color.Color) {
