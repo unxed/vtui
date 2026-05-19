@@ -204,24 +204,6 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 		}
 	})
 
-		btn := host.mouseBtn
-		cW := host.cellW
-		cH := host.cellH
-		host.mu.Unlock()
-
-		if x != debugLastMouseX || y != debugLastMouseY {
-			debugLastMouseX, debugLastMouseY = x, y
-		}
-
-		host.reader.NativeEventChan <- &vtinput.InputEvent{
-			Type:            vtinput.MouseEventType,
-			MouseX:          uint16(int(x) / cW),
-			MouseY:          uint16(int(y) / cH),
-			MouseEventFlags: vtinput.MouseMoved,
-			ButtonState:     btn,
-		}
-	})
-
 	app.EventSource().OnMousePress(func(button gpucontext.MouseButton, x, y float64) {
 		btn := uint32(vtinput.FromLeft1stButtonPressed)
 
