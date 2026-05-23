@@ -65,6 +65,7 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	DebugLog("GOGPU_HOST: Starting RunGogpuHost %dx%d (Cell: %dx%d)", cols, rows, cellW, cellH)
 
 	config := gogpu.DefaultConfig().
+		WithContinuousRender(false).
 		WithTitle(AppName).
 		WithSize(cols*cellW, rows*cellH)
 
@@ -205,7 +206,17 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	})
 
 	app.EventSource().OnMousePress(func(button gpucontext.MouseButton, x, y float64) {
-		btn := uint32(vtinput.FromLeft1stButtonPressed)
+		var btn uint32
+		switch button {
+		case gpucontext.MouseButtonLeft:
+			btn = uint32(vtinput.FromLeft1stButtonPressed)
+		case gpucontext.MouseButtonRight:
+			btn = uint32(vtinput.RightmostButtonPressed)
+		case gpucontext.MouseButtonMiddle:
+			btn = uint32(vtinput.FromLeft2ndButtonPressed)
+		default:
+			btn = uint32(vtinput.FromLeft1stButtonPressed)
+		}
 
 		host.mu.Lock()
 		host.mouseBtn = btn
@@ -235,6 +246,30 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 			MouseY:      uint16(int(y) / cH),
 			KeyDown:     false,
 			ButtonState: 0,
+		}
+	})
+	app.EventSource().OnScroll(func(dx float64, dy float64) {
+		host.mu.Lock()
+		cW := host.cellW
+		cH := host.cellH
+		host.mu.Unlock()
+
+		mx, my := app.Input().Mouse().Position()
+
+		dir := 0
+		if dy > 0 {
+			dir = -1 // Scroll down
+		} else if dy < 0 {
+			dir = 1 // Scroll up
+		}
+
+		if dir != 0 {
+			host.reader.NativeEventChan <- &vtinput.InputEvent{
+				Type:           vtinput.MouseEventType,
+				MouseX:         uint16(int(mx) / cW),
+				MouseY:         uint16(int(my) / cH),
+				WheelDirection: dir,
+			}
 		}
 	})
 
