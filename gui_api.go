@@ -25,10 +25,10 @@ func RunInGUIWindow(cols, rows int, backend string, setupApp func()) error {
 	}
 
 	if os.Getenv("DISPLAY") != "" {
-		if runtime.GOOS == "freebsd" {
-			DebugLog("GUI: DISPLAY detected, starting PureX11 Host (default for FreeBSD)")
-			return runInPureX11Window(cols, rows, setupApp)
-		}
+			if runtime.GOOS == "freebsd" || runtime.GOOS == "dragonfly" {
+				DebugLog("GUI: DISPLAY detected, starting PureX11 Host (default for FreeBSD/DragonFlyBSD)")
+				return runInPureX11Window(cols, rows, setupApp)
+			}
 		DebugLog("GUI: DISPLAY detected, starting X11 Host (default)")
 		return runInX11Window(cols, rows, setupApp)
 	}
