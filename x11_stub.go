@@ -1,4 +1,4 @@
-//go:build freebsd || dragonfly || (openbsd && arm64) || (netbsd && arm64)
+//go:build freebsd || dragonfly || openbsd || netbsd
 
 package vtui
 

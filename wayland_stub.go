@@ -1,4 +1,4 @@
-//go:build darwin || freebsd || dragonfly
+//go:build darwin || freebsd || dragonfly || openbsd || netbsd
 
 package vtui
 

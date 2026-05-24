@@ -1,4 +1,4 @@
-//go:build linux || openbsd || netbsd
+//go:build linux
 
 package vtui
 

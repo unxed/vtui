@@ -1,4 +1,4 @@
-//go:build !freebsd && !dragonfly
+//go:build !freebsd && !dragonfly && !openbsd && !netbsd
 
 package vtui
 

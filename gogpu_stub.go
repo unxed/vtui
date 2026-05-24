@@ -1,4 +1,4 @@
-//go:build freebsd || dragonfly
+//go:build freebsd || dragonfly || openbsd || netbsd
 
 package vtui
 
@@ -13,7 +13,7 @@ func (r *GogpuRenderer) SetCursor(x, y int, visible bool, shape CursorShape)    
 func (r *GogpuRenderer) SetPalette(palette *[256]uint32)                                    {}
 func (r *GogpuRenderer) Flush()                                                            {}
 
-// RunGogpuHost — заглушка функции запуска для FreeBSD.
+// RunGogpuHost — заглушка функции запуска для BSD.
 func RunGogpuHost(cols, rows int, setupApp func()) error {
-	return fmt.Errorf("gogpu backend is not supported on FreeBSD")
+	return fmt.Errorf("gogpu backend is not supported on BSDs")
 }
