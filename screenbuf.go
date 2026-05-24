@@ -53,6 +53,16 @@ func detectColorProfile(goos string) ColorProfile {
 	return ColorProfile256
 }
 
+var IsFreeBSDConsole bool
+
+func init() {
+	IsFreeBSDConsole = (runtime.GOOS == "freebsd" &&
+		os.Getenv("DISPLAY") == "" &&
+		os.Getenv("SSH_CLIENT") == "" &&
+		os.Getenv("TMUX") == "" &&
+		os.Getenv("WAYLAND_DISPLAY") == "")
+}
+
 // ScreenBuf implements double buffering to minimize terminal write operations.
 type ScreenBuf struct {
 	mu            sync.Mutex

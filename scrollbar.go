@@ -7,12 +7,21 @@ import (
 )
 
 // Symbols for the scrollbar, similar to Oem2Unicode from far2l
-const (
+var (
 	ScrollUpArrow    = '▲' // 0x25B2
 	ScrollDownArrow  = '▼' // 0x25BC
 	ScrollBlockLight = '░' // 0x2591 (BS_X_B0)
 	ScrollBlockDark  = '▓' // 0x2593 (BS_X_B2)
 )
+
+func init() {
+	if IsFreeBSDConsole {
+		ScrollUpArrow = '^'
+		ScrollDownArrow = 'v'
+		ScrollBlockLight = '.'
+		ScrollBlockDark = '#'
+	}
+}
 
 // MathRound performs mathematical rounding of x / y
 func MathRound(x, y uint64) uint64 {

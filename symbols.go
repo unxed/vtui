@@ -17,6 +17,19 @@ var boxSymbols = []rune{
 	'╟', '╢', // U+255F, U+2562 (Double Vertical, Single Horizontal)
 }
 
+func init() {
+	if IsFreeBSDConsole {
+		boxSymbols = []rune{
+			// Single Box (0-10)
+			'|', '-', '+', '+', '+', '+', '+', '+', '+', '+', '+',
+			// Double Box (11-21)
+			'|', '=', '+', '+', '+', '+', '+', '+', '+', '+', '+',
+			// Special connectors for VMenu separators
+			'+', '+',
+		}
+	}
+}
+
 // Indices for common box drawing symbols
 const (
 	bsV             = 0 // │ or ║
