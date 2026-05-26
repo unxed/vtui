@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	keyDeclRegexp  = regexp.MustCompile(`(?i)key\s+<[a-z0-9]+>`)
+	keyDeclRegexp  = regexp.MustCompile(`(?i)key\s+<[^>]+>`)
 	emptyKeyRegexp = regexp.MustCompile(`(?i)key\s+<\s*>`)
 )
 
@@ -33,6 +33,11 @@ func isXkbcompOutputValid(output []byte) bool {
 		return false
 	}
 	str := string(output)
+
+	// Проверка 0: Наличие базовых секций (исключает обрезанный вывод)
+	if !strings.Contains(str, "xkb_symbols") || !strings.Contains(str, "xkb_keycodes") {
+		return false
+	}
 
 	// Проверка 1: Ищем пустые маркеры-заглушки (часто отправляются XQuartz)
 	if emptyKeyRegexp.MatchString(str) {
@@ -162,8 +167,13 @@ func (km *CoreKeymap) Lookup(kc int, state uint16, group int) uint32 {
 	capsLock := (state & modMaskLock) != 0
 	altGr := (state&modMaskAltGr5) != 0 || (state&modMaskAltGr3) != 0
 
-	// Базовый индекс любой группы всегда group * 2
-	idx := group * 2
+	// Эвристика ширины группы (защита от сбоя при SymsPerKey > 4)
+	groupWidth := 2
+	if km.SymsPerKey > 4 && km.SymsPerKey%4 == 0 {
+		groupWidth = 4
+	}
+
+	idx := group * groupWidth
 	if idx >= length {
 		idx = 0
 	}
@@ -173,28 +183,34 @@ func (km *CoreKeymap) Lookup(kc int, state uint16, group int) uint32 {
 		symsHex = append(symsHex, fmt.Sprintf("0x%X", s))
 	}
 
-	DebugLog("XKB_DEBUG: Keycode=%d state=0x%X group=%d colBase=%d syms=[%s]",
-		kc, state, group, idx, strings.Join(symsHex, ", "))
+	DebugLog("XKB_DEBUG: Keycode=%d state=0x%X group=%d groupWidth=%d colBase=%d syms=[%s]",
+		kc, state, group, groupWidth, idx, strings.Join(symsHex, ", "))
 
 	altGrApplied := false
 	if altGr {
-		// Аллокация смещений XKB Level 3 (AltGr)
-		offsets := []int{4, 2, 6, 8}
-		if km.SymsPerKey > 2 && km.SymsPerKey%2 == 0 {
-			offsets = append([]int{km.SymsPerKey / 2}, offsets...)
-		}
-
-		for _, o := range offsets {
-			if idx+o < length && syms[idx+o] != 0 {
-				// Применяем смещение только если мы находимся на английской раскладке (group==0),
-				// либо если символ действительно отличается от базы (чтобы предотвратить ложное срабатывание
-				// из-за подмешанного Mod5 на русской раскладке).
-				if group == 0 || syms[idx+o] != syms[idx] {
-					idx += o
-					altGrApplied = true
-					break
+		altGrOffset := 0
+		if groupWidth == 4 && idx+2 < length && syms[idx+2] != 0 && syms[idx+2] != syms[idx] {
+			// Если ширина группы 4 (стандарт XKB), AltGr всегда имеет смещение +2
+			altGrOffset = 2
+		} else {
+			// Динамический поиск для нестандартных таблиц
+			offsets := []int{2, 4, 3, 6, 8}
+			if km.SymsPerKey > 2 {
+				offsets = append([]int{km.SymsPerKey / 2}, offsets...)
+			}
+			for _, o := range offsets {
+				if idx+o < length && syms[idx+o] != 0 && syms[idx+o] != syms[idx] {
+					// Защита от ложного Mod3/Mod5 (NumLock) в чужой группе
+					if group == 0 || (idx+o < len(syms) && syms[idx+o] != syms[o]) {
+						altGrOffset = o
+						break
+					}
 				}
 			}
+		}
+		if altGrOffset != 0 {
+			idx += altGrOffset
+			altGrApplied = true
 		}
 	}
 
@@ -306,6 +322,7 @@ func NewPureX11Host(cols, rows, cellW, cellH int) (*PureX11Host, error) {
 		}
 		cmd := exec.Command(xkbcompPath, display, "-")
 		var out bytes.Buffer
+		cmd.Stdout = &out
 		if err := cmd.Run(); err == nil && out.Len() > 0 {
 			if isXkbcompOutputValid(out.Bytes()) {
 				xkbCtx := xkb.NewContext(context.Background(), xkb.ContextNoFlags)
