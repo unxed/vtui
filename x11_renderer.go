@@ -1,4 +1,4 @@
-//go:build linux || darwin
+//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris
 
 package vtui
 
@@ -12,9 +12,6 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// X11Renderer implements SurfaceRenderer by drawing directly to an image.RGBA buffer
-// and pushing it to the X11Host.
-
 type X11Renderer struct {
 	host       *X11Host
 	face       font.Face
@@ -25,7 +22,6 @@ type X11Renderer struct {
 	cursorVis  bool
 	cursorShape CursorShape
 
-	// State for blink control and clearing the cursor "trail"
 	oldCursorX int
 	oldCursorY int
 
@@ -41,7 +37,6 @@ func NewX11Renderer(host *X11Host, face font.Face) *X11Renderer {
 }
 
 func (r *X11Renderer) SetPalette(pal *[256]uint32) {
-	// X11 renderer uses TrueColor naturally, no palette switching needed for the host window.
 }
 
 func (r *X11Renderer) SetCursor(x, y int, visible bool, shape CursorShape) {
@@ -101,7 +96,6 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			}
 		}
 
-		// Reset old cursor position if it was on this row but has moved
 		if y == r.oldCursorY && (r.oldCursorX != r.cursorX || r.oldCursorY != r.cursorY) {
 			r.oldCursorX = -1
 			r.oldCursorY = -1
@@ -112,7 +106,6 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 			cell := buf[idx]
 			_, bg := r.getCellColors(cell)
 
-			// 1. Find a "span" (group of cells) with the same background
 			spanW := 0
 			for x+spanW < w {
 				nextCell := buf[rowOff+x+spanW]
@@ -127,7 +120,6 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 				spanW++
 			}
 
-			// 2. Fast background fill for the entire span
 			px := x * cw
 			py := y * ch
 			spanPixW := spanW * cw
@@ -151,7 +143,6 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 				}
 			}
 
-			// 3. Render content within the span
 			for sx := 0; sx < spanW; {
 				currX := x + sx
 				cIdx := rowOff + currX
@@ -177,7 +168,6 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 					}
 				}
 
-				// 4. Cursor
 				if currX == r.cursorX && y == r.cursorY && r.cursorVis && blinkState {
 					var startY int
 					if r.cursorShape == CursorShapeBlock {
@@ -233,7 +223,6 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 
 		for iy := 0; iy < ch; iy++ {
 			for ix := 0; ix < drawW; ix++ {
-				// Optimized background fill when creating a new glyph in cache
 				off := iy*cached.Stride + ix*4
 				cached.Pix[off] = bgCol.R
 				cached.Pix[off+1] = bgCol.G
@@ -250,8 +239,6 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 			Dot:  fixed.Point26_6{X: fixed.I(0), Y: metrics.Ascent},
 		}
 		d.DrawString(string(char))
-
-
 		r.glyphCache[key] = cached
 	}
 	for iy := 0; iy < ch; iy++ {
@@ -261,7 +248,6 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 		dstOff := (py+iy)*img.Stride + px*4
 		srcOff := iy * cached.Stride
 		if dstOff+drawW*4 <= len(img.Pix) {
-			// Direct pixel row copy from glyph cache to the main frame buffer
 			copy(img.Pix[dstOff:dstOff+drawW*4], cached.Pix[srcOff:srcOff+drawW*4])
 		}
 	}
@@ -270,6 +256,7 @@ func (r *X11Renderer) drawCachedGlyph(img *image.RGBA, char rune, px, py, rw int
 func (r *X11Renderer) Flush() {
 	start := time.Now()
 	calls := r.host.flushImage()
+
 	r.stats.totalFlush += time.Since(start)
 	r.stats.putImages += calls
 	r.stats.frameCount++
@@ -289,7 +276,7 @@ func (r *X11Renderer) reportStats() {
 	avgFlush := r.stats.totalFlush / time.Duration(r.stats.frameCount)
 
 	DebugLog("[GUI PERF] FPS: %d, AvgDraw: %v, AvgFlush: %v, Dirty: %d/%d rows, PutImages: %d, Glyphs: %d",
-		r.stats.frameCount/2, // divided by 2 seconds
+		r.stats.frameCount/2,
 		avgDraw,
 		avgFlush,
 		r.stats.dirtyRows/r.stats.frameCount,
@@ -300,8 +287,6 @@ func (r *X11Renderer) reportStats() {
 	r.stats = renderStats{lastReport: time.Now()}
 }
 
-// drawCustomChar performs pixel-perfect drawing of lines and blocks.
-// Returns true if the character was handled.
 func (r *X11Renderer) drawCustomChar(img *image.RGBA, char rune, px, py, cw, ch int, col color.Color) bool {
 	mx := px + cw/2
 	my := py + ch/2
@@ -343,12 +328,10 @@ func (r *X11Renderer) drawCustomChar(img *image.RGBA, char rune, px, py, cw, ch 
 		}
 	}
 
-	// Double line specifics
 	ofs := cw / 4
 	if ofs < 1 { ofs = 1 }
 
 	switch char {
-	// Single Lines
 	case '─': drawHLine(px, px+cw-1, my); return true
 	case '│': drawVLine(mx, py, py+ch-1); return true
 	case '┌': drawHLine(mx, px+cw-1, my); drawVLine(mx, my, py+ch-1); return true
@@ -360,8 +343,6 @@ func (r *X11Renderer) drawCustomChar(img *image.RGBA, char rune, px, py, cw, ch 
 	case '┬': drawHLine(px, px+cw-1, my); drawVLine(mx, my, py+ch-1); return true
 	case '┴': drawHLine(px, px+cw-1, my); drawVLine(mx, py, my); return true
 	case '┼': drawHLine(px, px+cw-1, my); drawVLine(mx, py, py+ch-1); return true
-
-	// Double Lines
 	case '═': drawHLine(px, px+cw-1, my-ofs); drawHLine(px, px+cw-1, my+ofs); return true
 	case '║': drawVLine(mx-ofs, py, py+ch-1); drawVLine(mx+ofs, py, py+ch-1); return true
 	case '╔':
@@ -398,7 +379,6 @@ func (r *X11Renderer) drawCustomChar(img *image.RGBA, char rune, px, py, cw, ch 
 		drawHLine(px, mx-ofs, my+ofs); drawHLine(mx+ofs, px+cw-1, my+ofs)
 		drawVLine(mx-ofs, my+ofs, py+ch-1); drawVLine(mx+ofs, my+ofs, py+ch-1)
 		return true
-
 	case '█':
 		baseOff := py*img.Stride + px*4
 		maxBytes := cw * 4

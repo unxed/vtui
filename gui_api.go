@@ -5,7 +5,6 @@ package vtui
 import (
 	"fmt"
 	"os"
-	"runtime"
 )
 
 // RunInGUIWindow detects the available display server (Wayland or X11)
@@ -17,18 +16,11 @@ func RunInGUIWindow(cols, rows int, backend string, setupApp func()) error {
 	if backend == "x11" {
 		return runInX11Window(cols, rows, setupApp)
 	}
-	if backend == "purex11" {
-		return runInPureX11Window(cols, rows, setupApp)
-	}
 	if backend == "gogpu" {
 		return runInGogpuWindow(cols, rows, setupApp)
 	}
 
 	if os.Getenv("DISPLAY") != "" {
-			if runtime.GOOS == "freebsd" || runtime.GOOS == "dragonfly" || runtime.GOOS == "openbsd" || runtime.GOOS == "netbsd" {
-				DebugLog("GUI: DISPLAY detected, starting PureX11 Host (default for BSDs)")
-				return runInPureX11Window(cols, rows, setupApp)
-			}
 		DebugLog("GUI: DISPLAY detected, starting X11 Host (default)")
 		return runInX11Window(cols, rows, setupApp)
 	}
