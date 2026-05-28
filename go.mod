@@ -9,7 +9,7 @@ require (
 	github.com/jezek/xgb v1.3.1
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/neurlang/wayland v0.4.2
-	github.com/unxed/keytrans v0.1.14
+	github.com/unxed/keytrans v0.1.15
 	github.com/unxed/vtinput v0.0.0
 	golang.org/x/image v0.40.0
 	golang.org/x/sys v0.44.0
