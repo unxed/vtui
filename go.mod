@@ -9,7 +9,7 @@ require (
 	github.com/jezek/xgb v1.3.1
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/neurlang/wayland v0.4.2
-	github.com/unxed/keytrans v0.1.24
+	github.com/unxed/keytrans v0.1.25
 	github.com/unxed/vtinput v0.0.0
 	golang.org/x/image v0.40.0
 	golang.org/x/sys v0.44.0
@@ -43,4 +43,4 @@ require (
 // This line tells Go to use a local copy of vtinput
 replace github.com/unxed/vtinput => ../vtinput
 
-replace github.com/ebitengine/purego => github.com/unxed/pureffi v0.1.6
+replace github.com/ebitengine/purego => github.com/unxed/pureffi v0.1.7
