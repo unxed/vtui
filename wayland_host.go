@@ -66,10 +66,7 @@ func runInWaylandWindow(cols, rows int, setupApp func()) error {
 	FrameManager.Init(scr)
 
 	pr, _ := io.Pipe()
-	reader := vtinput.NewReader(pr)
-	if reader.NativeEventChan == nil {
-		reader.NativeEventChan = make(chan *vtinput.InputEvent, 1024)
-	}
+	reader := vtinput.NewReader(pr, true)
 	host.reader = reader
 
 	GetTerminalSize = func() (int, int, error) {
@@ -110,7 +107,7 @@ func (h *WaylandHost) Resize(widget *window.Widget, width int32, height int32, p
 		h.mu.Unlock()
 
 		if h.reader != nil {
-			h.reader.NativeEventChan <- &vtinput.InputEvent{Type: vtinput.ResizeEventType}
+			h.reader.EventChan <- &vtinput.InputEvent{Type: vtinput.ResizeEventType}
 		}
 	} else {
 		h.mu.Unlock()
@@ -164,7 +161,7 @@ func (h *WaylandHost) Leave(w *window.Widget, input *window.Input) {}
 func (h *WaylandHost) Motion(w *window.Widget, input *window.Input, time uint32, x float32, y float32) int {
 	h.mouseX, h.mouseY = int(x), int(y)
 	if h.reader != nil {
-		h.reader.NativeEventChan <- &vtinput.InputEvent{
+		h.reader.EventChan <- &vtinput.InputEvent{
 			Type:            vtinput.MouseEventType,
 			MouseX:          uint16(h.mouseX / h.cellW),
 			MouseY:          uint16(h.mouseY / h.cellH),
@@ -196,7 +193,7 @@ func (h *WaylandHost) Button(w *window.Widget, input *window.Input, time uint32,
 	}
 
 	if h.reader != nil {
-		h.reader.NativeEventChan <- &vtinput.InputEvent{
+		h.reader.EventChan <- &vtinput.InputEvent{
 			Type:            vtinput.MouseEventType,
 			KeyDown:         isDown,
 			MouseX:          uint16(h.mouseX / h.cellW),
@@ -217,7 +214,7 @@ func (h *WaylandHost) AxisDiscrete(w *window.Widget, input *window.Input, axis u
 	}
 
 	if dir != 0 && h.reader != nil {
-		h.reader.NativeEventChan <- &vtinput.InputEvent{
+		h.reader.EventChan <- &vtinput.InputEvent{
 			Type:           vtinput.MouseEventType,
 			WheelDirection: dir,
 		}
@@ -231,7 +228,7 @@ func (h *WaylandHost) Key(win *window.Window, input *window.Input, time uint32, 
 	char := input.GetRune(&notUnicode, key)
 
 	if h.reader != nil {
-		h.reader.NativeEventChan <- &vtinput.InputEvent{
+		h.reader.EventChan <- &vtinput.InputEvent{
 			Type:            vtinput.KeyEventType,
 			KeyDown:         isDown,
 			VirtualKeyCode:  vk,
