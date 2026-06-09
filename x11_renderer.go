@@ -67,6 +67,24 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 	r.host.mu.Lock()
 	defer r.host.mu.Unlock()
 
+	reqWidth := uint16(w * r.host.cellW)
+	reqHeight := uint16(h * r.host.cellH)
+	if r.host.imgBuf == nil || uint16(r.host.imgBuf.Bounds().Dx()) != reqWidth || uint16(r.host.imgBuf.Bounds().Dy()) != reqHeight {
+		r.host.width = reqWidth
+		r.host.height = reqHeight
+		r.host.cols = w
+		r.host.rows = h
+		r.host.imgBuf = image.NewRGBA(image.Rect(0, 0, int(reqWidth), int(reqHeight)))
+		if r.host.shmSeg == 0 {
+			r.host.bgraBuf = make([]byte, len(r.host.imgBuf.Pix))
+		}
+		r.host.dirtyLines = make([]bool, int(reqHeight))
+		for i := range r.host.dirtyLines {
+			r.host.dirtyLines[i] = true
+		}
+		forceRedraw = true
+	}
+
 	blinkState := (time.Now().UnixNano()/int64(500*time.Millisecond))%2 == 0
 	r.w, r.h = w, h
 	img := r.host.imgBuf

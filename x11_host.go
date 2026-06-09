@@ -229,14 +229,6 @@ func (h *X11Host) RunEventLoop() {
 				h.mu.Lock()
 				h.width, h.height = w, ht
 				h.cols, h.rows = int(w)/h.cellW, int(ht)/h.cellH
-				h.imgBuf = image.NewRGBA(image.Rect(0, 0, int(h.width), int(h.height)))
-				if h.shmSeg == 0 {
-					h.bgraBuf = make([]byte, len(h.imgBuf.Pix))
-				}
-				h.dirtyLines = make([]bool, int(ht))
-				for i := range h.dirtyLines {
-					h.dirtyLines[i] = true
-				}
 				h.mu.Unlock()
 				if h.reader != nil {
 					h.reader.EventChan <- &vtinput.InputEvent{Type: vtinput.ResizeEventType}
