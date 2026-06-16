@@ -3,6 +3,7 @@
 package vtui
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -80,6 +81,7 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	baseFontSize := 18.0
 	face, cellW, cellH := loadGogpuFont(baseFontSize)
 
+	fmt.Fprintf(os.Stdout, "GOGPU_HOST: Starting RunGogpuHost %dx%d (Cell: %dx%d)\n", cols, rows, cellW, cellH)
 	DebugLog("GOGPU_HOST: Starting RunGogpuHost %dx%d (Cell: %dx%d)", cols, rows, cellW, cellH)
 
 	config := gogpu.DefaultConfig().
@@ -87,7 +89,9 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 		WithTitle(AppName).
 		WithSize(cols*cellW, rows*cellH)
 
+	fmt.Fprintln(os.Stdout, "GOGPU_HOST: Creating gogpu.App...")
 	app := gogpu.NewApp(config)
+	fmt.Fprintln(os.Stdout, "GOGPU_HOST: gogpu.App created successfully")
 
 	host := &GogpuHost{
 		app:      app,
@@ -310,6 +314,7 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 		infoLogged.Do(func() {
 			if provider := app.GPUContextProvider(); provider != nil {
 				info := provider.AdapterInfo()
+				fmt.Fprintf(os.Stdout, "GOGPU_HOST_ON_DRAW: Adapter confirmed: %q, Type: %v\n", info.Name, info.Type)
 				DebugLog("GOGPU_HOST_ON_DRAW: Adapter confirmed: %q, Type: %v", info.Name, info.Type)
 			}
 		})
@@ -343,21 +348,28 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 	go func() {
 		w, h := app.Size()
 		fw, fh := app.PhysicalSize()
+		fmt.Fprintf(os.Stdout, "GOGPU_HOST: Before Run(). App Size (Log): %dx%d. App PhysicalSize: %dx%d. ScaleFactor: %f\n", w, h, fw, fh, app.ScaleFactor())
 		DebugLog("GOGPU_HOST: Before Run(). App Size (Log): %dx%d. App PhysicalSize: %dx%d. ScaleFactor: %f", w, h, fw, fh, app.ScaleFactor())
 
 		provider := app.GPUContextProvider()
 		if provider != nil {
 			info := provider.AdapterInfo()
+			fmt.Fprintf(os.Stdout, "GOGPU_HOST: Adapter: Name=%q, Type=%v\n", info.Name, info.Type)
 			DebugLog("GOGPU_HOST: Adapter: Name=%q, Type=%v", info.Name, info.Type)
 		}
 
+		fmt.Fprintln(os.Stdout, "GOGPU_HOST: FrameManager starting...")
 		DebugLog("GOGPU_HOST: FrameManager starting...")
 		FrameManager.Run(reader)
+		fmt.Fprintln(os.Stdout, "GOGPU_HOST: FrameManager exited. Forcing app shutdown to prevent blue screen hang.")
 		DebugLog("GOGPU_HOST: FrameManager exited. Forcing app shutdown to prevent blue screen hang.")
 		os.Exit(0)
 	}()
 
-	return app.Run()
+	fmt.Fprintln(os.Stdout, "GOGPU_HOST: Calling app.Run()...")
+	err := app.Run()
+	fmt.Fprintf(os.Stdout, "GOGPU_HOST: app.Run() exited with: %v\n", err)
+	return err
 }
 
 func loadGogpuFont(size float64) (text.Face, int, int) {
@@ -385,6 +397,7 @@ func loadGogpuFont(size float64) (text.Face, int, int) {
 				if cellH == 0 {
 					cellH = 16
 				}
+				fmt.Fprintf(os.Stdout, "GOGPU_DIAG_FONT: Loaded File=%s RequestSize=%.1f, Cell: %dx%d\n", p, size, cellW, cellH)
 				DebugLog("GOGPU_DIAG_FONT: File=%s RequestSize=%.1f", p, size)
 				DebugLog("GOGPU_DIAG_FONT: Metrics: Ascent=%.2f Descent=%.2f LineGap=%.2f AdvanceA=%.2f",
 					float64(metrics.Ascent), float64(metrics.Descent), float64(metrics.LineGap), adv)
