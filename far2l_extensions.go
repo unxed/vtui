@@ -24,6 +24,10 @@ var (
 
 // Far2lInteract sends a request to the terminal emulator and optionally waits for a reply.
 func Far2lInteract(stk *vtinput.Far2lStack, wait bool) *vtinput.Far2lStack {
+	return Far2lInteractTimeout(stk, wait, 2*time.Second)
+}
+
+func Far2lInteractTimeout(stk *vtinput.Far2lStack, wait bool, timeout time.Duration) *vtinput.Far2lStack {
 	far2lInteractMu.Lock()
 	defer far2lInteractMu.Unlock()
 
@@ -39,7 +43,7 @@ func Far2lInteract(stk *vtinput.Far2lStack, wait bool) *vtinput.Far2lStack {
 	os.Stdout.WriteString("\x1b_far2l:" + b64 + "\x07")
 
 	if wait && FrameManager != nil {
-		return FrameManager.WaitForFar2lReply(id, 2*time.Second)
+		return FrameManager.WaitForFar2lReply(id, timeout)
 	}
 	DebugLog("VTUI_FAR2L: Received response for ID=%d", id)
 	return nil
@@ -60,7 +64,7 @@ func SetFar2lClipboard(text string) bool {
 	stk.PushU8('o') // FARTTY_INTERACT_CLIP_OPEN
 	stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
 	DebugLog("VTUI_FAR2L: Requesting CLIP_OPEN with ID %q...", clientID)
-	reply := Far2lInteract(stk, true)
+	reply := Far2lInteractTimeout(stk, true, 15*time.Second)
 
 	if reply != nil {
 		status := reply.PopU8()
@@ -80,7 +84,7 @@ func SetFar2lClipboard(text string) bool {
 			stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
 
 			DebugLog("VTUI_FAR2L: Requesting CLIP_SETDATA...")
-			setReply := Far2lInteract(stk, true)
+			setReply := Far2lInteractTimeout(stk, true, 15*time.Second)
 
 			success := false
 			if setReply != nil {
@@ -116,7 +120,7 @@ func GetFar2lClipboard() (string, bool) {
 	stk.PushString(clientID)
 	stk.PushU8('o')
 	stk.PushU8('c')
-	reply := Far2lInteract(stk, true)
+	reply := Far2lInteractTimeout(stk, true, 15*time.Second)
 
 	if reply != nil {
 		status := reply.PopU8()
@@ -127,7 +131,7 @@ func GetFar2lClipboard() (string, bool) {
 			stk.PushU32(1)  // CF_TEXT
 			stk.PushU8('g') // FARTTY_INTERACT_CLIP_GETDATA
 			stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
-			getReply := Far2lInteract(stk, true)
+			getReply := Far2lInteractTimeout(stk, true, 15*time.Second)
 
 			res := ""
 			if getReply != nil {

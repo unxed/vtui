@@ -3,9 +3,13 @@ package vtui
 import (
 	"encoding/base64"
 	"os"
+	"sync"
 )
 
-var internalClipboard string
+var (
+	internalClipboard string
+	internalClipMu    sync.Mutex
+)
 
 // SetClipboard copies text to the system clipboard.
 func SetClipboard(text string) {
@@ -16,7 +20,9 @@ func SetClipboard(text string) {
 		text = text[:maxGlobalClipboardSize]
 		DebugLog("CLIPBOARD: Text truncated to %d bytes to prevent IPC lockup", maxGlobalClipboardSize)
 	}
+	internalClipMu.Lock()
 	internalClipboard = text
+	internalClipMu.Unlock()
 	if SetFar2lClipboard(text) {
 		DebugLog("CLIPBOARD: SetFar2lClipboard SUCCESS")
 		return
@@ -55,8 +61,11 @@ func GetClipboard() string {
 		DebugLog("CLIPBOARD: getOSClipboard SUCCESS, len: %d", len(text))
 		return text
 	}
-	DebugLog("CLIPBOARD: Returning internal buffer, len: %d", len(internalClipboard))
-	return internalClipboard
+	internalClipMu.Lock()
+	fallback := internalClipboard
+	internalClipMu.Unlock()
+	DebugLog("CLIPBOARD: Returning internal buffer, len: %d", len(fallback))
+	return fallback
 }
 
 // GetOSClipboard bypasses terminal extensions and reads directly from the OS clipboard.
@@ -64,5 +73,8 @@ func GetOSClipboard() string {
 	if text, ok := getOSClipboard(); ok {
 		return text
 	}
-	return internalClipboard
+	internalClipMu.Lock()
+	fallback := internalClipboard
+	internalClipMu.Unlock()
+	return fallback
 }

@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"fmt"
+	"sync"
 	"github.com/mattn/go-runewidth"
 	"github.com/unxed/vtinput"
 	"golang.org/x/term"
@@ -102,6 +103,7 @@ type frameManager struct {
 	EventChan      chan *vtinput.InputEvent
 	EventFilter    func(*vtinput.InputEvent) bool
 	injectedEvents []*vtinput.InputEvent
+	injectedMu     sync.Mutex
 	OnRender       func(scr *ScreenBuf)
 
 	// Global standard UI components
@@ -548,7 +550,9 @@ func (fm *frameManager) EmitCommand(cmd int, args any) bool {
 
 // InjectEvents adds simulated input events to the front of the queue.
 func (fm *frameManager) InjectEvents(events []*vtinput.InputEvent) {
+	fm.injectedMu.Lock()
 	fm.injectedEvents = append(fm.injectedEvents, events...)
+	fm.injectedMu.Unlock()
 }
 
 // Shutdown clears all frames, effectively stopping the application loop.
@@ -583,7 +587,9 @@ func (fm *frameManager) WaitForFar2lReply(expectedID uint8, timeout time.Duratio
 				}
 			}
 			// Stash other events to be processed later by the main loop
+			fm.injectedMu.Lock()
 			fm.injectedEvents = append(fm.injectedEvents, e)
+			fm.injectedMu.Unlock()
 		case <-time.After(10 * time.Millisecond):
 			// Yield and check deadline
 		}
@@ -940,11 +946,15 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 		injected := false
 		loopAgain := false
 
+		fm.injectedMu.Lock()
 		if len(fm.injectedEvents) > 0 {
 			e = fm.injectedEvents[0]
 			fm.injectedEvents = fm.injectedEvents[1:]
 			injected = true
-		} else {
+		}
+		fm.injectedMu.Unlock()
+
+		if !injected {
 			select {
 			case <-fm.RedrawChan:
 				loopAgain = true
