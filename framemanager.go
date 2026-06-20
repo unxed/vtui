@@ -877,7 +877,7 @@ func (fm *frameManager) Run(reader *vtinput.Reader) {
 	go func() {
 		lastW, lastH, _ := GetTerminalSize()
 		for fm.running {
-			time.Sleep(1000 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 			w, h, err := GetTerminalSize()
 			if err == nil && w > 0 && h > 0 && (w != lastW || h != lastH) {
 				lastW, lastH = w, h
