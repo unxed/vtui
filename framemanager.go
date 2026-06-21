@@ -328,7 +328,10 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.scr.SetCursorVisible(false)
 
 	// Reset terminal palette to default to clear state from possible previous crashes
-	os.Stdout.WriteString("\x1b]104\x07")
+	if _, ok := fm.scr.Renderer.(*AnsiRenderer); ok {
+		os.Stdout.WriteString("\x1b]104\x07")
+	}
+
 }
 
 // Push adds a new frame to the top of the stack and assigns a number if it's non-modal.
