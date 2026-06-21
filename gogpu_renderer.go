@@ -302,6 +302,7 @@ func (r *GogpuRenderer) Flush() {
 
 	if forceDirty {
 		r.dirty = true
+		r.lastCursorReset = time.Now() // Ensure cursor is solid-visible on window restore/resize
 	}
 
 	w, h := ctx.Width(), ctx.Height()
