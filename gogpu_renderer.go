@@ -436,6 +436,44 @@ func (r *GogpuRenderer) Flush() {
 			if cursorVisible {
 				dc.SetColor(color.White)
 				cx := float64(r.cursorX * r.cellW)
+
+				// Fix cursor position drift by measuring the preceding batched text
+				if r.face != nil && r.cursorY >= 0 && r.cursorY < drawRows && r.cursorX >= 0 && r.cursorX < drawCols {
+					rowOff := r.cursorY * drawCols
+					wordStartX := r.cursorX
+
+					for wordStartX > 0 {
+						currIdx := rowOff + wordStartX
+						prevIdx := currIdx - 1
+
+						char := rune(r.renderBuf[prevIdx].Char)
+						isBox := (char >= 0x2500 && char <= 0x259F) || (char >= 0x2190 && char <= 0x2193)
+						if char == 0 || char == ' ' || char == WideCharFiller || isBox {
+							break
+						}
+
+						fg, bg := r.getCellColors(r.renderBuf[currIdx])
+						pFg, pBg := r.getCellColors(r.renderBuf[prevIdx])
+						if fg != pFg || bg != pBg {
+							break
+						}
+						wordStartX--
+					}
+
+					var sb strings.Builder
+					for x := wordStartX; x < r.cursorX; x++ {
+						char := rune(r.renderBuf[rowOff+x].Char)
+						if char != WideCharFiller {
+							sb.WriteRune(char)
+						}
+					}
+
+					if sb.Len() > 0 {
+						w, _ := dc.MeasureString(sb.String())
+						cx = float64(wordStartX*r.cellW) + w
+					}
+				}
+
 				cy := float64(r.cursorY * r.cellH)
 				if r.cursorShape == CursorShapeUnderline {
 					cy += float64(r.cellH) - 2
