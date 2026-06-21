@@ -368,8 +368,6 @@ func (r *GogpuRenderer) Flush() {
 					dc.SetColor(bg)
 					dc.DrawRectangle(lx, ly, spanPixW+1, float64(r.cellH)+1)
 					dc.Fill()
-					var sb strings.Builder
-					batchX := lx
 					dc.SetColor(fg)
 
 					for sx := 0; sx < spanW; {
@@ -390,10 +388,6 @@ func (r *GogpuRenderer) Flush() {
 						isBox := (char >= 0x2500 && char <= 0x259F) || (char >= 0x2190 && char <= 0x2193)
 
 						if isBox {
-							if sb.Len() > 0 {
-								dc.DrawString(sb.String(), batchX, ly+ascent)
-								sb.Reset()
-							}
 							if r.drawCustomChar(dc, char, lx+float64(sx*r.cellW), ly, float64(rw*r.cellW), float64(r.cellH)) {
 								sx += rw
 								continue
@@ -401,21 +395,9 @@ func (r *GogpuRenderer) Flush() {
 						}
 
 						if char != 0 && char != ' ' && r.face != nil {
-							if sb.Len() == 0 {
-								batchX = lx + float64(sx*r.cellW)
-							}
-							sb.WriteRune(char)
-						} else {
-							if sb.Len() > 0 {
-								dc.DrawString(sb.String(), batchX, ly+ascent)
-								sb.Reset()
-							}
+							dc.DrawString(string(char), lx+float64(sx*r.cellW), ly+ascent)
 						}
 						sx += rw
-					}
-
-					if sb.Len() > 0 && r.face != nil {
-						dc.DrawString(sb.String(), batchX, ly+ascent)
 					}
 
 					x += spanW
@@ -437,51 +419,6 @@ func (r *GogpuRenderer) Flush() {
 			if cursorVisible {
 				dc.SetColor(color.White)
 				cx := float64(r.cursorX * r.cellW)
-
-				// Fix cursor position drift by measuring the preceding batched text
-				if r.face != nil && r.cursorY >= 0 && r.cursorY < drawRows && r.cursorX >= 0 && r.cursorX < drawCols {
-					rowOff := r.cursorY * drawCols
-					wordStartX := r.cursorX
-
-					for wordStartX > 0 {
-						currIdx := rowOff + wordStartX
-						prevIdx := currIdx - 1
-
-						rawChar := r.renderBuf[prevIdx].Char
-						if rawChar == WideCharFiller {
-							break
-						}
-						char := rune(rawChar)
-						isBox := (char >= 0x2500 && char <= 0x259F) || (char >= 0x2190 && char <= 0x2193)
-						if char == 0 || char == ' ' || isBox {
-							break
-						}
-
-						fg, bg := r.getCellColors(r.renderBuf[currIdx])
-						pFg, pBg := r.getCellColors(r.renderBuf[prevIdx])
-						if fg != pFg || bg != pBg {
-							break
-						}
-						wordStartX--
-					}
-
-					var sb strings.Builder
-					for x := wordStartX; x < r.cursorX; x++ {
-						rawChar := r.renderBuf[rowOff+x].Char
-						if rawChar != WideCharFiller {
-							char := rune(rawChar)
-							if char != 0 {
-								sb.WriteRune(char)
-							}
-						}
-					}
-
-					if sb.Len() > 0 {
-						w, _ := dc.MeasureString(sb.String())
-						cx = float64(wordStartX*r.cellW) + w
-					}
-				}
-
 				cy := float64(r.cursorY * r.cellH)
 				if r.cursorShape == CursorShapeUnderline {
 					cy += float64(r.cellH) - 2
