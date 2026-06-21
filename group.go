@@ -273,8 +273,8 @@ func (g *Group) setFocus(index int) {
 		g.items[g.focusIdx].SetFocus(false)
 	}
 	g.focusIdx = index
-	if g.focusIdx != -1 {
-		g.items[g.focusIdx].SetFocus(true)
+	if g.focusIdx != -1 && g.focusIdx < len(g.items) {
+		g.items[g.focusIdx].SetFocus(g.IsFocused())
 	}
 }
 
