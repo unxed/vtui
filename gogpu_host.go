@@ -5,6 +5,7 @@ package vtui
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -269,6 +270,26 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 			ButtonState: 0,
 		}
 	})
+
+	app.EventSource().OnMouseMove(func(x, y float64) {
+		host.mu.Lock()
+		btn := host.mouseBtn
+		cW := host.cellW
+		cH := host.cellH
+		host.mu.Unlock()
+
+		if btn != 0 {
+			host.reader.EventChan <- &vtinput.InputEvent{
+				Type:            vtinput.MouseEventType,
+				MouseX:          uint16(int(x) / cW),
+				MouseY:          uint16(int(y) / cH),
+				KeyDown:         true,
+				ButtonState:     btn,
+				MouseEventFlags: vtinput.MouseMoved,
+			}
+		}
+	})
+
 	app.EventSource().OnScroll(func(dx float64, dy float64) {
 		host.mu.Lock()
 		cW := host.cellW
@@ -277,14 +298,15 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 
 		mx, my := app.Input().Mouse().Position()
 
-		dir := 0
-		if dy > 0 {
-			dir = -1 // Scroll down
-		} else if dy < 0 {
-			dir = 1 // Scroll up
+		steps := int(math.Abs(dy))
+		if steps == 0 {
+			return
 		}
-
-		if dir != 0 {
+		dir := -1
+		if dy < 0 {
+			dir = 1
+		}
+		for i := 0; i < steps; i++ {
 			host.reader.EventChan <- &vtinput.InputEvent{
 				Type:           vtinput.MouseEventType,
 				MouseX:         uint16(int(mx) / cW),
@@ -302,9 +324,7 @@ func RunGogpuHost(cols, rows int, setupApp func()) error {
 		sizeChanged := (host.lastAppW != w || host.lastAppH != h)
 		host.lastAppW, host.lastAppH = w, h
 		host.ctx = dc
-		if sizeChanged {
-			host.resizePending = true
-		}
+		host.resizePending = true
 		host.mu.Unlock()
 
 		if sizeChanged && host.reader != nil && host.reader.EventChan != nil {

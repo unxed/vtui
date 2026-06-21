@@ -328,7 +328,8 @@ func (r *GogpuRenderer) Flush() {
 	if r.dirty {
 		r.canvas.Draw(func(dc *gg.Context) {
 			dc.SetRGB(0, 0, 0)
-			dc.Clear()
+			dc.DrawRectangle(0, 0, float64(w), float64(h))
+			dc.Fill()
 
 			drawCols := r.cols
 			drawRows := r.rows
@@ -341,6 +342,7 @@ func (r *GogpuRenderer) Flush() {
 
 			for y := 0; y < drawRows; y++ {
 				rowOff := y * drawCols
+				ly := float64(y * r.cellH)
 				for x := 0; x < drawCols; {
 					cell := r.renderBuf[rowOff+x]
 					fg, bg := r.getCellColors(cell)
@@ -360,11 +362,10 @@ func (r *GogpuRenderer) Flush() {
 					}
 
 					lx := float64(x * r.cellW)
-					ly := float64(y * r.cellH)
 					spanPixW := float64(spanW * r.cellW)
 
 					dc.SetColor(bg)
-					dc.DrawRectangle(lx, ly, spanPixW, float64(r.cellH))
+					dc.DrawRectangle(lx, ly, spanPixW+1, float64(r.cellH)+1)
 					dc.Fill()
 					var sb strings.Builder
 					batchX := lx
