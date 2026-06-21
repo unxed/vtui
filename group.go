@@ -19,6 +19,7 @@ type Group struct {
 	WrapFocus bool
 	links     []autoLink
 }
+
 func (g *Group) SetFocusDirection(direction int) {
 	if direction > 0 {
 		g.focusIdx = -1

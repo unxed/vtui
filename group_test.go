@@ -300,4 +300,3 @@ func TestNestedGroupFocusCycle(t *testing.T) {
 		t.Errorf("Expected editB2 to be focused after wrapping backward to groupB")
 	}
 }
-
