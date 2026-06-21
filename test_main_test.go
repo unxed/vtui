@@ -15,6 +15,9 @@ func TestMain(m *testing.M) {
 }
 
 func dumpLogsOnFailure() {
+
+	return // diabled for now
+
 	logs := GetCurrentLogs()
 	if len(logs) == 0 {
 		return
