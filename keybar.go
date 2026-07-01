@@ -46,6 +46,10 @@ func (kb *KeyBar) SetModifiers(shift, ctrl, alt bool) {
 func (kb *KeyBar) Show(scr *ScreenBuf) {
 	kb.Bar.Show(scr)
 	kb.DisplayObject(scr)
+	_, cy := scr.GetCursorPos()
+	if cy == kb.Y1 {
+		scr.SetCursorVisible(false)
+	}
 }
 func (kb *KeyBar) ProcessMouse(e *vtinput.InputEvent) bool {
 	if !kb.IsVisible() || e.Type != vtinput.MouseEventType {

@@ -26,6 +26,10 @@ func NewStatusLine() *StatusLine {
 func (sl *StatusLine) Show(scr *ScreenBuf) {
 	sl.ScreenObject.Show(scr)
 	sl.DisplayObject(scr)
+	_, cy := scr.GetCursorPos()
+	if cy == sl.Y1 {
+		scr.SetCursorVisible(false)
+	}
 }
 
 func (sl *StatusLine) DisplayObject(scr *ScreenBuf) {

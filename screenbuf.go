@@ -390,6 +390,10 @@ func (s *ScreenBuf) FillRect(x1, y1, x2, y2 int, char rune, attributes uint64) {
 func (s *ScreenBuf) SetCursorPos(x, y int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.width <= 0 || s.height <= 0 || x < 0 || x >= s.width || y < 0 || y >= s.height {
+		s.cursorVisible = false
+		return
+	}
 	if s.cursorX != x || s.cursorY != y {
 		s.cursorX, s.cursorY = x, y
 		s.cursorDirty = true
