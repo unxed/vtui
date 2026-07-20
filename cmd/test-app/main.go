@@ -163,6 +163,8 @@ func main() {
 	}
 
 	setup := func() {
+		vtui.SetWindowTitle("vtui demo")
+
 		width, height := 80, 25
 		if vtui.FrameManager != nil {
 			width = vtui.FrameManager.GetScreenSize()
@@ -199,7 +201,7 @@ func main() {
 		vtui.FrameManager.KeyBar = kb
 
 		// --- Comprehensive Window ---
-		baseWin := vtui.NewWindow(0, 0, 75, 27, " vtui demo ")
+		baseWin := vtui.NewWindow(0, 0, 75, 21, " vtui demo ")
 		baseWin.ShowClose = true
 		baseWin.Center(width, height)
 
@@ -249,9 +251,9 @@ func main() {
 		opMenu.AddItem(vtui.MenuItem{Text: "&Attributes"})
 		dlg.AddItem(opMenu)
 
-		dlg.AddItem(vtui.NewSeparator(x1, y1+14, 76, true, true))
+		dlg.AddItem(vtui.NewSeparator(x1, y1+13, 76, true, true))
 
-		table := vtui.NewTable(x1+2, y1+16, 72, 7, []vtui.TableColumn{{Title: "Filename", Width: 48}, {Title: "Size", Width: 12, Alignment: vtui.AlignRight}})
+		table := vtui.NewTable(x1+2, y1+14, 72, 5, []vtui.TableColumn{{Title: "Filename", Width: 48}, {Title: "Size", Width: 12, Alignment: vtui.AlignRight}})
 		table.SetRows([]vtui.TableRow{
 			fileRow{"README.md", "2 KB"},
 			fileRow{"LICENSE", "1 KB"},
@@ -262,8 +264,8 @@ func main() {
 		table.SetGrowMode(vtui.GrowHiX | vtui.GrowHiY)
 		dlg.AddItem(table)
 
-		// Bottom Buttons (Y coordinate is now inside the 27-row window)
-		btnY := y1 + 25
+		// Bottom Buttons (Y coordinate is now inside the 22-row window)
+		btnY := y1 + 20
 
 		btnOk := vtui.NewButton(x1+16, btnY, "&Ok")
 		btnOk.OnClick = func() { dlg.SetExitCode(0); desktop.SetExitCode(0) }
