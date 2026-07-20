@@ -150,6 +150,13 @@ func ShowToast(msg string, dur time.Duration) {
 		}()
 	})
 }
+// GetActiveToast returns the message of the currently active toast if it hasn't expired yet.
+func (fm *frameManager) GetActiveToast() string {
+	if fm.currentToast != nil && time.Now().Before(fm.currentToast.Expires) {
+		return fm.currentToast.Message
+	}
+	return ""
+}
 
 // FrameManager is the global instance of the frame manager.
 var FrameManager = &frameManager{}
