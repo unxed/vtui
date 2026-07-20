@@ -641,13 +641,13 @@ func (fm *frameManager) CycleWindows(forward bool) bool {
 
 	menu := fm.switcherMenu
 	if forward {
+		newPos := (menu.SelectPos + 1) % len(menu.Items)
+		menu.SetSelectPos(newPos)
+	} else {
 		newPos := menu.SelectPos - 1
 		if newPos < 0 {
 			newPos = len(menu.Items) - 1
 		}
-		menu.SetSelectPos(newPos)
-	} else {
-		newPos := (menu.SelectPos + 1) % len(menu.Items)
 		menu.SetSelectPos(newPos)
 	}
 	fm.Redraw()

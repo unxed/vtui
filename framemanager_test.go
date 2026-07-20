@@ -1162,17 +1162,17 @@ func TestFrameManager_CycleBackwards(t *testing.T) {
 
 	// 1. Shift+Ctrl+Tab (forward=false)
 	fm.ctrlPressed = true
-	fm.CycleWindows(false) // 2 -> 0 (because forward is MRU back, backward is array forward)
-	if fm.switcherMenu == nil || fm.switcherMenu.SelectPos != 0 {
-		t.Errorf("Backward cycle failed: expected 0, got %v", fm.switcherMenu)
-	}
-
-	fm.CycleWindows(false) // 0 -> 1
+	fm.CycleWindows(false) // 2 -> 1
 	if fm.switcherMenu == nil || fm.switcherMenu.SelectPos != 1 {
 		t.Errorf("Backward cycle failed: expected 1, got %v", fm.switcherMenu)
 	}
 
-	fm.CycleWindows(false) // 1 -> 2 (wrap)
+	fm.CycleWindows(false) // 1 -> 0
+	if fm.switcherMenu == nil || fm.switcherMenu.SelectPos != 0 {
+		t.Errorf("Backward cycle failed: expected 0, got %v", fm.switcherMenu)
+	}
+
+	fm.CycleWindows(false) // 0 -> 2 (wrap)
 	if fm.switcherMenu == nil || fm.switcherMenu.SelectPos != 2 {
 		t.Errorf("Backward cycle wrap failed: expected 2, got %v", fm.switcherMenu)
 	}
