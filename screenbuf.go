@@ -417,6 +417,13 @@ func (s *ScreenBuf) SetCursorShape(shape CursorShape) {
 	}
 }
 
+// GetCursorStateForTesting returns the internal cursor states for verification in unit tests.
+func (s *ScreenBuf) GetCursorStateForTesting() (x, y int, visible bool, shape CursorShape) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cursorX, s.cursorY, s.cursorVisible, s.cursorShape
+}
+
 func (s *ScreenBuf) Width() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
