@@ -456,7 +456,7 @@ func (r *GogpuRenderer) Flush() {
 }
 
 func (r *GogpuRenderer) SetWindowTitle(title string) {
-	// gogpu backend does not currently support dynamic title changes after initialization
+	r.host.app.SetTitle(title)
 }
 func (r *GogpuRenderer) getCellColors(cell CharInfo) (color.Color, color.Color) {
 	bg := GetRGBBack(cell.Attributes)
