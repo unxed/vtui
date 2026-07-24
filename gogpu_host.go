@@ -41,6 +41,46 @@ type GogpuHost struct {
 	resizePending      bool
 }
 
+func (h *GogpuHost) sendEvent(ev *vtinput.InputEvent) {
+	if h.reader == nil || h.reader.EventChan == nil {
+		return
+	}
+	select {
+	case h.reader.EventChan <- ev:
+	default:
+		// Drop intermediate mouse move events when queue is full
+		if ev.Type == vtinput.MouseEventType && (ev.MouseEventFlags&vtinput.MouseMoved) != 0 {
+			return
+		}
+		// Send non-move events asynchronously to avoid deadlocking the main GoGPU window event loop
+		go func() {
+			select {
+			case h.reader.EventChan <- ev:
+			case <-time.After(100 * time.Millisecond):
+				DebugLog("GOGPU_HOST: dropped event after timeout: %s", ev.String())
+			}
+		}()
+	}
+}
+
+func isSpecialOrModifiedKey(vk uint16, mods vtinput.ControlKeyState) bool {
+	if (mods & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0 {
+		return true
+	}
+	switch vk {
+	case vtinput.VK_ESCAPE, vtinput.VK_RETURN, vtinput.VK_TAB, vtinput.VK_BACK, vtinput.VK_DELETE, vtinput.VK_INSERT,
+		vtinput.VK_UP, vtinput.VK_DOWN, vtinput.VK_LEFT, vtinput.VK_RIGHT,
+		vtinput.VK_HOME, vtinput.VK_END, vtinput.VK_PRIOR, vtinput.VK_NEXT,
+		vtinput.VK_CONTROL, vtinput.VK_SHIFT, vtinput.VK_MENU, vtinput.VK_LWIN, vtinput.VK_RWIN, vtinput.VK_APPS,
+		vtinput.VK_CAPITAL, vtinput.VK_NUMLOCK, vtinput.VK_SCROLL:
+		return true
+	}
+	if vk >= vtinput.VK_F1 && vk <= vtinput.VK_F24 {
+		return true
+	}
+	return false
+}
+
 func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) vtinput.ControlKeyState {
 	var sysMods vtinput.ControlKeyState
 	if mods.HasShift() {
@@ -138,31 +178,35 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		host.mu.Lock()
 		currMods := host.syncMods(vk, mods, true)
 
-		// Сбрасываем предыдущее событие, если оно зависло
 		if host.pendingKeyEvent != nil {
 			if host.pendingKeyTimer != nil {
 				host.pendingKeyTimer.Stop()
 			}
-			host.reader.EventChan <- host.pendingKeyEvent
+			host.sendEvent(host.pendingKeyEvent)
 			host.pendingKeyEvent = nil
 		}
 
 		if vk != 0 {
-			host.pendingKeyEvent = &vtinput.InputEvent{
+			ev := &vtinput.InputEvent{
 				Type:            vtinput.KeyEventType,
 				KeyDown:         true,
 				VirtualKeyCode:  vk,
 				ControlKeyState: currMods,
 			}
-			// Отложенная отправка: если OnText не придет в течение 2мс, отправляем только код клавиши
-			host.pendingKeyTimer = time.AfterFunc(2*time.Millisecond, func() {
-				host.mu.Lock()
-				defer host.mu.Unlock()
-				if host.pendingKeyEvent != nil {
-					host.reader.EventChan <- host.pendingKeyEvent
-					host.pendingKeyEvent = nil
-				}
-			})
+
+			if isSpecialOrModifiedKey(vk, currMods) {
+				host.sendEvent(ev)
+			} else {
+				host.pendingKeyEvent = ev
+				host.pendingKeyTimer = time.AfterFunc(40*time.Millisecond, func() {
+					host.mu.Lock()
+					defer host.mu.Unlock()
+					if host.pendingKeyEvent != nil {
+						host.sendEvent(host.pendingKeyEvent)
+						host.pendingKeyEvent = nil
+					}
+				})
+			}
 		}
 		host.mu.Unlock()
 	})
@@ -181,29 +225,26 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			if host.pendingKeyTimer != nil {
 				host.pendingKeyTimer.Stop()
 			}
-			// Сливаем первый символ с ожидающим событием OnKeyPress
 			host.pendingKeyEvent.Char = runes[0]
-			host.reader.EventChan <- host.pendingKeyEvent
+			host.sendEvent(host.pendingKeyEvent)
 			host.pendingKeyEvent = nil
 
-			// Остальные символы отправляем отдельными событиями
 			for i := 1; i < len(runes); i++ {
-				host.reader.EventChan <- &vtinput.InputEvent{
+				host.sendEvent(&vtinput.InputEvent{
 					Type:            vtinput.KeyEventType,
 					KeyDown:         true,
 					Char:            runes[i],
 					ControlKeyState: host.currentMods,
-				}
+				})
 			}
 		} else {
-			// Если OnText пришел без OnKeyPress, просто отправляем текст
 			for _, r := range runes {
-				host.reader.EventChan <- &vtinput.InputEvent{
+				host.sendEvent(&vtinput.InputEvent{
 					Type:            vtinput.KeyEventType,
 					KeyDown:         true,
 					Char:            r,
 					ControlKeyState: host.currentMods,
-				}
+				})
 			}
 		}
 	})
@@ -214,12 +255,11 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		host.mu.Lock()
 		currMods := host.syncMods(vk, mods, false)
 
-		// Принудительно сбрасываем залипшее нажатие перед отпусканием
 		if host.pendingKeyEvent != nil {
 			if host.pendingKeyTimer != nil {
 				host.pendingKeyTimer.Stop()
 			}
-			host.reader.EventChan <- host.pendingKeyEvent
+			host.sendEvent(host.pendingKeyEvent)
 			host.pendingKeyEvent = nil
 		}
 		host.mu.Unlock()
@@ -227,12 +267,12 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		if vk == 0 {
 			return
 		}
-		host.reader.EventChan <- &vtinput.InputEvent{
+		host.sendEvent(&vtinput.InputEvent{
 			Type:            vtinput.KeyEventType,
 			KeyDown:         false,
 			VirtualKeyCode:  vk,
 			ControlKeyState: currMods,
-		}
+		})
 	})
 
 	app.EventSource().OnMousePress(func(button gpucontext.MouseButton, x, y float64) {
@@ -258,13 +298,13 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		}
 		host.mu.Unlock()
 
-		host.reader.EventChan <- &vtinput.InputEvent{
+		host.sendEvent(&vtinput.InputEvent{
 			Type:        vtinput.MouseEventType,
 			MouseX:      int16(x / (float64(cW) * scale)),
 			MouseY:      int16(y / (float64(cH) * scale)),
 			KeyDown:     true,
 			ButtonState: btn,
-		}
+		})
 	})
 
 	app.EventSource().OnMouseRelease(func(button gpucontext.MouseButton, x, y float64) {
@@ -278,13 +318,13 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		}
 		host.mu.Unlock()
 
-		host.reader.EventChan <- &vtinput.InputEvent{
+		host.sendEvent(&vtinput.InputEvent{
 			Type:        vtinput.MouseEventType,
 			MouseX:      int16(x / (float64(cW) * scale)),
 			MouseY:      int16(y / (float64(cH) * scale)),
 			KeyDown:     false,
 			ButtonState: 0,
-		}
+		})
 	})
 
 	app.EventSource().OnMouseMove(func(x, y float64) {
@@ -299,14 +339,14 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		host.mu.Unlock()
 
 		if btn != 0 {
-			host.reader.EventChan <- &vtinput.InputEvent{
+			host.sendEvent(&vtinput.InputEvent{
 				Type:            vtinput.MouseEventType,
 				MouseX:          int16(x / (float64(cW) * scale)),
 				MouseY:          int16(y / (float64(cH) * scale)),
-				KeyDown:         true,
-				ButtonState:     btn,
 				MouseEventFlags: vtinput.MouseMoved,
-			}
+				ButtonState:     btn,
+				ControlKeyState: host.currentMods,
+			})
 		}
 	})
 
@@ -331,12 +371,12 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			dir = 1
 		}
 		for i := 0; i < steps; i++ {
-			host.reader.EventChan <- &vtinput.InputEvent{
+			host.sendEvent(&vtinput.InputEvent{
 				Type:           vtinput.MouseEventType,
 				MouseX:         int16(float64(mx) / (float64(cW) * scale)),
 				MouseY:         int16(float64(my) / (float64(cH) * scale)),
 				WheelDirection: dir,
-			}
+			})
 		}
 	})
 
@@ -354,7 +394,7 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		host.mu.Unlock()
 
 		if sizeChanged && host.reader != nil && host.reader.EventChan != nil {
-			host.reader.EventChan <- &vtinput.InputEvent{Type: vtinput.ResizeEventType}
+			host.sendEvent(&vtinput.InputEvent{Type: vtinput.ResizeEventType})
 		}
 
 		infoLogged.Do(func() {
