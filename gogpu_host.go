@@ -36,6 +36,7 @@ type GogpuHost struct {
 	pendingKeyEvent *vtinput.InputEvent
 	pendingKeyTimer *time.Timer
 	lastRuneForVK   map[uint16]rune
+	lastVK          uint16
 
 	// Cached sizes to prevent deadlocks and speed up GetTerminalSize
 	lastAppW, lastAppH int
@@ -189,6 +190,7 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		}
 
 		if vk != 0 {
+			host.lastVK = vk
 			ev := &vtinput.InputEvent{
 				Type:            vtinput.KeyEventType,
 				KeyDown:         true,
@@ -251,6 +253,9 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 				})
 			}
 		} else {
+			if host.lastVK != 0 {
+				host.lastRuneForVK[host.lastVK] = runes[0]
+			}
 			for _, r := range runes {
 				host.sendEvent(&vtinput.InputEvent{
 					Type:            vtinput.KeyEventType,
@@ -279,9 +284,6 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			host.pendingKeyEvent = nil
 		}
 
-		if host.lastRuneForVK != nil {
-			delete(host.lastRuneForVK, vk)
-		}
 		host.mu.Unlock()
 
 		if vk == 0 {
