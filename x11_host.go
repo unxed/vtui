@@ -265,8 +265,8 @@ func (h *X11Host) RunEventLoop() {
 			if h.reader != nil {
 				h.reader.EventChan <- &vtinput.InputEvent{
 					Type:            vtinput.MouseEventType,
-					MouseX:          uint16(int(e.EventX) / h.cellW),
-					MouseY:          uint16(int(e.EventY) / h.cellH),
+					MouseX:          int16(int(e.EventX) / h.cellW),
+					MouseY:          int16(int(e.EventY) / h.cellH),
 					MouseEventFlags: vtinput.MouseMoved,
 				}
 			}
@@ -302,8 +302,8 @@ func (h *X11Host) handleKeyEvent(detail xproto.Keycode, state uint16, isDown boo
 func (h *X11Host) handleButtonEvent(x, y int16, detail xproto.Button, state uint16, isDown bool) {
 	event := &vtinput.InputEvent{
 		Type:            vtinput.MouseEventType,
-		MouseX:          uint16(int(x) / h.cellW),
-		MouseY:          uint16(int(y) / h.cellH),
+		MouseX:          int16(int(x) / h.cellW),
+		MouseY:          int16(int(y) / h.cellH),
 		KeyDown:         isDown,
 		ControlKeyState: h.translateModifiers(state),
 	}

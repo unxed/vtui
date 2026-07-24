@@ -112,7 +112,7 @@ func TestDialog_DragRelativeConsistency(t *testing.T) {
 		d.ProcessMouse(&vtinput.InputEvent{
 			Type: vtinput.MouseEventType, KeyDown: false,
 			ButtonState: vtinput.FromLeft1stButtonPressed,
-			MouseX:      uint16(i), MouseY: uint16(i),
+			MouseX:      int16(i), MouseY: int16(i),
 		})
 	}
 

@@ -37,8 +37,8 @@ github.com/unxed/keytrans v0.1.27 h1:6xFqm3l7wtvXMNKpG285XkcOUF5cwSANdR/1wFcTj4c
 github.com/unxed/keytrans v0.1.27/go.mod h1:BLcCR4Z2hOFnL9F2yT6bvIsA1RyWLWogY7tx9JrvryI=
 github.com/unxed/pureffi v0.1.11 h1:ciRDRUagaHohk69b7USoO+6OWoIg0ZG/yCo6/AmXam4=
 github.com/unxed/pureffi v0.1.11/go.mod h1:ckN3leWNrKM5bUZb0ouZYeNb0sAUMQzG4oxre61tmLs=
-github.com/unxed/winkeys v0.1.0 h1:5yTt0jgEgL2M/8U36xl3S3xh2NCKTDDWE4Q7qnHo8x8=
-github.com/unxed/winkeys v0.1.0/go.mod h1:eCDbEJFdYcii0Fd4O9u+CAqjJ4SkkhWDkhikNFwBCd4=
+github.com/unxed/winkeys v0.1.1 h1:CeRhzQLrZtO2aVq8C8gPX1ySdbbvPombbUZ15cRjFTI=
+github.com/unxed/winkeys v0.1.1/go.mod h1:eCDbEJFdYcii0Fd4O9u+CAqjJ4SkkhWDkhikNFwBCd4=
 github.com/unxed/xkb-go v0.1.8 h1:hqPI2wJw2LQ7YOqghNYat/TJF3pFamCCPjhxI5I3lhU=
 github.com/unxed/xkb-go v0.1.8/go.mod h1:V3LaLLiIMPBQCGnPfTYN8gER39XW26AZBYeXkkZ/GWQ=
 github.com/yalue/native_endian v1.0.2 h1:e4SxBbaCoOOO4E3axd7FSriUhzc1bIzqZGG5jl6Evbg=

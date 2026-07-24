@@ -217,11 +217,15 @@ func (bw *BaseWindow) ToggleZoom() {
 }
 
 func (bw *BaseWindow) ProcessMouse(e *vtinput.InputEvent) bool {
-	// 1. Сначала пробуем обработать клик элементами внутри окна
+	// 1. Во время драга дети не должны перехватывать события
+	if bw.isDragging {
+		return bw.handleWindowOperations(e)
+	}
+	// 2. Сначала пробуем обработать клик элементами внутри окна
 	if bw.rootGroup.ProcessMouse(e) {
 		return true
 	}
-	// 2. Если элементы не обработали, пробуем операции с самим окном
+	// 3. Если элементы не обработали, пробуем операции с самим окном
 	return bw.handleWindowOperations(e)
 }
 

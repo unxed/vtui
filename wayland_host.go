@@ -165,8 +165,8 @@ func (h *WaylandHost) Motion(w *window.Widget, input *window.Input, time uint32,
 	if h.reader != nil {
 		h.reader.EventChan <- &vtinput.InputEvent{
 			Type:            vtinput.MouseEventType,
-			MouseX:          uint16(h.mouseX / h.cellW),
-			MouseY:          uint16(h.mouseY / h.cellH),
+			MouseX:          int16(h.mouseX / h.cellW),
+			MouseY:          int16(h.mouseY / h.cellH),
 			MouseEventFlags: vtinput.MouseMoved,
 			ButtonState:     h.mouseBtn,
 			ControlKeyState: h.getMods(input),
@@ -198,8 +198,8 @@ func (h *WaylandHost) Button(w *window.Widget, input *window.Input, time uint32,
 		h.reader.EventChan <- &vtinput.InputEvent{
 			Type:            vtinput.MouseEventType,
 			KeyDown:         isDown,
-			MouseX:          uint16(h.mouseX / h.cellW),
-			MouseY:          uint16(h.mouseY / h.cellH),
+			MouseX:          int16(h.mouseX / h.cellW),
+			MouseY:          int16(h.mouseY / h.cellH),
 			ButtonState:     bs,
 			ControlKeyState: h.getMods(input),
 		}
