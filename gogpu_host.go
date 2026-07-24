@@ -35,6 +35,7 @@ type GogpuHost struct {
 	currentMods     vtinput.ControlKeyState
 	pendingKeyEvent *vtinput.InputEvent
 	pendingKeyTimer *time.Timer
+	lastRuneForVK   map[uint16]rune
 
 	// Cached sizes to prevent deadlocks and speed up GetTerminalSize
 	lastAppW, lastAppH int
@@ -48,18 +49,16 @@ func (h *GogpuHost) sendEvent(ev *vtinput.InputEvent) {
 	select {
 	case h.reader.EventChan <- ev:
 	default:
-		// Drop intermediate mouse move events when queue is full
+		// Drop intermediate mouse move events when queue is full to prevent clogging
 		if ev.Type == vtinput.MouseEventType && (ev.MouseEventFlags&vtinput.MouseMoved) != 0 {
 			return
 		}
-		// Send non-move events asynchronously to avoid deadlocking the main GoGPU window event loop
-		go func() {
-			select {
-			case h.reader.EventChan <- ev:
-			case <-time.After(100 * time.Millisecond):
-				DebugLog("GOGPU_HOST: dropped event after timeout: %s", ev.String())
-			}
-		}()
+		// For non-move critical events, attempt a secondary non-blocking send without spawning goroutines
+		select {
+		case h.reader.EventChan <- ev:
+		default:
+			DebugLog("GOGPU_HOST: dropped event due to full buffer: %s", ev.String())
+		}
 	}
 }
 
@@ -182,6 +181,9 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			if host.pendingKeyTimer != nil {
 				host.pendingKeyTimer.Stop()
 			}
+			if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
+				host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
+			}
 			host.sendEvent(host.pendingKeyEvent)
 			host.pendingKeyEvent = nil
 		}
@@ -197,11 +199,17 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			if isSpecialOrModifiedKey(vk, currMods) {
 				host.sendEvent(ev)
 			} else {
+				if host.lastRuneForVK != nil {
+					ev.Char = host.lastRuneForVK[vk]
+				}
 				host.pendingKeyEvent = ev
-				host.pendingKeyTimer = time.AfterFunc(40*time.Millisecond, func() {
+				host.pendingKeyTimer = time.AfterFunc(10*time.Millisecond, func() {
 					host.mu.Lock()
 					defer host.mu.Unlock()
 					if host.pendingKeyEvent != nil {
+						if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
+							host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
+						}
 						host.sendEvent(host.pendingKeyEvent)
 						host.pendingKeyEvent = nil
 					}
@@ -221,11 +229,16 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			return
 		}
 
+		if host.lastRuneForVK == nil {
+			host.lastRuneForVK = make(map[uint16]rune)
+		}
+
 		if host.pendingKeyEvent != nil {
 			if host.pendingKeyTimer != nil {
 				host.pendingKeyTimer.Stop()
 			}
 			host.pendingKeyEvent.Char = runes[0]
+			host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode] = runes[0]
 			host.sendEvent(host.pendingKeyEvent)
 			host.pendingKeyEvent = nil
 
@@ -259,8 +272,15 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			if host.pendingKeyTimer != nil {
 				host.pendingKeyTimer.Stop()
 			}
+			if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
+				host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
+			}
 			host.sendEvent(host.pendingKeyEvent)
 			host.pendingKeyEvent = nil
+		}
+
+		if host.lastRuneForVK != nil {
+			delete(host.lastRuneForVK, vk)
 		}
 		host.mu.Unlock()
 
