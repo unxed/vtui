@@ -132,6 +132,7 @@ type SurfaceRenderer interface {
 	SetWindowTitle(title string)
 	Flush() // Combined atomic output
 }
+
 // SemanticContext содержит контекст для генерации семантического дерева.
 type SemanticContext struct {
 	Width        int

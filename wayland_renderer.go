@@ -85,7 +85,7 @@ func (r *WaylandRenderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw b
 		if elapsed < 350*time.Millisecond {
 			cursorVisible = true
 		} else {
-			cursorVisible = (int((elapsed - 350*time.Millisecond).Milliseconds())/500)%2 == 0
+			cursorVisible = (int((elapsed-350*time.Millisecond).Milliseconds())/500)%2 == 0
 		}
 	}
 

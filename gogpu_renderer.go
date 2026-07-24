@@ -64,7 +64,7 @@ func (r *GogpuRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 		elapsed := time.Since(r.lastCursorReset)
 		currentBlink := true
 		if elapsed >= 350*time.Millisecond {
-			currentBlink = (int((elapsed - 350*time.Millisecond).Milliseconds())/500)%2 == 0
+			currentBlink = (int((elapsed-350*time.Millisecond).Milliseconds())/500)%2 == 0
 		}
 		if currentBlink != r.lastBlinkState {
 			needsRedraw = true
@@ -432,7 +432,7 @@ func (r *GogpuRenderer) Flush() {
 					cursorVisible = true
 				} else {
 					// Затем начинает плавно мигать каждые 500мс
-					cursorVisible = (int((elapsed - 350*time.Millisecond).Milliseconds())/500)%2 == 0
+					cursorVisible = (int((elapsed-350*time.Millisecond).Milliseconds())/500)%2 == 0
 				}
 			}
 

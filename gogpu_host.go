@@ -265,7 +265,7 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			KeyDown:     true,
 			ButtonState: btn,
 		}
-    })
+	})
 
 	app.EventSource().OnMouseRelease(func(button gpucontext.MouseButton, x, y float64) {
 		host.mu.Lock()

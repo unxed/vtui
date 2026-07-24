@@ -2,9 +2,9 @@ package vtui
 
 import (
 	"fmt"
-	"strings"
 	"github.com/mattn/go-runewidth"
 	"github.com/unxed/vtinput"
+	"strings"
 )
 
 const SemanticSceneVersion = 2

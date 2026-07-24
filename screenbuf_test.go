@@ -2,7 +2,7 @@ package vtui
 
 import (
 	"os"
-    "strings"
+	"strings"
 	"testing"
 )
 

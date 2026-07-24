@@ -150,6 +150,7 @@ func ShowToast(msg string, dur time.Duration) {
 		}()
 	})
 }
+
 // GetActiveToast returns the message of the currently active toast if it hasn't expired yet.
 func (fm *frameManager) GetActiveToast() string {
 	if fm.currentToast != nil && time.Now().Before(fm.currentToast.Expires) {
@@ -816,6 +817,7 @@ func SetWindowTitle(title string) {
 		FrameManager.SetWindowTitle(title)
 	}
 }
+
 // GetTopFrameType returns the type of the topmost frame or -1 if empty.
 func (fm *frameManager) GetTopFrameType() FrameType {
 	if len(fm.frames) == 0 {
