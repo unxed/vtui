@@ -150,7 +150,6 @@ func ShowToast(msg string, dur time.Duration) {
 		}()
 	})
 }
-
 // GetActiveToast returns the message of the currently active toast if it hasn't expired yet.
 func (fm *frameManager) GetActiveToast() string {
 	if fm.currentToast != nil && time.Now().Before(fm.currentToast.Expires) {
@@ -508,6 +507,21 @@ func (fm *frameManager) RemoveFrame(f Frame) {
 	}
 }
 
+// PopFramesAbove removes all frames above the given frame from the stack.
+// Used when a drag starts on a window, to close popups (combobox dropdowns, menus) on top.
+func (fm *frameManager) PopFramesAbove(f Frame) {
+	for i := len(fm.frames) - 1; i >= 0; i-- {
+		if fm.frames[i] == f {
+			if i < len(fm.frames)-1 {
+				fm.frames = fm.frames[:i+1]
+				fm.SyncCurrentScreen()
+				f.ProcessKey(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: true})
+			}
+			return
+		}
+	}
+}
+
 // HardRefresh clears the terminal shadow buffer and forces a complete redraw.
 func (fm *frameManager) HardRefresh() {
 	if fm.scr != nil {
@@ -817,7 +831,6 @@ func SetWindowTitle(title string) {
 		FrameManager.SetWindowTitle(title)
 	}
 }
-
 // GetTopFrameType returns the type of the topmost frame or -1 if empty.
 func (fm *frameManager) GetTopFrameType() FrameType {
 	if len(fm.frames) == 0 {
