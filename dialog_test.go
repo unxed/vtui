@@ -143,6 +143,30 @@ func TestDialog_DraggingOffscreen(t *testing.T) {
 		t.Errorf("Expected dialog at (0,0), got (%d,%d)", d.X1, d.Y1)
 	}
 }
+func TestDialog_DraggingNegative(t *testing.T) {
+	d := NewDialog(10, 10, 20, 20, "Negative Drag")
+
+	// Start capture at (10, 10)
+	d.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: true,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		MouseX:      10, MouseY: 10,
+	})
+
+	// Drag mouse into negative coordinates
+	d.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: false,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		MouseX:      -5, MouseY: -5,
+	})
+
+	// Dialog should move relative to the drag delta:
+	// Delta: -15, -15
+	// New position: 10 - 15 = -5, 10 - 15 = -5
+	if d.X1 != -5 || d.Y1 != -5 {
+		t.Errorf("Expected dialog at (-5,-5), got (%d,%d)", d.X1, d.Y1)
+	}
+}
 
 func TestDialog_ResizingLogic(t *testing.T) {
 	d := NewDialog(0, 0, 9, 9, "Resize Me")
