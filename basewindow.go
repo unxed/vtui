@@ -271,6 +271,16 @@ func (bw *BaseWindow) handleWindowOperations(e *vtinput.InputEvent) bool {
 			return true
 		}
 		if bw.HitTest(mx, my) {
+			if FrameManager != nil {
+				for i := len(FrameManager.frames) - 1; i >= 0; i-- {
+					f := FrameManager.frames[i]
+					fx1, fy1, fx2, fy2 := f.GetPosition()
+					if fx1 == bw.X1 && fy1 == bw.Y1 && fx2 == bw.X2 && fy2 == bw.Y2 {
+						FrameManager.PopFramesAbove(f)
+						break
+					}
+				}
+			}
 			bw.isDragging = true
 			bw.dragOffX, bw.dragOffY = mx-bw.X1, my-bw.Y1
 			return true
