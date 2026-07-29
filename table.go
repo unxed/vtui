@@ -319,7 +319,7 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 	originalCol := t.SelectCol
 	colChanged := false
 
-	if e.Type == vtinput.MouseEventType && e.ButtonState != 0 && e.KeyDown {
+	if e.Type == vtinput.MouseEventType && e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		if t.CellSelection && t.HitTest(int(e.MouseX), int(e.MouseY)) {
 			currX := t.X1
 			for i, col := range t.Columns {
