@@ -221,23 +221,11 @@ func (bw *BaseWindow) ProcessMouse(e *vtinput.InputEvent) bool {
 	if bw.isDragging {
 		return bw.handleWindowOperations(e)
 	}
-	// 2. Глобально перехватываем нажатие средней кнопки мыши (колесика) для этого окна
-	if e.Type == vtinput.MouseEventType && e.ButtonState == vtinput.FromLeft2ndButtonPressed && e.KeyDown {
-		focused := bw.GetFocusedItem()
-		if focused != nil && !focused.IsDisabled() {
-			focused.ProcessKey(&vtinput.InputEvent{
-				Type:           vtinput.KeyEventType,
-				KeyDown:        true,
-				VirtualKeyCode: vtinput.VK_RETURN,
-			})
-			return true
-		}
-	}
-	// 3. Сначала пробуем обработать клик элементами внутри окна
+	// 2. Сначала пробуем обработать клик элементами внутри окна
 	if bw.rootGroup.ProcessMouse(e) {
 		return true
 	}
-	// 4. Если элементы не обработали, пробуем операции с самим окном
+	// 3. Если элементы не обработали, пробуем операции с самим окном
 	return bw.handleWindowOperations(e)
 }
 
