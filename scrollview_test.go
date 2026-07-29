@@ -122,15 +122,15 @@ func TestScrollView_MiddleClick(t *testing.T) {
 		t.Error("HandleMouse should return true for middle click on a valid item")
 	}
 
-	if sv.SelectPos != 2 {
-		t.Errorf("Expected SelectPos to be updated to 2, got %d", sv.SelectPos)
+	if sv.SelectPos != 0 {
+		t.Errorf("Expected SelectPos to remain 0, got %d", sv.SelectPos)
 	}
 
 	if !actionTriggered {
 		t.Error("OnAction should be triggered on middle click")
 	}
 
-	if triggeredPos != 2 {
-		t.Errorf("Expected action triggered on position under cursor (2), got %d", triggeredPos)
+	if triggeredPos != 0 {
+		t.Errorf("Expected action triggered on highlighted position (0), got %d", triggeredPos)
 	}
 }
