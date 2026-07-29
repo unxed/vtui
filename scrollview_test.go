@@ -131,6 +131,6 @@ func TestScrollView_MiddleClick(t *testing.T) {
 	}
 
 	if triggeredPos != 2 {
-		t.Errorf("Expected action triggered on position 2, got %d", triggeredPos)
+		t.Errorf("Expected action triggered on position under cursor (2), got %d", triggeredPos)
 	}
 }

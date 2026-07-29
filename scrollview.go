@@ -281,7 +281,7 @@ func (sv *ScrollView) HandleMouse(e *vtinput.InputEvent) bool {
 			isLeftDoubleClick := e.ButtonState == vtinput.FromLeft1stButtonPressed && (e.MouseEventFlags&vtinput.DoubleClick) != 0
 			isMiddleClick := e.ButtonState == vtinput.FromLeft2ndButtonPressed
 			if (isLeftDoubleClick || isMiddleClick) && sv.OnAction != nil {
-				sv.OnAction(sv.SelectPos)
+				sv.OnAction(clickIdx)
 			}
 			return true
 		}
