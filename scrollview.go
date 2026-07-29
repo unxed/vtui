@@ -269,10 +269,11 @@ func (sv *ScrollView) HandleMouse(e *vtinput.InputEvent) bool {
 
 	if e.ButtonState != 0 && e.KeyDown {
 		if e.ButtonState == vtinput.FromLeft2ndButtonPressed {
-			if sv.OnAction != nil {
+			if sv.IsFocused() && sv.OnAction != nil {
 				sv.OnAction(sv.SelectPos)
+				return true
 			}
-			return true
+			return false
 		}
 
 		clickIdx := sv.GetClickIndex(int(e.MouseY))

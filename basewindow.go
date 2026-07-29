@@ -225,7 +225,19 @@ func (bw *BaseWindow) ProcessMouse(e *vtinput.InputEvent) bool {
 	if bw.rootGroup.ProcessMouse(e) {
 		return true
 	}
-	// 3. Если элементы не обработали, пробуем операции с самим окном
+	// 3. Если средняя кнопка мыши не была обработана элементами внутри окна
+	if e.Type == vtinput.MouseEventType && e.ButtonState == vtinput.FromLeft2ndButtonPressed && e.KeyDown {
+		focused := bw.GetFocusedItem()
+		if focused != nil && !focused.IsDisabled() {
+			focused.ProcessKey(&vtinput.InputEvent{
+				Type:           vtinput.KeyEventType,
+				KeyDown:        true,
+				VirtualKeyCode: vtinput.VK_RETURN,
+			})
+			return true
+		}
+	}
+	// 4. Если элементы не обработали, пробуем операции с самим окном
 	return bw.handleWindowOperations(e)
 }
 

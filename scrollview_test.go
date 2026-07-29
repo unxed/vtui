@@ -104,6 +104,7 @@ func TestScrollView_MiddleClick(t *testing.T) {
 	var triggeredPos int
 
 	sv := &ScrollView{ItemCount: 5, ViewHeight: 5}
+	sv.SetFocus(true)
 	sv.OnAction = func(pos int) {
 		actionTriggered = true
 		triggeredPos = pos
