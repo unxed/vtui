@@ -292,14 +292,14 @@ func (h *WaylandHost) Key(win *window.Window, input *window.Input, timeMs uint32
 	}
 	h.mu.Unlock()
 
-	mods := h.getMods(input)
+	modsToSend := h.getMods(input)
 
 	h.mu.Lock()
 	if isDown {
 		h.isRepeating = true
 		h.repeatVK = vk
 		h.repeatChar = char
-		h.repeatMods = mods
+		h.repeatMods = modsToSend
 		h.repeatNext = time.Now().Add(400 * time.Millisecond)
 		// Force an immediate redraw to start the spin loop
 		h.widget.ScheduleRedraw()
@@ -314,40 +314,54 @@ func (h *WaylandHost) Key(win *window.Window, input *window.Input, timeMs uint32
 			KeyDown:         isDown,
 			VirtualKeyCode:  vk,
 			Char:            char,
-			ControlKeyState: mods,
+			ControlKeyState: modsToSend,
 		}
 	}
 }
 
 func (h *WaylandHost) getMods(input *window.Input) vtinput.ControlKeyState {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	var mods vtinput.ControlKeyState
-	if input == nil {
-		return mods
+	m := uint32(0)
+	if input != nil {
+		m = input.GetModifiers()
 	}
-	m := input.GetModifiers()
-	if m&window.ModShiftMask != 0 {
+
+	if m&window.ModShiftMask == 0 {
+		h.lShift, h.rShift = false, false
+	} else if !h.lShift && !h.rShift {
+		h.lShift = true
+	}
+
+	if m&window.ModControlMask == 0 {
+		h.lCtrl, h.rCtrl = false, false
+	} else if !h.lCtrl && !h.rCtrl {
+		h.lCtrl = true
+	}
+
+	if m&window.ModAltMask == 0 {
+		h.lAlt, h.rAlt = false, false
+	} else if !h.lAlt && !h.rAlt {
+		h.lAlt = true
+	}
+
+	if h.lShift || h.rShift {
 		mods |= vtinput.ShiftPressed
 	}
-	if m&window.ModControlMask != 0 {
-		h.mu.Lock()
-		rCtrl := h.rCtrl
-		h.mu.Unlock()
-		if rCtrl {
-			mods |= vtinput.RightCtrlPressed
-		} else {
-			mods |= vtinput.LeftCtrlPressed
-		}
+	if h.rCtrl {
+		mods |= vtinput.RightCtrlPressed
+	} else if h.lCtrl {
+		mods |= vtinput.LeftCtrlPressed
 	}
-	if m&window.ModAltMask != 0 {
-		h.mu.Lock()
-		rAlt := h.rAlt
-		h.mu.Unlock()
-		if rAlt {
-			mods |= vtinput.RightAltPressed
-		} else {
-			mods |= vtinput.LeftAltPressed
-		}
+	if h.rAlt {
+		mods |= vtinput.RightAltPressed
+	} else if h.lAlt {
+		mods |= vtinput.LeftAltPressed
 	}
+
+	h.currentMods = mods
 	return mods
 }
 

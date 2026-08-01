@@ -103,23 +103,37 @@ func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) 
 		if vk == vtinput.VK_RSHIFT { h.rShift = false }
 	}
 
+	if !mods.HasShift() {
+		h.lShift, h.rShift = false, false
+	} else if !h.lShift && !h.rShift {
+		h.lShift = true
+	}
+
+	if !mods.HasControl() {
+		h.lCtrl, h.rCtrl = false, false
+	} else if !h.lCtrl && !h.rCtrl {
+		h.lCtrl = true
+	}
+
+	if !mods.HasAlt() {
+		h.lAlt, h.rAlt = false, false
+	} else if !h.lAlt && !h.rAlt {
+		h.lAlt = true
+	}
+
 	var sysMods vtinput.ControlKeyState
-	if mods.HasShift() {
+	if h.lShift || h.rShift {
 		sysMods |= vtinput.ShiftPressed
 	}
-	if mods.HasControl() {
-		if h.rCtrl {
-			sysMods |= vtinput.RightCtrlPressed
-		} else {
-			sysMods |= vtinput.LeftCtrlPressed
-		}
+	if h.rCtrl {
+		sysMods |= vtinput.RightCtrlPressed
+	} else if h.lCtrl {
+		sysMods |= vtinput.LeftCtrlPressed
 	}
-	if mods.HasAlt() {
-		if h.rAlt {
-			sysMods |= vtinput.RightAltPressed
-		} else {
-			sysMods |= vtinput.LeftAltPressed
-		}
+	if h.rAlt {
+		sysMods |= vtinput.RightAltPressed
+	} else if h.lAlt {
+		sysMods |= vtinput.LeftAltPressed
 	}
 
 	h.currentMods = sysMods
