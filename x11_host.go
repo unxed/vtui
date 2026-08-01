@@ -337,6 +337,8 @@ func (h *X11Host) handleKeyEvent(detail xproto.Keycode, state uint16, isDown boo
 		var sysMods vtinput.ControlKeyState
 		if state&1 != 0 {
 			sysMods |= vtinput.ShiftPressed
+		} else {
+			h.lShift, h.rShift = false, false
 		}
 		if state&4 != 0 {
 			if h.rCtrl {
@@ -344,6 +346,8 @@ func (h *X11Host) handleKeyEvent(detail xproto.Keycode, state uint16, isDown boo
 			} else {
 				sysMods |= vtinput.LeftCtrlPressed
 			}
+		} else {
+			h.lCtrl, h.rCtrl = false, false
 		}
 		if state&8 != 0 {
 			if h.rAlt {
@@ -351,6 +355,8 @@ func (h *X11Host) handleKeyEvent(detail xproto.Keycode, state uint16, isDown boo
 			} else {
 				sysMods |= vtinput.LeftAltPressed
 			}
+		} else {
+			h.lAlt, h.rAlt = false, false
 		}
 		if state&2 != 0 {
 			sysMods |= vtinput.CapsLockOn
@@ -420,28 +426,31 @@ func (h *X11Host) handleButtonEvent(x, y int16, detail xproto.Button, state uint
 
 func (h *X11Host) translateModifiers(state uint16) vtinput.ControlKeyState {
 	var mods vtinput.ControlKeyState
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if state&1 != 0 {
 		mods |= vtinput.ShiftPressed
+	} else {
+		h.lShift, h.rShift = false, false
 	}
 	if state&4 != 0 {
-		h.mu.Lock()
-		rCtrl := h.rCtrl
-		h.mu.Unlock()
-		if rCtrl {
+		if h.rCtrl {
 			mods |= vtinput.RightCtrlPressed
 		} else {
 			mods |= vtinput.LeftCtrlPressed
 		}
+	} else {
+		h.lCtrl, h.rCtrl = false, false
 	}
 	if state&8 != 0 {
-		h.mu.Lock()
-		rAlt := h.rAlt
-		h.mu.Unlock()
-		if rAlt {
+		if h.rAlt {
 			mods |= vtinput.RightAltPressed
 		} else {
 			mods |= vtinput.LeftAltPressed
 		}
+	} else {
+		h.lAlt, h.rAlt = false, false
 	}
 	if state&2 != 0 {
 		mods |= vtinput.CapsLockOn

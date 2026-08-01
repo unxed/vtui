@@ -106,6 +106,8 @@ func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) 
 	var sysMods vtinput.ControlKeyState
 	if mods.HasShift() {
 		sysMods |= vtinput.ShiftPressed
+	} else {
+		h.lShift, h.rShift = false, false
 	}
 	if mods.HasControl() {
 		if h.rCtrl {
@@ -113,6 +115,8 @@ func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) 
 		} else {
 			sysMods |= vtinput.LeftCtrlPressed
 		}
+	} else {
+		h.lCtrl, h.rCtrl = false, false
 	}
 	if mods.HasAlt() {
 		if h.rAlt {
@@ -120,6 +124,8 @@ func (h *GogpuHost) syncMods(vk uint16, mods gpucontext.Modifiers, isDown bool) 
 		} else {
 			sysMods |= vtinput.LeftAltPressed
 		}
+	} else {
+		h.lAlt, h.rAlt = false, false
 	}
 
 	h.currentMods = sysMods

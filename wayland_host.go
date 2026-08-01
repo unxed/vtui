@@ -202,6 +202,10 @@ func (h *WaylandHost) Enter(w *window.Widget, input *window.Input, x float32, y 
 func (h *WaylandHost) Leave(w *window.Widget, input *window.Input) {
 	h.mu.Lock()
 	h.isRepeating = false
+	h.lCtrl, h.rCtrl = false, false
+	h.lAlt, h.rAlt = false, false
+	h.lShift, h.rShift = false, false
+	h.currentMods = 0
 	h.mu.Unlock()
 }
 
@@ -325,28 +329,32 @@ func (h *WaylandHost) getMods(input *window.Input) vtinput.ControlKeyState {
 		return mods
 	}
 	m := input.GetModifiers()
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if m&window.ModShiftMask != 0 {
 		mods |= vtinput.ShiftPressed
+	} else {
+		h.lShift, h.rShift = false, false
 	}
 	if m&window.ModControlMask != 0 {
-		h.mu.Lock()
-		rCtrl := h.rCtrl
-		h.mu.Unlock()
-		if rCtrl {
+		if h.rCtrl {
 			mods |= vtinput.RightCtrlPressed
 		} else {
 			mods |= vtinput.LeftCtrlPressed
 		}
+	} else {
+		h.lCtrl, h.rCtrl = false, false
 	}
 	if m&window.ModAltMask != 0 {
-		h.mu.Lock()
-		rAlt := h.rAlt
-		h.mu.Unlock()
-		if rAlt {
+		if h.rAlt {
 			mods |= vtinput.RightAltPressed
 		} else {
 			mods |= vtinput.LeftAltPressed
 		}
+	} else {
+		h.lAlt, h.rAlt = false, false
 	}
 	return mods
 }
