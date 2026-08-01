@@ -325,13 +325,26 @@ func (h *WaylandHost) getMods(input *window.Input) vtinput.ControlKeyState {
 		return mods
 	}
 	m := input.GetModifiers()
+
+	h.mu.Lock()
+	if m&window.ModShiftMask == 0 {
+		h.lShift = false
+		h.rShift = false
+	}
+	if m&window.ModControlMask == 0 {
+		h.lCtrl = false
+		h.rCtrl = false
+	}
+	if m&window.ModAltMask == 0 {
+		h.lAlt = false
+		h.rAlt = false
+	}
+
 	if m&window.ModShiftMask != 0 {
 		mods |= vtinput.ShiftPressed
 	}
 	if m&window.ModControlMask != 0 {
-		h.mu.Lock()
 		rCtrl := h.rCtrl
-		h.mu.Unlock()
 		if rCtrl {
 			mods |= vtinput.RightCtrlPressed
 		} else {
@@ -339,15 +352,14 @@ func (h *WaylandHost) getMods(input *window.Input) vtinput.ControlKeyState {
 		}
 	}
 	if m&window.ModAltMask != 0 {
-		h.mu.Lock()
 		rAlt := h.rAlt
-		h.mu.Unlock()
 		if rAlt {
 			mods |= vtinput.RightAltPressed
 		} else {
 			mods |= vtinput.LeftAltPressed
 		}
 	}
+	h.mu.Unlock()
 	return mods
 }
 
