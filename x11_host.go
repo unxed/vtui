@@ -293,11 +293,22 @@ func (h *X11Host) RunEventLoop() {
 			h.handleKeyEvent(e.Detail, e.State, false)
 
 		case xproto.ButtonPressEvent:
+			if h.dnd != nil && h.dnd.draggingOut() {
+				continue
+			}
 			h.handleButtonEvent(e.EventX, e.EventY, e.Detail, e.State, true)
 		case xproto.ButtonReleaseEvent:
+			if h.dnd != nil && h.dnd.draggingOut() {
+				h.dnd.srcRelease(e.Time)
+				continue
+			}
 			h.handleButtonEvent(e.EventX, e.EventY, e.Detail, e.State, false)
 
 		case xproto.MotionNotifyEvent:
+			if h.dnd != nil && h.dnd.draggingOut() {
+				h.dnd.srcMotion(int(e.RootX), int(e.RootY), e.Time)
+				continue
+			}
 			h.mu.Lock()
 			btn := h.mouseBtn
 			h.mu.Unlock()
@@ -321,6 +332,10 @@ func (h *X11Host) RunEventLoop() {
 		case xproto.SelectionNotifyEvent:
 			if h.dnd != nil {
 				h.dnd.handleSelectionNotify(&e)
+			}
+		case xproto.SelectionRequestEvent:
+			if h.dnd != nil {
+				h.dnd.handleSelectionRequest(&e)
 			}
 		}
 	}

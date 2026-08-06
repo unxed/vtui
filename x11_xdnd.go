@@ -3,12 +3,27 @@
 package vtui
 
 import (
+	"errors"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
 	"github.com/unxed/vtinput"
 )
+
+// dragOutTimeout gives up on a target that never answers our drop. The
+// pointer is already ungrabbed by then, so the user is not held hostage
+// either way; this only decides when we stop waiting for a reply.
+const dragOutTimeout = 30 * time.Second
+
+// ErrDragBusy is returned when a drag is started while one is in flight.
+// There is one pointer, so there is one gesture.
+var ErrDragBusy = errors.New("a drag is already in progress")
+
+// ErrDragNoData is returned when the payload holds nothing we can offer.
+var ErrDragNoData = errors.New("nothing to drag")
 
 // xdndVersion is the protocol version we announce. Version 5 is what every
 // current toolkit speaks; older sources are handled by the same code, since
@@ -45,6 +60,7 @@ type x11DndAtoms struct {
 
 	transfer xproto.Atom
 	incr     xproto.Atom
+	targets  xproto.Atom
 }
 
 // x11Dnd is the receiving half of XDND for one window. Everything here runs
@@ -55,16 +71,26 @@ type x11Dnd struct {
 	conn *xgb.Conn
 	a    x11DndAtoms
 
-	source   xproto.Window
-	version  int
-	chosen   xproto.Atom
-	allowed  DropAction
-	accepted DropAction
-	inside   bool
-	waiting  bool
-	lastX    int
-	lastY    int
-	lastMods vtinput.ControlKeyState
+	source     xproto.Window
+	version    int
+	chosen     xproto.Atom
+	allowed    DropAction
+	accepted   DropAction
+	inside     bool
+	waiting    bool
+	lastX      int
+	lastY      int
+	lastMods   vtinput.ControlKeyState
+	srcMu      sync.Mutex
+	srcActive  bool
+	srcData    []byte
+	srcAllowed DropAction
+	srcResult  chan DropAction
+
+	srcTarget  xproto.Window
+	srcVersion int
+	srcStatus  DropAction
+	srcDropped bool
 }
 
 // newX11Dnd interns the atoms and marks the window as a drop target. It
@@ -120,6 +146,7 @@ func (d *x11Dnd) internAtoms() bool {
 
 	d.a.transfer = d.intern("VTUI_XDND_TRANSFER")
 	d.a.incr = d.intern("INCR")
+	d.a.targets = d.intern("TARGETS")
 
 	return d.a.aware != 0 && d.a.selection != 0 && d.a.enter != 0 &&
 		d.a.position != 0 && d.a.status != 0 && d.a.drop != 0 &&
@@ -140,6 +167,10 @@ func (d *x11Dnd) handleClientMessage(e *xproto.ClientMessageEvent) bool {
 		d.onLeave()
 	case d.a.drop:
 		d.onDrop(e)
+	case d.a.status:
+		d.onSourceStatus(e)
+	case d.a.finished:
+		d.onSourceFinished(e)
 	default:
 		return false
 	}
@@ -466,12 +497,300 @@ func (d *x11Dnd) reset() {
 // AcceptsDrops implements DragBackend: the window is an XDND target.
 func (h *X11Host) AcceptsDrops() bool { return h.dnd != nil }
 
-// CanStartDrag implements DragSource. The XDND source side is not written
-// yet, so dragging out of the window is reported as unavailable rather than
-// failing halfway through a gesture.
-func (h *X11Host) CanStartDrag() bool { return false }
+// CanStartDrag implements DragSource.
+func (h *X11Host) CanStartDrag() bool { return h.dnd != nil }
 
 // StartDrag implements DragBackend.
 func (h *X11Host) StartDrag(payload DragPayload, allowed DropAction) (DropAction, error) {
-	return DropNone, ErrDragUnsupported
+	if h.dnd == nil {
+		return DropNone, ErrDragUnsupported
+	}
+	return h.dnd.startDrag(payload, allowed)
+}
+
+// startDrag runs the source half of the gesture. It is called from the UI
+// goroutine and blocks until the pointer is released and the target has
+// spoken, while the state machine below runs on the X11 event loop.
+func (d *x11Dnd) startDrag(payload DragPayload, allowed DropAction) (DropAction, error) {
+	data := []byte(FormatURIList(payload.Paths))
+	if len(data) == 0 {
+		return DropNone, ErrDragNoData
+	}
+
+	d.srcMu.Lock()
+	if d.srcActive {
+		d.srcMu.Unlock()
+		return DropNone, ErrDragBusy
+	}
+	result := make(chan DropAction, 1)
+	d.srcActive = true
+	d.srcData = data
+	d.srcAllowed = allowed
+	d.srcResult = result
+	d.srcMu.Unlock()
+
+	d.srcTarget = 0
+	d.srcVersion = 0
+	d.srcStatus = DropNone
+	d.srcDropped = false
+
+	acts := make([]byte, 4)
+	xgb.Put32(acts, uint32(d.a.actCopy))
+	xproto.ChangeProperty(d.conn, xproto.PropModeReplace, d.host.wid, d.a.actList,
+		xproto.AtomAtom, 32, 1, acts)
+	xproto.SetSelectionOwner(d.conn, d.host.wid, d.a.selection, xproto.TimeCurrentTime)
+
+	mask := uint16(xproto.EventMaskButtonRelease | xproto.EventMaskPointerMotion)
+	if _, err := xproto.GrabPointer(d.conn, false, d.host.wid, mask,
+		xproto.GrabModeAsync, xproto.GrabModeAsync,
+		xproto.Window(0), xproto.Cursor(0), xproto.TimeCurrentTime).Reply(); err != nil {
+		d.finishSource(DropNone)
+		return DropNone, err
+	}
+	DebugLog("XDND: drag out started, %d file(s)", len(payload.Paths))
+
+	select {
+	case action := <-result:
+		return action, nil
+	case <-time.After(dragOutTimeout):
+		DebugLog("XDND: drag out timed out waiting for the target")
+		d.abortSource()
+		return DropNone, nil
+	}
+}
+
+// draggingOut reports whether the pointer currently belongs to a drag of
+// ours, which is when the host must stop feeding pointer events to the UI.
+func (d *x11Dnd) draggingOut() bool {
+	if d == nil {
+		return false
+	}
+	d.srcMu.Lock()
+	defer d.srcMu.Unlock()
+	return d.srcActive
+}
+
+func (d *x11Dnd) srcDataCopy() []byte {
+	d.srcMu.Lock()
+	defer d.srcMu.Unlock()
+	return d.srcData
+}
+
+// srcMotion follows the pointer: it finds who is under it and keeps that
+// window told where we are.
+func (d *x11Dnd) srcMotion(rootX, rootY int, t xproto.Timestamp) {
+	target, version := d.findTarget(rootX, rootY)
+	if target != d.srcTarget {
+		if d.srcTarget != 0 {
+			d.sendSourceLeave()
+		}
+		d.srcTarget, d.srcVersion = target, version
+		d.srcStatus = DropNone
+		if target != 0 {
+			d.sendSourceEnter()
+			DebugLog("XDND: drag out entered window %d (version %d)", target, version)
+		}
+	}
+	if d.srcTarget == 0 {
+		return
+	}
+	var data [5]uint32
+	data[0] = uint32(d.host.wid)
+	data[2] = uint32(uint16(rootX))<<16 | uint32(uint16(rootY))
+	data[3] = uint32(t)
+	data[4] = uint32(d.a.actCopy)
+	d.send(d.srcTarget, d.a.position, data)
+}
+
+// srcRelease ends the gesture. The pointer is handed back first, then the
+// UI is told the button is up: it never saw the release, since every event
+// of the drag was kept away from it.
+func (d *x11Dnd) srcRelease(t xproto.Timestamp) {
+	xproto.UngrabPointer(d.conn, t)
+
+	h := d.host
+	h.mu.Lock()
+	h.mouseBtn = 0
+	h.mu.Unlock()
+	x, y, mods := d.pointer(0, 0)
+	h.sendEvent(&vtinput.InputEvent{
+		Type:            vtinput.MouseEventType,
+		MouseX:          int16(x),
+		MouseY:          int16(y),
+		ButtonState:     0,
+		KeyDown:         false,
+		ControlKeyState: mods,
+	})
+
+	if d.srcTarget != 0 && d.srcStatus != DropNone {
+		d.srcDropped = true
+		var data [5]uint32
+		data[0] = uint32(d.host.wid)
+		data[2] = uint32(t)
+		d.send(d.srcTarget, d.a.drop, data)
+		DebugLog("XDND: drop sent to %d as %s", d.srcTarget, d.srcStatus)
+		return
+	}
+	if d.srcTarget != 0 {
+		d.sendSourceLeave()
+	}
+	d.finishSource(DropNone)
+}
+
+func (d *x11Dnd) onSourceStatus(e *xproto.ClientMessageEvent) {
+	if !d.draggingOut() {
+		return
+	}
+	d.srcStatus = d.statusAction(e.Data.Data32)
+}
+
+// statusAction reads an XdndStatus. A target that accepts without naming an
+// action means copy, which is the only thing we offer anyway.
+func (d *x11Dnd) statusAction(data []uint32) DropAction {
+	if len(data) < 5 || data[1]&1 == 0 {
+		return DropNone
+	}
+	if a := d.actionOf(xproto.Atom(data[4])); a != DropNone {
+		return a
+	}
+	return DropCopy
+}
+
+func (d *x11Dnd) onSourceFinished(e *xproto.ClientMessageEvent) {
+	if !d.draggingOut() || !d.srcDropped {
+		return
+	}
+	action := d.srcStatus
+	if len(e.Data.Data32) >= 2 && d.srcVersion >= 5 && e.Data.Data32[1]&1 == 0 {
+		action = DropNone
+	}
+	DebugLog("XDND: target finished with %s", action)
+	d.finishSource(action)
+}
+
+func (d *x11Dnd) sendSourceEnter() {
+	var data [5]uint32
+	data[0] = uint32(d.host.wid)
+	data[1] = uint32(xdndVersion) << 24
+	data[2] = uint32(d.a.uriList)
+	d.send(d.srcTarget, d.a.enter, data)
+}
+
+func (d *x11Dnd) sendSourceLeave() {
+	var data [5]uint32
+	data[0] = uint32(d.host.wid)
+	d.send(d.srcTarget, d.a.leave, data)
+}
+
+func (d *x11Dnd) abortSource() {
+	xproto.UngrabPointer(d.conn, xproto.TimeCurrentTime)
+	if d.srcTarget != 0 {
+		d.sendSourceLeave()
+	}
+	d.finishSource(DropNone)
+}
+
+func (d *x11Dnd) finishSource(action DropAction) {
+	d.srcMu.Lock()
+	ch := d.srcResult
+	d.srcActive = false
+	d.srcResult = nil
+	d.srcData = nil
+	d.srcMu.Unlock()
+
+	d.srcTarget = 0
+	d.srcVersion = 0
+	d.srcStatus = DropNone
+	d.srcDropped = false
+
+	if ch != nil {
+		select {
+		case ch <- action:
+		default:
+		}
+	}
+}
+
+// findTarget walks down from the root looking for a window that announces
+// XdndAware. The window manager's frame sits between the root and the real
+// client window, so the first candidate is rarely the right one.
+func (d *x11Dnd) findTarget(rootX, rootY int) (xproto.Window, int) {
+	if d.host.screen == nil {
+		return 0, 0
+	}
+	root := d.host.screen.Root
+	w := root
+	for i := 0; i < 16; i++ {
+		reply, err := xproto.TranslateCoordinates(d.conn, root, w,
+			int16(rootX), int16(rootY)).Reply()
+		if err != nil || reply == nil || reply.Child == 0 {
+			break
+		}
+		w = reply.Child
+		if v := d.awareVersion(w); v > 0 {
+			return w, v
+		}
+	}
+	return 0, 0
+}
+
+func (d *x11Dnd) awareVersion(w xproto.Window) int {
+	if w == 0 || d.a.aware == 0 {
+		return 0
+	}
+	reply, err := xproto.GetProperty(d.conn, false, w, d.a.aware, xproto.AtomAny, 0, 1).Reply()
+	if err != nil || reply == nil || reply.Format != 32 || len(reply.Value) < 4 {
+		return 0
+	}
+	return int(xgb.Get32(reply.Value))
+}
+
+// sourceTargets is what we answer a TARGETS request with: the one type we
+// publish, plus the TARGETS atom itself as the convention requires.
+func (d *x11Dnd) sourceTargets() []xproto.Atom {
+	return []xproto.Atom{d.a.targets, d.a.uriList}
+}
+
+// handleSelectionRequest serves the data itself. It arrives after the drop,
+// from the window that accepted it. Returns true when it was ours.
+func (d *x11Dnd) handleSelectionRequest(e *xproto.SelectionRequestEvent) bool {
+	if d == nil || e == nil || e.Selection != d.a.selection {
+		return false
+	}
+	prop := e.Property
+	if prop == 0 {
+		prop = e.Target
+	}
+
+	served := false
+	switch {
+	case e.Target == d.a.targets:
+		list := d.sourceTargets()
+		buf := make([]byte, 4*len(list))
+		for i, a := range list {
+			xgb.Put32(buf[i*4:], uint32(a))
+		}
+		xproto.ChangeProperty(d.conn, xproto.PropModeReplace, e.Requestor, prop,
+			xproto.AtomAtom, 32, uint32(len(list)), buf)
+		served = true
+	case e.Target == d.a.uriList || e.Target == d.a.plain ||
+		e.Target == d.a.plainUTF8 || e.Target == d.a.utf8:
+		if data := d.srcDataCopy(); len(data) > 0 {
+			xproto.ChangeProperty(d.conn, xproto.PropModeReplace, e.Requestor, prop,
+				e.Target, 8, uint32(len(data)), data)
+			served = true
+		}
+	}
+
+	notify := xproto.SelectionNotifyEvent{
+		Time:      e.Time,
+		Requestor: e.Requestor,
+		Selection: e.Selection,
+		Target:    e.Target,
+	}
+	if served {
+		notify.Property = prop
+	}
+	xproto.SendEvent(d.conn, false, e.Requestor, 0, string(notify.Bytes()))
+	return true
 }

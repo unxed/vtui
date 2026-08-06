@@ -49,7 +49,12 @@ display server will not wait for a UI stuck behind a modal dialog.
 ## Status
 
 - core, uri-list codec: done (this file's package)
-- X11 (XDND): receiving side done, in x11_xdnd.go; source side next
+- X11 (XDND): both directions done, in x11_xdnd.go
+- X11 limitation: only copy is announced when dragging out. A move would
+  mean deleting the originals because a target said it took them, and no
+  file is worth that much trust until the behaviour is tested widely.
+- X11 limitation: XdndProxy is not followed when looking for a target, so a
+  window that only accepts drops through a proxy is not seen
 - X11 limitation: an INCR (incremental) selection transfer is refused
   rather than half read, so a drop of an enormous file list currently
   fails visibly instead of silently losing entries

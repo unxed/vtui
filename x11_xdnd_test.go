@@ -113,6 +113,9 @@ func TestDndCell(t *testing.T) {
 }
 
 func TestPayloadOffersFiles(t *testing.T) {
+	if (DragPayload{Paths: []string{"/tmp/x"}}).IsEmpty() {
+		t.Fatal("a payload with paths is not empty")
+	}
 	if (DragPayload{}).OffersFiles() {
 		t.Fatal("an empty payload offers nothing")
 	}
@@ -124,5 +127,49 @@ func TestPayloadOffersFiles(t *testing.T) {
 	}
 	if (DragPayload{Kinds: []string{"text/plain"}, Text: "hi"}).OffersFiles() {
 		t.Fatal("plain text is not a file offer")
+	}
+}
+
+func TestXdndStatusAction(t *testing.T) {
+	d := testDnd()
+	if got := d.statusAction([]uint32{0, 0, 0, 0, uint32(d.a.actCopy)}); got != DropNone {
+		t.Fatalf("a refusal is a refusal even with an action, got %s", got)
+	}
+	if got := d.statusAction([]uint32{0, 1, 0, 0, uint32(d.a.actMove)}); got != DropMove {
+		t.Fatalf("action = %s, want move", got)
+	}
+	if got := d.statusAction([]uint32{0, 1, 0, 0, 0}); got != DropCopy {
+		t.Fatalf("an acceptance without an action means copy, got %s", got)
+	}
+	if got := d.statusAction([]uint32{0, 1}); got != DropNone {
+		t.Fatalf("a short message says nothing, got %s", got)
+	}
+}
+
+func TestXdndSourceTargets(t *testing.T) {
+	d := testDnd()
+	want := []xproto.Atom{d.a.targets, d.a.uriList}
+	if got := d.sourceTargets(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("targets = %v, want %v", got, want)
+	}
+}
+
+func TestStartDragRefusesEmptyPayload(t *testing.T) {
+	d := testDnd()
+	if _, err := d.startDrag(DragPayload{}, DropCopy); err != ErrDragNoData {
+		t.Fatalf("err = %v, want ErrDragNoData", err)
+	}
+	if d.draggingOut() {
+		t.Fatal("a refused drag must leave no state behind")
+	}
+}
+
+func TestHostStartDragWithoutDnd(t *testing.T) {
+	h := &X11Host{}
+	if h.AcceptsDrops() || h.CanStartDrag() {
+		t.Fatal("a host without a dnd instance supports neither direction")
+	}
+	if _, err := h.StartDrag(DragPayload{Paths: []string{"/tmp/x"}}, DropCopy); err != ErrDragUnsupported {
+		t.Fatalf("err = %v, want ErrDragUnsupported", err)
 	}
 }
