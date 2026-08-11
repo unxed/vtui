@@ -188,7 +188,7 @@ func TestEbitenKeyToVK(t *testing.T) {
 		{ebiten.KeyDigit9, vtinput.VK_9, "9"},
 	}
 	for _, c := range cases {
-		if got := ebitenKeyToVK(c.key); got != c.want {
+		if got := ebitenKeyToVK(c.key, false); got != c.want {
 			t.Errorf("ebitenKeyToVK(%s) = %d, want %d", c.name, got, c.want)
 		}
 	}
@@ -199,13 +199,13 @@ func TestEbitenKeyToVK(t *testing.T) {
 func TestEbitenKeyToVK_LetterAndDigitRanges(t *testing.T) {
 	for k := ebiten.KeyA; k <= ebiten.KeyZ; k++ {
 		want := vtinput.VK_A + uint16(k-ebiten.KeyA)
-		if got := ebitenKeyToVK(k); got != want {
+		if got := ebitenKeyToVK(k, false); got != want {
 			t.Fatalf("letter key %v mapped to %d, want %d", k, got, want)
 		}
 	}
 	for k := ebiten.KeyDigit0; k <= ebiten.KeyDigit9; k++ {
 		want := vtinput.VK_0 + uint16(k-ebiten.KeyDigit0)
-		if got := ebitenKeyToVK(k); got != want {
+		if got := ebitenKeyToVK(k, false); got != want {
 			t.Fatalf("digit key %v mapped to %d, want %d", k, got, want)
 		}
 	}
@@ -213,8 +213,22 @@ func TestEbitenKeyToVK_LetterAndDigitRanges(t *testing.T) {
 
 // Unmapped keys must return 0 so the host drops them; VK 0 sent onward would
 // read as a real keystroke.
+func TestEbitenKeyToVK_NumLock(t *testing.T) {
+	if got := ebitenKeyToVK(ebiten.KeyNumpad9, true); got != vtinput.VK_NUMPAD9 {
+		t.Errorf("NumLock ON: KeyNumpad9 = %d, want %d", got, vtinput.VK_NUMPAD9)
+	}
+	if got := ebitenKeyToVK(ebiten.KeyNumpad9, false); got != vtinput.VK_PRIOR {
+		t.Errorf("NumLock OFF: KeyNumpad9 = %d, want %d", got, vtinput.VK_PRIOR)
+	}
+	if got := ebitenKeyToVK(ebiten.KeyNumpadDecimal, true); got != vtinput.VK_DECIMAL {
+		t.Errorf("NumLock ON: KeyNumpadDecimal = %d, want %d", got, vtinput.VK_DECIMAL)
+	}
+	if got := ebitenKeyToVK(ebiten.KeyNumpadDecimal, false); got != vtinput.VK_DELETE {
+		t.Errorf("NumLock OFF: KeyNumpadDecimal = %d, want %d", got, vtinput.VK_DELETE)
+	}
+}
 func TestEbitenKeyToVK_UnmappedIsZero(t *testing.T) {
-	if got := ebitenKeyToVK(ebiten.KeyMax + 1); got != 0 {
+	if got := ebitenKeyToVK(ebiten.KeyMax+1, false); got != 0 {
 		t.Errorf("out-of-range key mapped to %d, want 0", got)
 	}
 }
@@ -227,7 +241,7 @@ func TestEbitenKeyToVK_NoAccidentalCollisions(t *testing.T) {
 	}
 	seen := make(map[uint16]ebiten.Key)
 	for k := ebiten.Key(0); k <= ebiten.KeyMax; k++ {
-		vk := ebitenKeyToVK(k)
+		vk := ebitenKeyToVK(k, false)
 		if vk == 0 || intended[vk] {
 			continue
 		}
@@ -475,7 +489,7 @@ func TestArrowsAndEditingKeysTakeTheRepeatingPath(t *testing.T) {
 		ebiten.KeyBackspace, ebiten.KeyDelete, ebiten.KeyPageUp, ebiten.KeyPageDown,
 		ebiten.KeyHome, ebiten.KeyEnd, ebiten.KeyTab, ebiten.KeyEnter,
 	} {
-		vk := ebitenKeyToVK(k)
+		vk := ebitenKeyToVK(k, false)
 		if vk == 0 {
 			t.Errorf("%v has no virtual key code", k)
 			continue
@@ -678,7 +692,7 @@ func TestDigitKeysMapToExactVirtualKeys(t *testing.T) {
 	h := &EbitenHost{lastRuneForVK: map[uint16]rune{}}
 	for i := 0; i <= 9; i++ {
 		k := ebiten.KeyDigit0 + ebiten.Key(i)
-		vk := ebitenKeyToVK(k)
+		vk := ebitenKeyToVK(k, false)
 		if want := uint16(0x30 + i); vk != want {
 			t.Errorf("%v -> VK 0x%02X, want 0x%02X", k, vk, want)
 		}
@@ -695,7 +709,7 @@ func TestKeyBehindText_UsesTheKeyPressedThisTick(t *testing.T) {
 	h := newTestHost(t)
 	h.pressedBuf = []ebiten.Key{ebiten.KeyB}
 
-	k, ok := h.keyBehindText()
+	k, ok := h.keyBehindText(false)
 	if !ok || k != ebiten.KeyB {
 		t.Errorf("keyBehindText = %v, %v; want KeyB, true", k, ok)
 	}
@@ -707,7 +721,7 @@ func TestKeyBehindText_FallsBackToTheOneHeldKey(t *testing.T) {
 	h := newTestHost(t)
 	h.heldBuf = []ebiten.Key{ebiten.KeyShiftLeft, ebiten.KeyB}
 
-	k, ok := h.keyBehindText()
+	k, ok := h.keyBehindText(false)
 	if !ok || k != ebiten.KeyB {
 		t.Errorf("keyBehindText = %v, %v; want KeyB, true (modifiers do not count)", k, ok)
 	}
@@ -722,7 +736,7 @@ func TestKeyBehindText_DeclinesWhenAmbiguous(t *testing.T) {
 		"nothing at all":          {},
 		"only modifiers held":     {heldBuf: []ebiten.Key{ebiten.KeyShiftLeft, ebiten.KeyControlLeft}},
 	} {
-		if k, ok := h.keyBehindText(); ok {
+		if k, ok := h.keyBehindText(false); ok {
 			t.Errorf("%s: keyBehindText returned %v, want no attribution", name, k)
 		}
 	}

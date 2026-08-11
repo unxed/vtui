@@ -64,7 +64,8 @@ type EbitenHost struct {
 	// and need the rune, not just the virtual key.
 	lastRuneForVK map[uint16]rune
 
-	focused bool
+	focused   bool
+	numLockOn bool
 
 	// pendingChord holds a Ctrl or Alt chord for one tick before sending it.
 	// The evidence that a modifier is stuck is a printable character, and that
@@ -79,6 +80,34 @@ type EbitenHost struct {
 		w, h  int
 		valid bool
 	}
+}
+
+func numpadChar(k ebiten.Key) rune {
+	switch k {
+	case ebiten.KeyNumpad0:
+		return '0'
+	case ebiten.KeyNumpad1:
+		return '1'
+	case ebiten.KeyNumpad2:
+		return '2'
+	case ebiten.KeyNumpad3:
+		return '3'
+	case ebiten.KeyNumpad4:
+		return '4'
+	case ebiten.KeyNumpad5:
+		return '5'
+	case ebiten.KeyNumpad6:
+		return '6'
+	case ebiten.KeyNumpad7:
+		return '7'
+	case ebiten.KeyNumpad8:
+		return '8'
+	case ebiten.KeyNumpad9:
+		return '9'
+	case ebiten.KeyNumpadDecimal:
+		return '.'
+	}
+	return 0
 }
 
 func (h *EbitenHost) sendEvent(ev *vtinput.InputEvent) {
@@ -182,7 +211,7 @@ func (h *EbitenHost) settlePendingChord(sawText bool) {
 // covers auto-repeat, where the character keeps arriving with no new press.
 // Anything more ambiguous is left alone, since a wrong attribution would
 // label the key with someone else's rune and mislead every later Alt chord.
-func (h *EbitenHost) keyBehindText() (ebiten.Key, bool) {
+func (h *EbitenHost) keyBehindText(numLock bool) (ebiten.Key, bool) {
 	if len(h.pressedBuf) == 1 {
 		return h.pressedBuf[0], true
 	}
@@ -193,7 +222,7 @@ func (h *EbitenHost) keyBehindText() (ebiten.Key, bool) {
 	var found ebiten.Key
 	n := 0
 	for _, k := range h.heldBuf {
-		vk := ebitenKeyToVK(k)
+		vk := ebitenKeyToVK(k, numLock)
 		if vk == 0 || isModifierVK(vk) {
 			continue
 		}
@@ -283,6 +312,32 @@ func (g *ebitenGame) Update() error {
 	// incoming character to the key that produced it.
 	h.pressedBuf = inpututil.AppendJustPressedKeys(h.pressedBuf[:0])
 
+	hasShift := (mods & vtinput.ShiftPressed) != 0
+
+	// Sync NumLock state based on just-pressed numpad keys and produced text
+	for _, k := range h.pressedBuf {
+		ch := numpadChar(k)
+		if ch != 0 {
+			produced := false
+			for _, r := range h.charBuf {
+				if r == ch || (ch == '.' && r == ',') {
+					produced = true
+					break
+				}
+			}
+			// Ignore Ctrl/Alt modified numpad keys for NumLock deduction
+			if (mods & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.LeftAltPressed | vtinput.RightAltPressed)) == 0 {
+				if produced {
+					h.numLockOn = !hasShift
+				} else {
+					h.numLockOn = hasShift
+				}
+			}
+		}
+	}
+
+	effectiveNumLock := h.numLockOn != hasShift
+
 	// Keys first, then text. A modified or special key is delivered by virtual
 	// key code; an unmodified printable key is left to the text stream below,
 	// because only the platform knows what character the current layout
@@ -299,7 +354,7 @@ func (g *ebitenGame) Update() error {
 	// below, and the text loop still needs to know what was down.
 	h.heldBuf = inpututil.AppendPressedKeys(h.heldBuf[:0])
 	for _, k := range h.heldBuf {
-		vk := ebitenKeyToVK(k)
+		vk := ebitenKeyToVK(k, effectiveNumLock)
 		if vk == 0 || !isSpecialOrModifiedKey(vk, mods) {
 			continue
 		}
@@ -338,7 +393,7 @@ func (g *ebitenGame) Update() error {
 
 	h.keyBuf = inpututil.AppendJustReleasedKeys(h.keyBuf[:0])
 	for _, k := range h.keyBuf {
-		vk := ebitenKeyToVK(k)
+		vk := ebitenKeyToVK(k, effectiveNumLock)
 		if vk == 0 {
 			continue
 		}
@@ -368,8 +423,8 @@ func (g *ebitenGame) Update() error {
 			// layout, so a later Alt chord on it can carry that rune.
 			var vk uint16
 			if i == 0 && len(h.charBuf) == 1 {
-				if k, ok := h.keyBehindText(); ok {
-					vk = ebitenKeyToVK(k)
+				if k, ok := h.keyBehindText(effectiveNumLock); ok {
+					vk = ebitenKeyToVK(k, effectiveNumLock)
 					if vk != 0 {
 						h.lastRuneForVK[vk] = r
 					}

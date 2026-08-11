@@ -17,7 +17,7 @@ import (
 // arrives separately through AppendInputChars, which is why the host pairs
 // each keydown with the text input of the same frame instead of deriving a
 // rune from the key code here.
-func ebitenKeyToVK(k ebiten.Key) uint16 {
+func ebitenKeyToVK(k ebiten.Key, numLock bool) uint16 {
 	switch k {
 	// Editing and navigation.
 	case ebiten.KeyEscape:
@@ -113,25 +113,55 @@ func ebitenKeyToVK(k ebiten.Key) uint16 {
 
 	// Numeric keypad.
 	case ebiten.KeyNumpad0:
-		return vtinput.VK_NUMPAD0
+		if numLock {
+			return vtinput.VK_NUMPAD0
+		}
+		return vtinput.VK_INSERT
 	case ebiten.KeyNumpad1:
-		return vtinput.VK_NUMPAD1
+		if numLock {
+			return vtinput.VK_NUMPAD1
+		}
+		return vtinput.VK_END
 	case ebiten.KeyNumpad2:
-		return vtinput.VK_NUMPAD2
+		if numLock {
+			return vtinput.VK_NUMPAD2
+		}
+		return vtinput.VK_DOWN
 	case ebiten.KeyNumpad3:
-		return vtinput.VK_NUMPAD3
+		if numLock {
+			return vtinput.VK_NUMPAD3
+		}
+		return vtinput.VK_NEXT
 	case ebiten.KeyNumpad4:
-		return vtinput.VK_NUMPAD4
+		if numLock {
+			return vtinput.VK_NUMPAD4
+		}
+		return vtinput.VK_LEFT
 	case ebiten.KeyNumpad5:
-		return vtinput.VK_NUMPAD5
+		if numLock {
+			return vtinput.VK_NUMPAD5
+		}
+		return vtinput.VK_CLEAR
 	case ebiten.KeyNumpad6:
-		return vtinput.VK_NUMPAD6
+		if numLock {
+			return vtinput.VK_NUMPAD6
+		}
+		return vtinput.VK_RIGHT
 	case ebiten.KeyNumpad7:
-		return vtinput.VK_NUMPAD7
+		if numLock {
+			return vtinput.VK_NUMPAD7
+		}
+		return vtinput.VK_HOME
 	case ebiten.KeyNumpad8:
-		return vtinput.VK_NUMPAD8
+		if numLock {
+			return vtinput.VK_NUMPAD8
+		}
+		return vtinput.VK_UP
 	case ebiten.KeyNumpad9:
-		return vtinput.VK_NUMPAD9
+		if numLock {
+			return vtinput.VK_NUMPAD9
+		}
+		return vtinput.VK_PRIOR
 	case ebiten.KeyNumpadAdd:
 		return vtinput.VK_ADD
 	case ebiten.KeyNumpadSubtract:
@@ -141,7 +171,10 @@ func ebitenKeyToVK(k ebiten.Key) uint16 {
 	case ebiten.KeyNumpadDivide:
 		return vtinput.VK_DIVIDE
 	case ebiten.KeyNumpadDecimal:
-		return vtinput.VK_DECIMAL
+		if numLock {
+			return vtinput.VK_DECIMAL
+		}
+		return vtinput.VK_DELETE
 
 	// Punctuation. These are the US positions; the layout-dependent character
 	// still comes from AppendInputChars, so a non-US layout gets the right
