@@ -106,3 +106,43 @@ func TestMenuBar_MouseMoveSelectsCommandItemWithoutExecuting(t *testing.T) {
 		t.Fatalf("hover executed %d command(s)", commandCount)
 	}
 }
+
+func TestMenuBar_LongSubmenuUsesScrollingViewport(t *testing.T) {
+	fm := &frameManager{}
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 10)
+	fm.Init(scr)
+	fm.Push(NewDesktop())
+
+	oldFrameManager := FrameManager
+	FrameManager = fm
+	defer func() { FrameManager = oldFrameManager }()
+
+	items := make([]MenuItem, 30)
+	for i := range items {
+		items[i] = MenuItem{Text: "Item"}
+	}
+	mb := NewMenuBar(nil)
+	mb.Items = []MenuBarItem{{Label: "Commands", SubItems: items}}
+	mb.SetPosition(0, 0, 79, 0)
+	mb.Active = true
+	mb.ActivateSubMenu(0)
+
+	m, ok := mb.activeSubMenu.(*VMenu)
+	if !ok || m == nil {
+		t.Fatalf("active submenu = %T, want *VMenu", mb.activeSubMenu)
+	}
+	if m.Y2 >= scr.Height() {
+		t.Fatalf("long submenu bottom = %d, screen height = %d", m.Y2, scr.Height())
+	}
+	if m.ViewHeight >= len(items) {
+		t.Fatalf("long submenu viewport = %d rows for %d items", m.ViewHeight, len(items))
+	}
+	if !m.ShowScrollBar || m.ScrollBar == nil {
+		t.Fatal("long submenu did not expose a scrollbar")
+	}
+	m.SetSelectPos(len(items) - 1)
+	if m.TopPos == 0 {
+		t.Fatal("selecting the last item did not scroll the submenu")
+	}
+}
