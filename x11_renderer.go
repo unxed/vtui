@@ -305,6 +305,9 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 						r.drawCachedGlyph(img, currCell.Char, cpx, py, rw, cfg, cbg, fgColor, bgColor)
 					}
 				}
+				if currCell.Attributes&CommonLvbUnderscore != 0 {
+					drawUnderline(img, cpx, py, cw*rw, ch, r.host.scale, cfg)
+				}
 
 				if cursorVisible && y == r.cursorY && r.cursorX >= currX && r.cursorX < currX+rw {
 					var startY int

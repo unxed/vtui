@@ -204,6 +204,9 @@ func (r *EbitenRenderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bo
 					}
 					r.drawCachedGlyph(img, curr.Char, px, py, rw, fg, cbg)
 				}
+				if curr.Attributes&CommonLvbUnderscore != 0 {
+					drawUnderline(img, currX*r.cellW, y*r.cellH, r.cellW*rw, r.cellH, r.scale, fg)
+				}
 
 				if cursorVisible && y == r.cursorY && r.cursorX >= currX && r.cursorX < currX+rw {
 					r.invertCursor(img, currX*r.cellW, y*r.cellH, rw)
