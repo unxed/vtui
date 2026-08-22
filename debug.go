@@ -14,14 +14,41 @@ var (
 	logRotated         bool
 	logFile            *os.File
 	currentLogFilename string
+	lastLogSync        time.Time
 	testLogger         func(string, ...any)
 )
 
-func rotateLogs(basePath string) {
-	if logFile != nil {
-		logFile.Close()
-		logFile = nil
+const debugLogSyncInterval = 2 * time.Second
+
+var syncLogFile = func(file *os.File) error {
+	return file.Sync()
+}
+
+func syncLogFileLocked(now time.Time, force bool) {
+	if logFile == nil {
+		return
 	}
+	if !force && !lastLogSync.IsZero() && now.Sub(lastLogSync) < debugLogSyncInterval {
+		return
+	}
+	if err := syncLogFile(logFile); err == nil {
+		lastLogSync = now
+	}
+}
+
+func closeLogFileLocked() {
+	if logFile == nil {
+		return
+	}
+	syncLogFileLocked(time.Now(), true)
+	_ = logFile.Close()
+	logFile = nil
+	currentLogFilename = ""
+	lastLogSync = time.Time{}
+}
+
+func rotateLogs(basePath string) {
+	closeLogFileLocked()
 	ext := filepath.Ext(basePath)
 	prefix := strings.TrimSuffix(basePath, ext)
 
@@ -43,9 +70,8 @@ var diskLoggingEnabled = true
 func ConfigDiskLogging(enabled bool) {
 	logMu.Lock()
 	diskLoggingEnabled = enabled
-	if !enabled && logFile != nil {
-		logFile.Close()
-		logFile = nil
+	if !enabled {
+		closeLogFileLocked()
 	}
 	logMu.Unlock()
 }
@@ -128,19 +154,19 @@ func DebugLog(format string, a ...any) {
 	}
 
 	if logFile != nil && currentLogFilename != filename {
-		logFile.Close()
-		logFile = nil
+		closeLogFileLocked()
 	}
 
 	if logFile == nil {
 		var err error
 		logFile, err = os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		currentLogFilename = filename
+		lastLogSync = time.Now()
 		recordLogMemory(fmt.Sprintf("[SYS] Opened new log file %q (Err: %v, PID: %d)", filename, err, os.Getpid()))
 	}
 	if logFile != nil {
-		fmt.Fprintln(logFile, fullMsg)
-		logFile.Sync()
+		_, _ = fmt.Fprintln(logFile, fullMsg)
+		syncLogFileLocked(time.Now(), false)
 	}
 	logMu.Unlock()
 }
