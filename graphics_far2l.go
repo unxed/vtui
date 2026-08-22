@@ -70,7 +70,8 @@ func far2lPlacementValid(p *ImagePlacement) bool {
 		return false
 	}
 	_, _, sw, sh := p.Source()
-	return sw > 0 && sh > 0 && sw <= int(^uint32(0)) && sh <= int(^uint32(0)) &&
+	maxUint32 := uint64(^uint32(0))
+	return sw > 0 && sh > 0 && uint64(sw) <= maxUint32 && uint64(sh) <= maxUint32 &&
 		uint64(sw)*uint64(sh) <= uint64(^uint32(0))/4
 }
 
