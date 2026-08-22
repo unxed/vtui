@@ -161,7 +161,20 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 		}
 	}
 
-	m.SetPosition(x, mb.Y1+1, x+maxWidth-1, mb.Y1+1+m.GetItemCount()+1)
+	menuY := mb.Y1 + 1
+	menuBottom := menuY + m.GetItemCount() + 1
+	// VMenu already provides a scrolling viewport and scrollbar.  Keep the
+	// submenu inside the screen so that those controls can actually be used
+	// when a menu has more rows than the terminal or GUI window.
+	if FrameManager != nil {
+		if screenHeight := FrameManager.GetScreenHeight(); screenHeight > 0 && menuBottom >= screenHeight {
+			menuBottom = screenHeight - 1
+		}
+	}
+	if menuBottom < menuY+2 {
+		menuBottom = menuY + 2
+	}
+	m.SetPosition(x, menuY, x+maxWidth-1, menuBottom)
 
 	m.OnAction = func(idx int) { mb.Active = false }
 
