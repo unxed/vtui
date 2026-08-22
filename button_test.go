@@ -117,3 +117,22 @@ func TestButton_HotkeyParsing(t *testing.T) {
 		t.Errorf("Expected hotkey 'c' after SetText, got %c", b.GetHotkey())
 	}
 }
+
+func TestButton_DefaultUsesHighlightStyleWhenUnfocused(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(20, 3)
+
+	normal := NewButton(0, 0, "Normal")
+	defaultButton := NewButton(0, 1, "Default")
+	defaultButton.IsDefault = true
+	normal.Show(scr)
+	defaultButton.Show(scr)
+
+	checkCell(t, scr, 2, 0, 'N', Palette[ColDialogButton])
+	checkCell(t, scr, 2, 1, 'D', Palette[ColDialogHighlightButton])
+
+	defaultButton.SetFocus(true)
+	defaultButton.Show(scr)
+	checkCell(t, scr, 2, 1, 'D', Palette[ColDialogSelectedButton])
+}
