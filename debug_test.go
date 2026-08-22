@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDebugLog_CustomFile(t *testing.T) {
@@ -141,5 +142,54 @@ func TestDebugLog_TestLogger(t *testing.T) {
 
 	if len(messages) != 1 || !strings.Contains(messages[0], "test message 7") {
 		t.Fatalf("test logger messages = %#v, want one formatted message", messages)
+	}
+}
+
+func TestDebugLog_SyncIntervalAndClose(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "sync.log")
+	t.Setenv("VTUI_DEBUG", logPath)
+
+	logMu.Lock()
+	if logFile != nil {
+		_ = logFile.Close()
+		logFile = nil
+	}
+	logRotated = false
+	lastLogSync = time.Time{}
+	logMu.Unlock()
+
+	oldSyncLogFile := syncLogFile
+	syncCalls := 0
+	syncLogFile = func(*os.File) error {
+		syncCalls++
+		return nil
+	}
+	t.Cleanup(func() {
+		syncLogFile = oldSyncLogFile
+		logMu.Lock()
+		closeLogFileLocked()
+		logMu.Unlock()
+	})
+
+	DebugLog("first")
+	DebugLog("second")
+	if syncCalls != 0 {
+		t.Fatalf("sync calls before interval = %d, want 0", syncCalls)
+	}
+
+	logMu.Lock()
+	lastLogSync = time.Now().Add(-debugLogSyncInterval)
+	logMu.Unlock()
+	DebugLog("third")
+	DebugLog("fourth")
+	if syncCalls != 1 {
+		t.Fatalf("sync calls during interval = %d, want 1", syncCalls)
+	}
+
+	logMu.Lock()
+	closeLogFileLocked()
+	logMu.Unlock()
+	if syncCalls != 2 {
+		t.Fatalf("sync calls after close = %d, want 2", syncCalls)
 	}
 }
