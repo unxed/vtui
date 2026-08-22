@@ -742,6 +742,7 @@ func (r *GogpuRenderer) drawFrame(dc *gg.Context, w, h int) gogpuFrameStats {
 				}
 
 				char := CellBaseRune(currCell.Char)
+				underlined := currCell.Attributes&CommonLvbUnderscore != 0
 
 				if isBoxDrawRune(char) {
 					tBox := gogpuProfNow()
@@ -749,17 +750,23 @@ func (r *GogpuRenderer) drawFrame(dc *gg.Context, w, h int) gogpuFrameStats {
 					prof.boxTime += gogpuProfSince(tBox)
 					if drawn {
 						prof.boxChars++
+						if underlined {
+							drawGogpuUnderline(dc, lx+float64(sx*r.cellW), ly, float64(rw*r.cellW), float64(r.cellH), fg)
+						}
 						sx += rw
 						continue
 					}
 				}
 
 				if r.face == nil {
+					if underlined {
+						drawGogpuUnderline(dc, lx+float64(sx*r.cellW), ly, float64(rw*r.cellW), float64(r.cellH), fg)
+					}
 					sx += rw
 					continue
 				}
 
-				if !r.noBatch && gogpuBatchRune(currCell.Char) {
+				if !underlined && !r.noBatch && gogpuBatchRune(currCell.Char) {
 					tTxt := gogpuProfNow()
 					run, consumed, f, batched := r.gogpuTextRun(r.renderBuf, rowOff, x, sx, spanW, drawCols, curFace, r.textRunBuf[:0])
 					r.textRunBuf = run
@@ -788,6 +795,9 @@ func (r *GogpuRenderer) drawFrame(dc *gg.Context, w, h int) gogpuFrameStats {
 					prof.textTime += gogpuProfSince(tTxt)
 					prof.strings++
 					prof.glyphs += gogpuRuneCount(str)
+				}
+				if underlined {
+					drawGogpuUnderline(dc, lx+float64(sx*r.cellW), ly, float64(rw*r.cellW), float64(r.cellH), fg)
 				}
 				sx += rw
 			}
@@ -828,6 +838,15 @@ func (r *GogpuRenderer) drawFrame(dc *gg.Context, w, h int) gogpuFrameStats {
 		dc.Fill()
 	}
 	return prof
+}
+
+func drawGogpuUnderline(dc *gg.Context, x, y, width, height float64, fg color.RGBA) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+	dc.SetColor(fg)
+	dc.DrawRectangle(x, y+height-1, width, 1)
+	dc.Fill()
 }
 
 func (r *GogpuRenderer) DrawToScreen(ctx *gogpu.Context) {

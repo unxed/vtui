@@ -240,6 +240,9 @@ func (r *WaylandRenderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw b
 						r.drawCachedGlyph(img, currCell.Char, cpx, py, rw, cfg, cbg, fgColor, bgColor)
 					}
 				}
+				if currCell.Attributes&CommonLvbUnderscore != 0 {
+					drawUnderline(img, cpx, py, cw*rw, ch, int(math.Ceil(r.host.scale)), cfg)
+				}
 
 				if cursorVisible && y == r.cursorY && r.cursorX >= currX && r.cursorX < currX+rw {
 					var startY int
