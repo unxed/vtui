@@ -50,7 +50,11 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 	if !b.IsVisible() {
 		return
 	}
-	n, h := b.GetStateAttrs(ColDialogButton, ColDialogSelectedButton, ColDialogHighlightButton, ColDialogHighlightSelectedButton)
+	normalIdx := ColDialogButton
+	if b.IsDefault {
+		normalIdx = ColDialogHighlightButton
+	}
+	n, h := b.GetStateAttrs(normalIdx, ColDialogSelectedButton, ColDialogHighlightButton, ColDialogHighlightSelectedButton)
 	if b.mousePressed {
 		n, h = b.GetStateAttrs(ColDialogSelectedButton, ColDialogSelectedButton, ColDialogHighlightSelectedButton, ColDialogHighlightSelectedButton)
 	}
