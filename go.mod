@@ -3,9 +3,9 @@ module github.com/unxed/vtui
 go 1.26.0
 
 require (
-	github.com/gogpu/gg v0.52.2
-	github.com/gogpu/gogpu v0.52.1
-	github.com/gogpu/gpucontext v0.27.0
+	github.com/gogpu/gg v0.52.3
+	github.com/gogpu/gogpu v0.53.0
+	github.com/gogpu/gpucontext v0.28.0
 	github.com/hajimehoshi/ebiten/v2 v2.10.0-alpha.13.0.20260811162617-464c2ddfc34c
 	github.com/jezek/xgb v1.3.1
 	github.com/mattn/go-runewidth v0.0.15
@@ -31,7 +31,7 @@ require (
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
 	github.com/gogpu/gputypes v0.5.2 // indirect
 	github.com/gogpu/naga v0.18.0 // indirect
-	github.com/gogpu/wgpu v0.31.2 // indirect
+	github.com/gogpu/wgpu v0.31.4 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/neurlang/winc v0.1.2 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
