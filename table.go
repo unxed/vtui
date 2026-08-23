@@ -418,7 +418,7 @@ func (t *Table) applySearchFilter() {
 	if t.SearchExactOnHit {
 		hasExact := false
 		for _, m := range t.matchBuf {
-			if m.score == 0 {
+			if t.rowHasExactSearchHit(m.idx, string(t.searchRunes)) {
 				hasExact = true
 				break
 			}
@@ -426,7 +426,7 @@ func (t *Table) applySearchFilter() {
 		if hasExact {
 			write := 0
 			for _, m := range t.matchBuf {
-				if m.score == 0 {
+				if t.rowHasExactSearchHit(m.idx, string(t.searchRunes)) {
 					t.matchBuf[write] = m
 					write++
 				}
@@ -452,6 +452,26 @@ func (t *Table) applySearchFilter() {
 	for i, m := range t.matchBuf {
 		t.order[i] = m.idx
 	}
+}
+
+func (t *Table) rowHasExactSearchHit(row int, query string) bool {
+	for col := range t.Columns {
+		cellText := ""
+		if t.cellProvider != nil {
+			cellText = t.cellProvider.GetCellText(row, col)
+		} else if t.rowProvider != nil {
+			cells := t.rowProvider.Row(row)
+			if col < len(cells) {
+				cellText = cells[col]
+			}
+		} else if row >= 0 && row < len(t.Rows) {
+			cellText = t.Rows[row].GetCellText(col)
+		}
+		if strings.EqualFold(cellText, query) {
+			return true
+		}
+	}
+	return false
 }
 
 // SearchText returns the current QuickSearch string.

@@ -898,6 +898,7 @@ func TestTable_QuickSearchExactOnHit(t *testing.T) {
 	tbl.SetRows([]TableRow{
 		mockRow{"CtrlUp", ""},
 		mockRow{"CtrlA", ""},
+		mockRow{"CtrlAltA", ""},
 		mockRow{"CtrlPgUp", ""},
 	})
 
