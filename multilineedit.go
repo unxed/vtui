@@ -17,7 +17,6 @@ import (
 // active row and vertically over the whole buffer.
 //
 // Not in scope for the initial cut:
-//   - selection (Shift+arrows)
 //   - overtype / undo / redo
 //   - word wrap (long lines scroll horizontally on the current row only)
 //
@@ -423,10 +422,15 @@ func (m *MultiLineEdit) ProcessKey(event *vtinput.InputEvent) bool {
 
 	switch event.VirtualKeyCode {
 	case vtinput.VK_LEFT:
-		if ctrl || alt {
+		if alt {
 			return false
 		}
 		m.handleNav(shift)
+		if ctrl {
+			m.wordLeft(shift)
+			m.ensureVisible()
+			return true
+		}
 		visualPos := m.currentVisualPos()
 		if DefaultBidiMode == BidiFull && HasRTL(string(m.lines[m.curRow])) && visualPos > 0 {
 			m.curCol = m.visualPosToLogical(visualPos - 1)
@@ -439,10 +443,15 @@ func (m *MultiLineEdit) ProcessKey(event *vtinput.InputEvent) bool {
 		m.ensureVisible()
 		return true
 	case vtinput.VK_RIGHT:
-		if ctrl || alt {
+		if alt {
 			return false
 		}
 		m.handleNav(shift)
+		if ctrl {
+			m.wordRight(shift)
+			m.ensureVisible()
+			return true
+		}
 		line := m.lines[m.curRow]
 		clusters := visualClusters(line)
 		visualPos := m.currentVisualPos()
@@ -770,6 +779,52 @@ func (m *MultiLineEdit) SetCursorPos(row, col int) {
 
 // LineCount returns the number of rows in the buffer.
 func (m *MultiLineEdit) LineCount() int { return len(m.lines) }
+// wordLeft moves the cursor to the start of the word to its left, wrapping to
+// the end of the row above when there is nothing left on this one.
+//
+// The stop rules are the ones Edit uses -- and far2l's edit.cpp before it --
+// so Ctrl+Left means the same thing in a one line field and in this one, and
+// Ctrl+Shift+Left selects the same run of text either way.
+func (m *MultiLineEdit) wordLeft(selecting bool) {
+	if m.curCol == 0 {
+		if m.curRow == 0 {
+			return
+		}
+		m.curRow--
+		m.curCol = len(m.lines[m.curRow])
+		return
+	}
+	line := m.lines[m.curRow]
+	m.curCol = previousClusterBoundary(line, m.curCol)
+	for m.curCol > 0 {
+		if stopBeforeRuneLeft(line[m.curCol-1], line[m.curCol], selecting) {
+			break
+		}
+		m.curCol = previousClusterBoundary(line, m.curCol)
+	}
+}
+
+// wordRight is the rightward counterpart of wordLeft, wrapping to the start of
+// the row below at the end of a line.
+func (m *MultiLineEdit) wordRight(selecting bool) {
+	line := m.lines[m.curRow]
+	if m.curCol >= len(line) {
+		if m.curRow+1 >= len(m.lines) {
+			return
+		}
+		m.curRow++
+		m.curCol = 0
+		return
+	}
+	m.curCol = nextClusterBoundary(line, m.curCol)
+	for m.curCol < len(line) {
+		if stopBeforeRuneRight(line[m.curCol-1], line[m.curCol], selecting) {
+			break
+		}
+		m.curCol = nextClusterBoundary(line, m.curCol)
+	}
+}
+
 func (m *MultiLineEdit) handleNav(shift bool) {
 	if shift {
 		if !m.selActive {

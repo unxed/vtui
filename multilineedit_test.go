@@ -271,3 +271,52 @@ func TestMultiLineEdit_BidiFullUsesVisualCaretOrder(t *testing.T) {
 		t.Fatalf("visual left did not return to the original caret: col=%d, want 4", col)
 	}
 }
+
+// TestMultiLineEdit_CtrlArrowsMoveByWord covers the keys a one line Edit has
+// always had. MultiLineEdit returned false for Ctrl+Left and Ctrl+Right, so
+// the cursor stayed put and the key escaped the field entirely -- in f4 that
+// means the panel split moves while the user is editing an SQL statement.
+func TestMultiLineEdit_CtrlArrowsMoveByWord(t *testing.T) {
+	const ctrl = vtinput.LeftCtrlPressed
+
+	m := NewMultiLineEdit(0, 0, 40, 5, "select id from t\nwhere id = 1")
+	m.SetCursorPos(0, 0)
+
+	m.ProcessKey(mleKey(vtinput.VK_RIGHT, 0, ctrl))
+	if row, col := m.CursorPos(); row != 0 || col != 7 {
+		t.Fatalf("Ctrl+Right → (%d,%d), want (0,7)", row, col)
+	}
+	m.ProcessKey(mleKey(vtinput.VK_LEFT, 0, ctrl))
+	if row, col := m.CursorPos(); row != 0 || col != 0 {
+		t.Fatalf("Ctrl+Left → (%d,%d), want (0,0)", row, col)
+	}
+
+	// At the end of a row the cursor continues onto the next one, the way the
+	// plain arrows already do.
+	m.SetCursorPos(0, 16)
+	m.ProcessKey(mleKey(vtinput.VK_RIGHT, 0, ctrl))
+	if row, col := m.CursorPos(); row != 1 || col != 0 {
+		t.Fatalf("Ctrl+Right at end of row → (%d,%d), want (1,0)", row, col)
+	}
+	m.ProcessKey(mleKey(vtinput.VK_LEFT, 0, ctrl))
+	if row, col := m.CursorPos(); row != 0 || col != 16 {
+		t.Fatalf("Ctrl+Left at start of row → (%d,%d), want (0,16)", row, col)
+	}
+}
+
+func TestMultiLineEdit_CtrlShiftArrowsSelectByWord(t *testing.T) {
+	const ctrlShift = vtinput.LeftCtrlPressed | vtinput.ShiftPressed
+
+	m := NewMultiLineEdit(0, 0, 40, 5, "select id from t")
+	m.SetCursorPos(0, 0)
+	m.ProcessKey(mleKey(vtinput.VK_RIGHT, 0, ctrlShift))
+	if got := m.CopySelection(); got != "select " {
+		t.Fatalf("Ctrl+Shift+Right selected %q, want %q", got, "select ")
+	}
+
+	m.SetCursorPos(0, 16)
+	m.ProcessKey(mleKey(vtinput.VK_LEFT, 0, ctrlShift))
+	if got := m.CopySelection(); got != "t" {
+		t.Fatalf("Ctrl+Shift+Left selected %q, want %q", got, "t")
+	}
+}
