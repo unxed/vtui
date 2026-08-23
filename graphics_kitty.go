@@ -279,7 +279,7 @@ func (r *AnsiRenderer) RenderGraphics(layer *GraphicsLayer, buf, shadow []CharIn
 		if ext := layer.External(); ext != nil {
 			cw, ch := layer.CellSize()
 			r.gfxList, _ = layer.Snapshot(r.gfxList)
-			ext.RenderExternal(r.gfxList, cw, ch)
+			ext.RenderExternal(r.gfxList, cw, ch, w, h)
 		}
 	case GraphicsFar2l:
 		if r.gfxFar2l == nil {

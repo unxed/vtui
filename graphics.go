@@ -438,8 +438,15 @@ func (g *GraphicsLayer) SetProtocol(p GraphicsProtocol) {
 // list — which is what makes it different from a caller drawing pictures on
 // its own: quick view, the file viewer and the built-in terminal all declare
 // their images the same way they already do, and none of them has to know.
+//
+// **It is called with the screen locked.** An implementation must not call
+// back into the ScreenBuf — not Width, not Height, not Graphics — because the
+// mutex is not reentrant and the first frame carrying a picture deadlocks the
+// whole application. That is why the size of a cell and the size of the grid
+// are handed over rather than left to be asked for: everything the renderer
+// needs to place a picture is in the arguments.
 type ExternalGraphics interface {
-	RenderExternal(list []ImagePlacement, cellW, cellH int)
+	RenderExternal(list []ImagePlacement, cellW, cellH, cols, rows int)
 }
 
 // SetExternalGraphics installs the renderer and switches the layer to it.

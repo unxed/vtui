@@ -1,6 +1,10 @@
 package vtui
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+	"time"
+)
 
 // fakeExternal stands in for the X overlay: it records what it was asked to
 // draw and how large a cell was said to be.
@@ -9,12 +13,37 @@ type fakeExternal struct {
 	last  []ImagePlacement
 	cellW int
 	cellH int
+	cols  int
+	rows  int
+
+	// screen is set when the renderer is given one, so that the test can
+	// prove it is never able to reach back into it.
+	screen    *ScreenBuf
+	reentered bool
 }
 
-func (f *fakeExternal) RenderExternal(list []ImagePlacement, cw, ch int) {
+func (f *fakeExternal) RenderExternal(list []ImagePlacement, cw, ch, cols, rows int) {
 	f.calls++
 	f.last = append(f.last[:0], list...)
 	f.cellW, f.cellH = cw, ch
+	f.cols, f.rows = cols, rows
+
+	// Prove the hazard rather than assert it in a comment: ask the screen
+	// something from another goroutine and see whether it can answer. It
+	// cannot, because this runs with the screen's mutex held, and a
+	// renderer that asked from *this* goroutine would deadlock instead.
+	if f.screen != nil {
+		answered := make(chan struct{})
+		go func() {
+			_ = f.screen.Width()
+			close(answered)
+		}()
+		select {
+		case <-answered:
+			f.reentered = true
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 // Installing an external renderer must make the layer supported, so that
@@ -68,6 +97,49 @@ func TestExternalGraphicsReceivesTheWholeFrame(t *testing.T) {
 	}
 	if ext.cellW != 16 || ext.cellH != 34 {
 		t.Errorf("cell: got %dx%d, want 16x34", ext.cellW, ext.cellH)
+	}
+	// The grid comes with it, because the renderer runs with the screen
+	// locked and must never ask the screen anything.
+	if ext.cols != 80 || ext.rows != 25 {
+		t.Errorf("grid: got %dx%d, want 80x25", ext.cols, ext.rows)
+	}
+}
+
+// The renderer runs inside the render pass, with the screen's own mutex held.
+// A renderer that calls back into the ScreenBuf deadlocks the application on
+// the first frame that carries a picture, which is exactly what happened. This
+// drives a real Flush and fails by hanging rather than by returning a wrong
+// answer, so the deadline is the assertion.
+func TestExternalGraphicsRunsWithTheScreenLocked(t *testing.T) {
+	scr := NewScreenBuf()
+	var out bytes.Buffer
+	scr.Writer = &out
+	scr.AllocBuf(80, 25)
+	g := scr.Graphics()
+	ext := &fakeExternal{screen: scr}
+	g.SetExternalGraphics(ext)
+
+	surf := NewImageSurface(4, 4)
+	g.BeginFrame()
+	g.DrawImage("a", ImagePlacement{Surface: surf, Col: 1, Row: 1, Cols: 2, Rows: 2})
+	g.EndFrame()
+
+	done := make(chan struct{})
+	go func() {
+		scr.Flush()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Flush did not return: the render pass is deadlocked")
+	}
+	if ext.calls == 0 {
+		t.Error("the renderer must be called from the render pass")
+	}
+	if ext.reentered {
+		t.Error("the screen answered while the render pass held it; " +
+			"if that is now true the contract has changed and this test is the wrong one")
 	}
 }
 
