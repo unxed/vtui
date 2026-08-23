@@ -643,6 +643,36 @@ func TestEdit_WordSelection_FarSpec(t *testing.T) {
 	}
 }
 
+func TestEdit_WordSelection_BidiFullKeepsCtrlWordNavigation(t *testing.T) {
+	oldMode := DefaultBidiMode
+	DefaultBidiMode = BidiFull
+	defer func() { DefaultBidiMode = oldMode }()
+
+	left := NewEdit(0, 0, 100, "select this word")
+	left.ClearSelection()
+	left.curPos = len(left.text)
+	left.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true,
+		VirtualKeyCode:  vtinput.VK_LEFT,
+		ControlKeyState: vtinput.LeftCtrlPressed | vtinput.ShiftPressed,
+	})
+	if left.selStart != 12 || left.selEnd != 16 {
+		t.Fatalf("BidiFull Ctrl+Shift+Left selected [%d:%d], want [12:16]", left.selStart, left.selEnd)
+	}
+
+	right := NewEdit(0, 0, 100, "select this word")
+	right.ClearSelection()
+	right.curPos = 0
+	right.ProcessKey(&vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: true,
+		VirtualKeyCode:  vtinput.VK_RIGHT,
+		ControlKeyState: vtinput.LeftCtrlPressed | vtinput.ShiftPressed,
+	})
+	if right.selStart != 0 || right.selEnd != 7 {
+		t.Fatalf("BidiFull Ctrl+Shift+Right selected [%d:%d], want [0:7]", right.selStart, right.selEnd)
+	}
+}
+
 func TestEdit_WordSelection_FromFullValuePreservesWholeWord(t *testing.T) {
 	SetDefaultPalette()
 
