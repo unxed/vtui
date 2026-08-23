@@ -779,6 +779,7 @@ func (m *MultiLineEdit) SetCursorPos(row, col int) {
 
 // LineCount returns the number of rows in the buffer.
 func (m *MultiLineEdit) LineCount() int { return len(m.lines) }
+
 // wordLeft moves the cursor to the start of the word to its left, wrapping to
 // the end of the row above when there is nothing left on this one.
 //
