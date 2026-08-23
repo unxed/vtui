@@ -543,6 +543,107 @@ func ForEachClusterAt(s string, fn func(cluster string, width, offset, runeIndex
 	forEachClusterUniseg(s, fn)
 }
 
+// forEachTerminalCluster walks the clusters that the terminal treats as one
+// cell-level editing and rendering unit. Unicode grapheme tables used by
+// older terminal stacks can split an Indic virama from the following
+// consonant, even though the shaping engine renders the pair as one glyph.
+// Keep that virama-consonant join in the same path used by editors, bidi, and
+// screen rendering so a caret can never land in the middle of a shaped unit.
+func forEachTerminalCluster(s string, fn func(cluster string, width, offset, runeIndex int)) {
+	var previous string
+	previousOffset, previousRuneIndex := 0, 0
+	havePrevious := false
+	emit := func() {
+		if !havePrevious {
+			return
+		}
+		cluster, width := SanitizeCluster(previous)
+		if width > 0 {
+			fn(cluster, ClusterWidth(cluster), previousOffset, previousRuneIndex)
+		}
+	}
+
+	runeIndex := 0
+	g := uniseg.NewGraphemes(s)
+	for g.Next() {
+		from, to := g.Positions()
+		current := s[from:to]
+		if havePrevious && endsInIndicVirama(previous) && startsWithLetter(current) {
+			previous += current
+		} else {
+			emit()
+			previous = current
+			previousOffset, previousRuneIndex = from, runeIndex
+			havePrevious = true
+		}
+		runeIndex += utf8.RuneCountInString(current)
+	}
+	emit()
+}
+
+func forEachTerminalClusterRaw(s string, fn func(cluster string, offset, runeIndex int)) {
+	var previous string
+	previousOffset, previousRuneIndex := 0, 0
+	havePrevious := false
+	emit := func() {
+		if havePrevious {
+			fn(previous, previousOffset, previousRuneIndex)
+		}
+	}
+
+	runeIndex := 0
+	g := uniseg.NewGraphemes(s)
+	for g.Next() {
+		from, to := g.Positions()
+		current := s[from:to]
+		if havePrevious && endsInIndicVirama(previous) && startsWithLetter(current) {
+			previous += current
+		} else {
+			emit()
+			previous, previousOffset, previousRuneIndex = current, from, runeIndex
+			havePrevious = true
+		}
+		runeIndex += utf8.RuneCountInString(current)
+	}
+	emit()
+}
+
+func startsWithLetter(s string) bool {
+	r, _ := utf8.DecodeRuneInString(s)
+	return unicode.IsLetter(r)
+}
+
+func endsInIndicVirama(s string) bool {
+	r, _ := utf8.DecodeLastRuneInString(s)
+	switch r {
+	case
+		'\u094D',                     // Devanagari
+		'\u09CD',                     // Bengali
+		'\u0A4D',                     // Gurmukhi
+		'\u0ACD',                     // Gujarati
+		'\u0B4D',                     // Oriya
+		'\u0BCD',                     // Tamil
+		'\u0C4D',                     // Telugu
+		'\u0CCD',                     // Kannada
+		'\u0D3B', '\u0D3C', '\u0D4D', // Malayalam
+		'\u0DCA', // Sinhala
+		'\u1039', // Myanmar
+		'\u1714', // Tagalog
+		'\u17D2', // Khmer
+		'\u1A60', // Tai Tham
+		'\u1BAA', // Sundanese
+		'\uA806', // Syloti Nagri
+		'\uA8C4', // Saurashtra
+		'\uA953', // Rejang
+		'\uA9C0', // Javanese
+		'\uAAF6', // Meetei Mayek
+		'\uABED': // Meetei Mayek
+		return true
+	default:
+		return false
+	}
+}
+
 // AppendCluster puts a cluster into a cell slice, following it with as many
 // fillers as the extra columns it claims.
 func AppendCluster(target []CharInfo, cluster string, width int, attr uint64) []CharInfo {

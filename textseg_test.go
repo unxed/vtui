@@ -216,6 +216,48 @@ func TestStringToCharInfo_Devanagari(t *testing.T) {
 	}
 }
 
+func TestTerminalClustersKeepIndicConjunctsAtomic(t *testing.T) {
+	var got []string
+	var widths []int
+	forEachTerminalCluster("संस्कृतम्", func(cluster string, width, _, _ int) {
+		got = append(got, cluster)
+		widths = append(widths, width)
+	})
+	want := []string{"सं", "स्कृ", "त", "म्"}
+	if len(got) != len(want) {
+		t.Fatalf("terminal clusters = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] || widths[i] != 1 {
+			t.Errorf("cluster %d = %q width %d, want %q width 1", i, got[i], widths[i], want[i])
+		}
+	}
+}
+
+func TestBidiMapsUseTerminalClusterBoundaries(t *testing.T) {
+	oldMode := DefaultBidiMode
+	DefaultBidiMode = BidiFull
+	t.Cleanup(func() { DefaultBidiMode = oldMode })
+
+	text := "संस्कृतम् ދިވެހިބަސް"
+	_, runeMap := VisualStringWithRuneMap(text)
+	var clusters int
+	forEachTerminalCluster(text, func(string, int, int, int) { clusters++ })
+	if len(runeMap) != clusters {
+		t.Fatalf("bidi rune map has %d entries for %d terminal clusters", len(runeMap), clusters)
+	}
+	seen := make(map[int]bool, len(runeMap))
+	for _, runeIndex := range runeMap {
+		if seen[runeIndex] {
+			t.Fatalf("bidi rune map repeats logical cluster at rune %d: %v", runeIndex, runeMap)
+		}
+		seen[runeIndex] = true
+	}
+	if len(seen) != clusters {
+		t.Fatalf("bidi rune map covers %d clusters, want %d", len(seen), clusters)
+	}
+}
+
 func TestStringToCharInfo_BengaliShaping(t *testing.T) {
 	ci := StringToCharInfo("বাংলা", 0)
 	if len(ci) != 2 {

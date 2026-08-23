@@ -4,7 +4,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/rivo/uniseg"
 	"golang.org/x/text/unicode/bidi"
 )
 
@@ -66,17 +65,9 @@ func VisualStringWithMap(s string) (string, []int) {
 	}
 
 	var logicalClusters []logicalCluster
-	runeIdx := 0
-	g := uniseg.NewGraphemes(s)
-	for g.Next() {
-		from, to := g.Positions()
-		logicalClusters = append(logicalClusters, logicalCluster{
-			text:    s[from:to],
-			byteOff: from,
-			runeIdx: runeIdx,
-		})
-		runeIdx += utf8.RuneCountInString(s[from:to])
-	}
+	forEachTerminalClusterRaw(s, func(text string, byteOff, runeIdx int) {
+		logicalClusters = append(logicalClusters, logicalCluster{text: text, byteOff: byteOff, runeIdx: runeIdx})
+	})
 
 	p := bidi.Paragraph{}
 	_, err := p.SetString(s)
@@ -129,11 +120,9 @@ func VisualStringWithMap(s string) (string, []int) {
 
 func trivialMap(s string) []int {
 	var offsets []int
-	g := uniseg.NewGraphemes(s)
-	for g.Next() {
-		from, _ := g.Positions()
-		offsets = append(offsets, from)
-	}
+	forEachTerminalClusterRaw(s, func(_ string, offset, _ int) {
+		offsets = append(offsets, offset)
+	})
 	return offsets
 }
 
@@ -150,16 +139,9 @@ func VisualStringWithRuneMap(s string) (string, []int) {
 	}
 
 	var logicalClusters []logicalCluster
-	runeIdx := 0
-	g := uniseg.NewGraphemes(s)
-	for g.Next() {
-		from, to := g.Positions()
-		logicalClusters = append(logicalClusters, logicalCluster{
-			text:    s[from:to],
-			runeIdx: runeIdx,
-		})
-		runeIdx += utf8.RuneCountInString(s[from:to])
-	}
+	forEachTerminalClusterRaw(s, func(text string, _, runeIdx int) {
+		logicalClusters = append(logicalClusters, logicalCluster{text: text, runeIdx: runeIdx})
+	})
 
 	p := bidi.Paragraph{}
 	_, err := p.SetString(s)
@@ -212,13 +194,9 @@ func VisualStringWithRuneMap(s string) (string, []int) {
 
 func trivialRuneMap(s string) []int {
 	var indices []int
-	runeIdx := 0
-	g := uniseg.NewGraphemes(s)
-	for g.Next() {
-		from, to := g.Positions()
+	forEachTerminalClusterRaw(s, func(_ string, _, runeIdx int) {
 		indices = append(indices, runeIdx)
-		runeIdx += utf8.RuneCountInString(s[from:to])
-	}
+	})
 	return indices
 }
 
@@ -234,17 +212,10 @@ type bidiClusterInfo struct {
 
 func BuildCaretMap(s string) CaretMap {
 	var logicalClusters []bidiClusterInfo
-	runeIdx := 0
-	g := uniseg.NewGraphemes(s)
-	for g.Next() {
-		from, to := g.Positions()
-		logicalClusters = append(logicalClusters, bidiClusterInfo{
-			logicalIdx: len(logicalClusters),
-			runeIdx:    runeIdx,
-		})
-		runeIdx += utf8.RuneCountInString(s[from:to])
-	}
-	totalRunes := runeIdx
+	forEachTerminalClusterRaw(s, func(_ string, _, runeIdx int) {
+		logicalClusters = append(logicalClusters, bidiClusterInfo{logicalIdx: len(logicalClusters), runeIdx: runeIdx})
+	})
+	totalRunes := utf8.RuneCountInString(s)
 	N := len(logicalClusters)
 
 	p := bidi.Paragraph{}
