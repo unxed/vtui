@@ -43,8 +43,8 @@ github.com/unxed/keytrans v0.1.32 h1:4Exy7S4q/4eGgiO1xmTeVbxLp+SdljSmctI6HjDUHaI
 github.com/unxed/keytrans v0.1.32/go.mod h1:rBB4IN6grB7BjyRuNmy8Kxlsu1P6Nf4pchLHvPmFpGg=
 github.com/unxed/kiwi-go v0.1.0 h1:JTZb5mZSrzevswnL3OxCgN8oODkbPLHX7LXxJnpJ9YU=
 github.com/unxed/kiwi-go v0.1.0/go.mod h1:9nseXE0X7yf8SPvY4N2KOD2FiPwa+uNBDztt1kqf0aY=
-github.com/unxed/pureffi v0.1.14 h1:KLtaNZyGH+P5Yz7gZvViJO9q6P841jRozEP6koeFBDo=
-github.com/unxed/pureffi v0.1.14/go.mod h1:Sg4B3+YXV0NlFXErgzveE+ct0IwXoNKDseJV5Bl09+0=
+github.com/unxed/pureffi v0.1.15 h1:6lvSxIbqtN3ikD2gbo4VFV4sRSxx4fi477N27M09bxk=
+github.com/unxed/pureffi v0.1.15/go.mod h1:Sg4B3+YXV0NlFXErgzveE+ct0IwXoNKDseJV5Bl09+0=
 github.com/unxed/vtinput v0.1.4 h1:yiYD83SwunjdoKTi6IllVAvKSE+av46DKSHyVhuezHQ=
 github.com/unxed/vtinput v0.1.4/go.mod h1:ZOqbBmEzYb33FrwsJf0y1QSJLo378ciXEgZWD4cTqGU=
 github.com/unxed/winkeys v0.1.1 h1:CeRhzQLrZtO2aVq8C8gPX1ySdbbvPombbUZ15cRjFTI=
