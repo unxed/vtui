@@ -1,4 +1,4 @@
-name: macOS tests
+name: Tests
 
 on:
   push:
@@ -6,7 +6,23 @@ on:
 
 jobs:
   test:
-    runs-on: macos-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    env:
+      # vtui is a cgo-free project: every backend reaches libc, X11, Wayland
+      # and the GPU through goffi rather than through a C toolchain. Pinning
+      # this keeps all three runners on the same configuration instead of
+      # letting each one decide by whether it happens to ship a compiler --
+      # and it is what keeps bindings/c/cabi, the one cgo package in the
+      # tree, out of a build that is not asking for the C bindings.
+      CGO_ENABLED: 0
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,13 +39,18 @@ jobs:
       # bug this guards against — a constant that does not fit a 32-bit int —
       # is a compile error rather than a test failure, so only a build of such
       # a target catches it. f4 ships linux/arm, mips and mipsle.
+      #
+      # Cross-compilation, so one runner is enough.
       - name: Build for a 32-bit target
+        if: matrix.os == 'ubuntu-latest'
         run: GOOS=linux GOARCH=arm go build ./...
 
       - name: Vet
         run: go vet ./...
 
+      # Lint reads the same sources on every runner, so it runs on one.
       - name: Incremental golangci-lint
+        if: matrix.os == 'ubuntu-latest'
         uses: golangci/golangci-lint-action@v9.3.0
         with:
           version: v2.13.1
@@ -42,8 +63,9 @@ jobs:
       # The two skipped tests drive fm.Run with a reader on os.Stdin and rely
       # on Run returning when stdin hits EOF. That holds on Windows, but on
       # the macOS runner the event channel never closes and the whole suite
-      # hangs until the go test timeout. Unskip once fm.Run's exit no longer
-      # depends on platform stdin semantics.
+      # hangs until the go test timeout. They stay skipped everywhere for now
+      # so the skip set does not vary by platform; unskip once fm.Run's exit
+      # no longer depends on platform stdin semantics.
       - name: Test
         run: >
           go test -count=1 -timeout 4m
