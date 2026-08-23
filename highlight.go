@@ -3,7 +3,6 @@ package vtui
 import (
 	"unicode/utf8"
 
-	"github.com/rivo/uniseg"
 	"golang.org/x/text/unicode/bidi"
 )
 
@@ -33,15 +32,12 @@ func StringToCharInfoWithAttrs(s string, attrs []uint64, baseAttr uint64) []Char
 	type logicalCluster struct {
 		text    string
 		runeIdx int
+		width   int
 		attr    uint64
 	}
 
 	var logicalClusters []logicalCluster
-	runeIdx := 0
-	g := uniseg.NewGraphemes(s)
-	for g.Next() {
-		from, to := g.Positions()
-		clText := s[from:to]
+	forEachTerminalCluster(s, func(clText string, width, _, runeIdx int) {
 		attr := baseAttr
 		if runeIdx >= 0 && runeIdx < len(attrs) {
 			attr = attrs[runeIdx]
@@ -49,17 +45,17 @@ func StringToCharInfoWithAttrs(s string, attrs []uint64, baseAttr uint64) []Char
 		logicalClusters = append(logicalClusters, logicalCluster{
 			text:    clText,
 			runeIdx: runeIdx,
+			width:   width,
 			attr:    attr,
 		})
-		runeIdx += utf8.RuneCountInString(clText)
-	}
+	})
 
 	p := bidi.Paragraph{}
 	_, err := p.SetString(s)
 	if err != nil {
 		res := make([]CharInfo, 0, len(s))
 		for _, c := range logicalClusters {
-			res = AppendCluster(res, c.text, ClusterWidth(c.text), c.attr)
+			res = AppendCluster(res, c.text, c.width, c.attr)
 		}
 		return res
 	}
@@ -67,7 +63,7 @@ func StringToCharInfoWithAttrs(s string, attrs []uint64, baseAttr uint64) []Char
 	if err != nil {
 		res := make([]CharInfo, 0, len(s))
 		for _, c := range logicalClusters {
-			res = AppendCluster(res, c.text, ClusterWidth(c.text), c.attr)
+			res = AppendCluster(res, c.text, c.width, c.attr)
 		}
 		return res
 	}
@@ -98,7 +94,7 @@ func StringToCharInfoWithAttrs(s string, attrs []uint64, baseAttr uint64) []Char
 		}
 
 		for _, c := range runClusters {
-			res = AppendCluster(res, c.text, ClusterWidth(c.text), c.attr)
+			res = AppendCluster(res, c.text, c.width, c.attr)
 		}
 	}
 

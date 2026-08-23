@@ -163,7 +163,7 @@ type multiLineCluster struct {
 func logicalClusters(runes []rune) []multiLineCluster {
 	text := string(runes)
 	clusters := make([]multiLineCluster, 0, len(runes))
-	ForEachClusterAt(text, func(cluster string, width, _, runeIndex int) {
+	forEachTerminalCluster(text, func(cluster string, width, _, runeIndex int) {
 		clusters = append(clusters, multiLineCluster{
 			text:       cluster,
 			width:      width,
@@ -190,7 +190,7 @@ func visualClusters(runes []rune) []multiLineCluster {
 	visualText, logicalPositions := VisualStringWithRuneMap(string(runes))
 	visual := make([]multiLineCluster, 0, len(logical))
 	index := 0
-	ForEachClusterAt(visualText, func(cluster string, width, _, _ int) {
+	forEachTerminalCluster(visualText, func(cluster string, width, _, _ int) {
 		if index >= len(logicalPositions) {
 			return
 		}
@@ -814,7 +814,7 @@ func previousClusterBoundary(line []rune, pos int) int {
 		return 0
 	}
 	previous := 0
-	ForEachClusterAt(string(line), func(_ string, _, _ int, runeIndex int) {
+	forEachTerminalCluster(string(line), func(_ string, _, _ int, runeIndex int) {
 		if runeIndex < pos {
 			previous = runeIndex
 		}
@@ -825,7 +825,7 @@ func previousClusterBoundary(line []rune, pos int) int {
 func nextClusterBoundary(line []rune, pos int) int {
 	next := len(line)
 	found := false
-	ForEachClusterAt(string(line), func(_ string, _, _ int, runeIndex int) {
+	forEachTerminalCluster(string(line), func(_ string, _, _ int, runeIndex int) {
 		if !found && runeIndex > pos {
 			next = runeIndex
 			found = true

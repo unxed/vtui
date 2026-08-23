@@ -4,7 +4,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/rivo/uniseg"
 	"github.com/unxed/vtinput"
 	"golang.org/x/text/unicode/bidi"
 )
@@ -99,26 +98,21 @@ func (e *Edit) Show(scr *ScreenBuf) {
 		}
 		vis, _ := VisualStringWithRuneMap(string(e.text))
 		width := 0
-		g := uniseg.NewGraphemes(vis)
 		vIdx := 0
-		for g.Next() {
-			from, to := g.Positions()
+		forEachTerminalCluster(vis, func(_ string, w, _, _ int) {
 			if vIdx >= e.leftPos && vIdx < vPos {
-				width += ClusterWidth(vis[from:to])
+				width += w
 			}
 			vIdx++
-		}
+		})
 		for e.leftPos < vPos && width >= visibleWidth {
-			g2 := uniseg.NewGraphemes(vis)
 			vIdx2 := 0
-			for g2.Next() {
-				from, to := g2.Positions()
+			forEachTerminalCluster(vis, func(_ string, w, _, _ int) {
 				if vIdx2 == e.leftPos {
-					width -= ClusterWidth(vis[from:to])
-					break
+					width -= w
 				}
 				vIdx2++
-			}
+			})
 			e.leftPos++
 		}
 	} else {
@@ -159,19 +153,16 @@ func (e *Edit) Show(scr *ScreenBuf) {
 			cmap := e.caretMap()
 			vPos := cmap.LogicalToVisual[e.curPos]
 			vis, _ := VisualStringWithRuneMap(string(e.text))
-			g := uniseg.NewGraphemes(vis)
 			vIdx := 0
-			for g.Next() {
+			forEachTerminalCluster(vis, func(_ string, w, _, _ int) {
 				if vIdx >= vPos {
-					break
+					return
 				}
-				from, to := g.Positions()
-				w := ClusterWidth(vis[from:to])
 				if vIdx >= e.leftPos {
 					vOffset += w
 				}
 				vIdx++
-			}
+			})
 		} else {
 			headText := string(e.text[e.leftPos:e.curPos])
 			vOffset = StringWidth(headText)
@@ -227,16 +218,13 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 	type logicalCluster struct {
 		text    string
 		runeIdx int
+		width   int
 		attr    uint64
 	}
 
 	var logicalClusters []logicalCluster
-	runeIdx := 0
 	sText := string(e.text)
-	g := uniseg.NewGraphemes(sText)
-	for g.Next() {
-		from, to := g.Positions()
-		clText := sText[from:to]
+	forEachTerminalCluster(sText, func(clText string, width, _, runeIdx int) {
 
 		attr := defaultAttr
 		if e.selStart != -1 && runeIdx >= e.selStart && runeIdx < e.selEnd {
@@ -253,10 +241,10 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 		logicalClusters = append(logicalClusters, logicalCluster{
 			text:    clText,
 			runeIdx: runeIdx,
+			width:   width,
 			attr:    attr,
 		})
-		runeIdx += utf8.RuneCountInString(clText)
-	}
+	})
 
 	var visualClusters []logicalCluster
 	s := string(e.text)
@@ -305,7 +293,7 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 		if i < e.leftPos {
 			continue
 		}
-		w := ClusterWidth(c.text)
+		w := c.width
 		if currX+w > visibleWidth {
 			break
 		}
@@ -1250,23 +1238,20 @@ func (e *Edit) cursorPositionAtX(x int) int {
 	if DefaultBidiMode == BidiFull {
 		cmap := e.caretMap()
 		vis, _ := VisualStringWithRuneMap(string(e.text))
-		g := uniseg.NewGraphemes(vis)
 		vIdx := 0
-		for g.Next() {
+		forEachTerminalCluster(vis, func(_ string, w, _, _ int) {
 			if found || vIdx < e.leftPos {
 				vIdx++
-				continue
+				return
 			}
-			from, to := g.Positions()
-			w := ClusterWidth(vis[from:to])
 			if currX+w > column {
 				result = cmap.VisualToLogical[vIdx]
 				found = true
-				break
+				return
 			}
 			currX += w
 			vIdx++
-		}
+		})
 		if !found {
 			result = cmap.VisualToLogical[vIdx]
 		}

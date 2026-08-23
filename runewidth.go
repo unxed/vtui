@@ -1,7 +1,6 @@
 package vtui
 
 import (
-	"github.com/rivo/uniseg"
 	"golang.org/x/text/unicode/bidi"
 	"strings"
 	"unicode"
@@ -87,15 +86,12 @@ func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharI
 	type logicalCluster struct {
 		text    string
 		runeIdx int
+		width   int
 		attr    uint64
 	}
 
 	var logicalClusters []logicalCluster
-	runeIdx := 0
-	g := uniseg.NewGraphemes(clean)
-	for g.Next() {
-		from, to := g.Positions()
-		clText := clean[from:to]
+	forEachTerminalCluster(clean, func(clText string, width, _, runeIdx int) {
 		attr := normalAttr
 		if hkPos >= runeIdx && hkPos < runeIdx+utf8.RuneCountInString(clText) {
 			attr = highAttr
@@ -103,17 +99,17 @@ func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharI
 		logicalClusters = append(logicalClusters, logicalCluster{
 			text:    clText,
 			runeIdx: runeIdx,
+			width:   width,
 			attr:    attr,
 		})
-		runeIdx += utf8.RuneCountInString(clText)
-	}
+	})
 
 	p := bidi.Paragraph{}
 	_, err := p.SetString(clean)
 	if err != nil {
 		res := make([]CharInfo, 0, len(clean))
 		for _, c := range logicalClusters {
-			res = AppendCluster(res, c.text, ClusterWidth(c.text), c.attr)
+			res = AppendCluster(res, c.text, c.width, c.attr)
 		}
 		return res, hk
 	}
@@ -121,7 +117,7 @@ func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharI
 	if err != nil {
 		res := make([]CharInfo, 0, len(clean))
 		for _, c := range logicalClusters {
-			res = AppendCluster(res, c.text, ClusterWidth(c.text), c.attr)
+			res = AppendCluster(res, c.text, c.width, c.attr)
 		}
 		return res, hk
 	}
@@ -152,7 +148,7 @@ func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharI
 		}
 
 		for _, c := range runClusters {
-			res = AppendCluster(res, c.text, ClusterWidth(c.text), c.attr)
+			res = AppendCluster(res, c.text, c.width, c.attr)
 		}
 	}
 
