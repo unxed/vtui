@@ -17,7 +17,6 @@ func TestWin32DnD_DropEffectConversion(t *testing.T) {
 		{DropCopy, dropEffectCopy},
 		{DropMove, dropEffectMove},
 		{DropLink, dropEffectLink},
-		{DropCopy | DropMove, dropEffectCopy | dropEffectMove},
 	}
 
 	for _, tc := range cases {
@@ -29,6 +28,24 @@ func TestWin32DnD_DropEffectConversion(t *testing.T) {
 		if act != tc.action {
 			t.Errorf("dropEffectToDropAction(%d) = %v, want %v", tc.effect, act, tc.action)
 		}
+	}
+
+	// A mask naming more than one effect does not round-trip, by design. The
+	// two directions answer different questions: dropActionToDropEffect turns
+	// the set of actions a target permits into the mask that names them, while
+	// dropEffectToDropAction reads back the one effect a completed drop
+	// performed, which is what DoDragDrop leaves in pdwEffect. Inverting the
+	// mask direction is dropEffectToAllowedActions' job -- see the comment on
+	// it in win32_droptarget_windows.go.
+	const both = dropEffectCopy | dropEffectMove
+	if eff := dropActionToDropEffect(DropCopy | DropMove); eff != both {
+		t.Errorf("dropActionToDropEffect(copy|move) = %d, want %d", eff, both)
+	}
+	if act := dropEffectToAllowedActions(both); act != DropCopy|DropMove {
+		t.Errorf("dropEffectToAllowedActions(copy|move) = %v, want %v", act, DropCopy|DropMove)
+	}
+	if act := dropEffectToDropAction(both); act != DropCopy {
+		t.Errorf("dropEffectToDropAction(copy|move) = %v, want %v", act, DropCopy)
 	}
 }
 
