@@ -168,6 +168,12 @@ type sixelEncoder struct {
 	// banding on photos with a narrow gamut.
 	adaptive bool
 
+	// trueColor gives every band its own palette, which is how a format
+	// with 256 registers carries a photograph. The default; the two
+	// single-palette encoders remain for a decoder that resolves its
+	// registers at the end of the image rather than as it goes.
+	trueColor bool
+
 	// Scratch reused across encodes; render-thread only, so never locked.
 	idx      []byte
 	emitBits []byte
@@ -205,9 +211,11 @@ func newSixelEncoder() *sixelEncoder {
 // newSixelEncoderWith is newSixelEncoder with the environment injected so the
 // palette opt-in is testable without a terminal: VTUI_SIXEL_PALETTE=adaptive.
 func newSixelEncoderWith(env func(string) string) *sixelEncoder {
+	mode := strings.ToLower(strings.TrimSpace(env("VTUI_SIXEL_PALETTE")))
 	return &sixelEncoder{
-		cache:    make(map[uint64]sixelCacheEntry),
-		adaptive: strings.EqualFold(strings.TrimSpace(env("VTUI_SIXEL_PALETTE")), "adaptive"),
+		cache:     make(map[uint64]sixelCacheEntry),
+		adaptive:  mode == "adaptive",
+		trueColor: mode != "adaptive" && mode != "fixed",
 	}
 }
 
@@ -323,6 +331,10 @@ func (s *sixelEncoder) encode(surf *ImageSurface, sx, sy, sw, sh, dw, dh int) st
 	scaled := ScaleSurface(src, dw, dh)
 	if scaled == nil {
 		return ""
+	}
+
+	if s.trueColor {
+		return s.encodeTrueColor(scaled, dw, dh)
 	}
 
 	idx := s.reuseIdx(dw * dh)
