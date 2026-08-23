@@ -774,6 +774,11 @@ func (m *MultiLineEdit) CursorPos() (int, int) { return m.curRow, m.curCol }
 func (m *MultiLineEdit) SetCursorPos(row, col int) {
 	m.curRow = row
 	m.curCol = col
+	// A caret move that is not a Shift+navigation ends the selection. Keeping
+	// selActive here left the old anchor paired with the new caret, so the
+	// widget painted -- and CopySelection returned -- a run the user never
+	// selected. handleNav does the same on every unshifted arrow key.
+	m.selActive = false
 	m.ensureVisible()
 }
 
