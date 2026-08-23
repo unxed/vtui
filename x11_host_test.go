@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"image"
 	"io"
 	"testing"
 	"time"
@@ -88,6 +89,51 @@ func TestX11Host_DirtySpanLogic(t *testing.T) {
 	}
 	if maxY != 51 {
 		t.Errorf("Expected maxY 51, got %d", maxY)
+	}
+}
+
+func TestX11RendererKeepsPartialWindowMarginsCleared(t *testing.T) {
+	const (
+		windowWidth  = 13
+		windowHeight = 7
+		cellWidth    = 5
+		cellHeight   = 3
+	)
+
+	host := &X11Host{
+		width:  windowWidth,
+		height: windowHeight,
+		cellW:  cellWidth,
+		cellH:  cellHeight,
+		// Simulate the cell-aligned backing image from the previous configure.
+		imgBuf:     image.NewRGBA(image.Rect(0, 0, 2*cellWidth, 2*cellHeight)),
+		dirtyLines: make([]bool, windowHeight),
+	}
+	for i := range host.imgBuf.Pix {
+		host.imgBuf.Pix[i] = 0xcc
+	}
+
+	renderer := NewX11Renderer(host, nil)
+	buf := make([]CharInfo, 2*2)
+	renderer.Render(buf, make([]CharInfo, len(buf)), 2, 2, true)
+
+	if got := host.imgBuf.Bounds().Size(); got.X != windowWidth || got.Y != windowHeight {
+		t.Fatalf("backing image size = %v, want %dx%d", got, windowWidth, windowHeight)
+	}
+	if host.width != windowWidth || host.height != windowHeight {
+		t.Fatalf("host window size changed to %dx%d, want %dx%d", host.width, host.height, windowWidth, windowHeight)
+	}
+
+	for y := 0; y < windowHeight; y++ {
+		for x := 0; x < windowWidth; x++ {
+			if x < 2*cellWidth && y < 2*cellHeight {
+				continue
+			}
+			r, g, b, _ := host.imgBuf.At(x, y).RGBA()
+			if r != 0 || g != 0 || b != 0 {
+				t.Fatalf("stale pixel at (%d,%d) = #%02x%02x%02x", x, y, r>>8, g>>8, b>>8)
+			}
+		}
 	}
 }
 
