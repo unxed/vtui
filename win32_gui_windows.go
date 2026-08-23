@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/unxed/vtinput"
@@ -35,6 +36,7 @@ var (
 	procGetClientRect      = user32.NewProc("GetClientRect")
 	procGetWindowRect      = user32.NewProc("GetWindowRect")
 	procSetWindowPos       = user32.NewProc("SetWindowPos")
+	procSetWindowTextW     = user32.NewProc("SetWindowTextW")
 	procAdjustWindowRectEx = user32.NewProc("AdjustWindowRectEx")
 	procLoadCursorW        = user32.NewProc("LoadCursorW")
 	procSetCursor          = user32.NewProc("SetCursor")
@@ -131,6 +133,9 @@ type win32Point struct {
 
 type Win32GuiHost struct {
 	mu                                   sync.Mutex
+	mouseCoalesceMu                      sync.Mutex
+	lastMouseSent                        time.Time
+	pendingMouse                         *vtinput.InputEvent
 	hwnd                                 syscall.Handle
 	hCursor                              syscall.Handle
 	renderer                             *Win32GuiRenderer
@@ -214,7 +219,7 @@ func (h *Win32GuiHost) SetTitle(title string) {
 	if hwnd != 0 {
 		u16, err := syscall.UTF16PtrFromString(WindowTitleWithBackend(title))
 		if err == nil {
-			procSetConsoleTitleW.Call(uintptr(unsafe.Pointer(u16)))
+			procSetWindowTextW.Call(uintptr(hwnd), uintptr(unsafe.Pointer(u16)))
 		}
 	}
 }
@@ -330,6 +335,7 @@ func (h *Win32GuiHost) PostQuit() {
 }
 
 func (h *Win32GuiHost) sendEvent(ev *vtinput.InputEvent) {
+	h.flushPendingMouse()
 	h.mu.Lock()
 	closed := h.closed || h.reader == nil || h.reader.EventChan == nil
 	h.mu.Unlock()
@@ -346,6 +352,11 @@ func (h *Win32GuiHost) sendEvent(ev *vtinput.InputEvent) {
 	case <-h.closeChan:
 	default:
 		if ev.Type == vtinput.MouseEventType && (ev.MouseEventFlags&vtinput.MouseMoved) != 0 {
+			// Channel full: keep only the freshest move instead of
+			// dropping it, otherwise the drag lags behind the cursor.
+			h.mouseCoalesceMu.Lock()
+			h.pendingMouse = ev
+			h.mouseCoalesceMu.Unlock()
 			return
 		}
 		select {
@@ -353,6 +364,63 @@ func (h *Win32GuiHost) sendEvent(ev *vtinput.InputEvent) {
 		case <-h.closeChan:
 		default:
 		}
+	}
+}
+
+// win32MouseMinInterval caps how often a drag mouse-move is enqueued for
+// rendering. The freshest position is always retained in pendingMouse, so
+// capping the enqueue rate only bounds the (expensive) full-frame render
+// frequency -- keeping CPU sane during a drag without losing cursor tracking.
+const win32MouseMinInterval = 16 * time.Millisecond
+
+// postMouseMove coalesces drag mouse-move events through a single pending
+// slot so a backed-up event channel never loses the latest cursor position.
+func (h *Win32GuiHost) postMouseMove(ev *vtinput.InputEvent) {
+	h.mouseCoalesceMu.Lock()
+	h.pendingMouse = ev
+	since := time.Since(h.lastMouseSent)
+	h.mouseCoalesceMu.Unlock()
+	if since < win32MouseMinInterval {
+		// Keep the latest position but don't enqueue another render yet;
+		// the pending move is flushed when the interval elapses or on the
+		// next sendEvent (e.g. mouse-up), bounding render/CPU load.
+		return
+	}
+	h.flushPendingMouse()
+}
+
+// flushPendingMouse pushes any coalesced mouse-move into the event channel.
+// Safe to call from anywhere; a no-op when nothing is pending or when the
+// channel is still full (the move stays pending and is retried on the next
+// sendEvent).
+func (h *Win32GuiHost) flushPendingMouse() {
+	h.mouseCoalesceMu.Lock()
+	ev := h.pendingMouse
+	if ev != nil {
+		h.pendingMouse = nil
+	}
+	h.mouseCoalesceMu.Unlock()
+	if ev == nil {
+		return
+	}
+	h.mu.Lock()
+	closed := h.closed || h.reader == nil || h.reader.EventChan == nil
+	h.mu.Unlock()
+	if closed {
+		return
+	}
+	select {
+	case h.reader.EventChan <- ev:
+		h.mouseCoalesceMu.Lock()
+		h.lastMouseSent = time.Now()
+		h.mouseCoalesceMu.Unlock()
+	case <-h.closeChan:
+	default:
+		h.mouseCoalesceMu.Lock()
+		if h.pendingMouse == nil {
+			h.pendingMouse = ev
+		}
+		h.mouseCoalesceMu.Unlock()
 	}
 }
 
@@ -643,7 +711,7 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		btn := h.mouseBtn
 		h.mu.Unlock()
 		if btn != 0 {
-			h.sendEvent(&vtinput.InputEvent{
+			h.postMouseMove(&vtinput.InputEvent{
 				Type:            vtinput.MouseEventType,
 				MouseX:          cellX,
 				MouseY:          cellY,
