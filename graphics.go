@@ -20,6 +20,13 @@ const (
 	GraphicsSixel
 	GraphicsFar2l
 	GraphicsNative
+
+	// GraphicsExternal means something outside the terminal draws the
+	// pictures: an X window over the terminal, for a terminal that has no
+	// image protocol of its own. The layer behaves exactly as it does for
+	// the protocols, so everything that draws a picture keeps working
+	// without knowing which of them is in use.
+	GraphicsExternal
 )
 
 func (p GraphicsProtocol) String() string {
@@ -32,6 +39,8 @@ func (p GraphicsProtocol) String() string {
 		return "sixel"
 	case GraphicsFar2l:
 		return "far2l"
+	case GraphicsExternal:
+		return "external"
 	case GraphicsNative:
 		return "native"
 	}
@@ -51,6 +60,8 @@ func ParseGraphicsProtocol(s string) (GraphicsProtocol, bool) {
 		return GraphicsFar2l, true
 	case "native":
 		return GraphicsNative, true
+	case "external":
+		return GraphicsExternal, true
 	case "none", "off", "no", "0":
 		return GraphicsNone, true
 	}
@@ -377,6 +388,7 @@ type GraphicsLayer struct {
 
 	protocol      GraphicsProtocol
 	protocolValid bool
+	external      ExternalGraphics
 
 	cellW int
 	cellH int
@@ -416,6 +428,39 @@ func (g *GraphicsLayer) SetProtocol(p GraphicsProtocol) {
 	g.protocolValid = true
 	g.gen++
 	g.repaint = true
+}
+
+// ExternalGraphics puts placements on the screen somewhere that is not the
+// terminal. It exists for a terminal with no image protocol at all, where the
+// pictures can still be shown in a window over it.
+//
+// It is called once per frame, from the render pass, with the whole placement
+// list — which is what makes it different from a caller drawing pictures on
+// its own: quick view, the file viewer and the built-in terminal all declare
+// their images the same way they already do, and none of them has to know.
+type ExternalGraphics interface {
+	RenderExternal(list []ImagePlacement, cellW, cellH int)
+}
+
+// SetExternalGraphics installs the renderer and switches the layer to it.
+// Passing nil takes it out again and leaves the protocol alone.
+func (g *GraphicsLayer) SetExternalGraphics(r ExternalGraphics) {
+	g.mu.Lock()
+	g.external = r
+	if r != nil {
+		g.protocol = GraphicsExternal
+		g.protocolValid = true
+	}
+	g.gen++
+	g.repaint = true
+	g.mu.Unlock()
+}
+
+// External returns the installed renderer, if any.
+func (g *GraphicsLayer) External() ExternalGraphics {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.external
 }
 
 // Supported reports whether images can be displayed at all.

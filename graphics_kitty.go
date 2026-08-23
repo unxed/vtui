@@ -275,6 +275,12 @@ func (r *AnsiRenderer) RenderGraphics(layer *GraphicsLayer, buf, shadow []CharIn
 		cw, ch := layer.CellSize()
 		r.gfxList, _ = layer.Snapshot(r.gfxList)
 		r.gfxSixel.Render(&r.frameOut, r.gfxList, cw, ch)
+	case GraphicsExternal:
+		if ext := layer.External(); ext != nil {
+			cw, ch := layer.CellSize()
+			r.gfxList, _ = layer.Snapshot(r.gfxList)
+			ext.RenderExternal(r.gfxList, cw, ch)
+		}
 	case GraphicsFar2l:
 		if r.gfxFar2l == nil {
 			r.gfxFar2l = newFar2lEncoder()
