@@ -310,17 +310,20 @@ func ShowToast(msg string, dur time.Duration) {
 
 // ShowToastStyled is ShowToast with an explicit style (colours and row).
 func ShowToastStyled(msg string, dur time.Duration, style ToastStyle) {
-	if FrameManager == nil {
+	fm := FrameManager
+	if fm == nil {
 		return
 	}
-	FrameManager.PostTask(func() {
-		FrameManager.currentToast = &Toast{Message: msg, Expires: time.Now().Add(dur), Style: style}
-		FrameManager.Redraw()
+	fm.PostTask(func() {
+		fm.currentToast = &Toast{Message: msg, Expires: time.Now().Add(dur), Style: style}
+		fm.Redraw()
+		// The redraw that clears the toast happens after the toast's lifetime,
+		// long after this call returned. Reading the global from that sleeping
+		// goroutine races anything that reassigns FrameManager in the
+		// meantime, so redraw the manager the toast was actually shown on.
 		go func() {
 			time.Sleep(dur)
-			if FrameManager != nil {
-				FrameManager.Redraw()
-			}
+			fm.Redraw()
 		}()
 	})
 }
