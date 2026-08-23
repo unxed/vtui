@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -90,6 +91,15 @@ func TestIntegration_LuaBindings(t *testing.T) {
 	}
 }
 func TestIntegration_CBindingsCompilation(t *testing.T) {
+	// bindings/c/src/vtui.c speaks to the host over a socketpair and reaps the
+	// child with waitpid: unistd.h, sys/socket.h and sys/wait.h, none of which
+	// the MinGW compiler on the Windows runner has. The C bindings are POSIX
+	// only today, so there is nothing for this test to compile there. Drop the
+	// skip once vtui.c grows a Winsock path.
+	if runtime.GOOS == "windows" {
+		t.Skip("bindings/c/src/vtui.c is POSIX only (sockets, waitpid)")
+	}
+
 	cc, err := exec.LookPath("gcc")
 	if err != nil {
 		cc, err = exec.LookPath("clang")
