@@ -579,7 +579,9 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 		fullSelectionAtEnd := e.selStart == 0 && e.selEnd == len(e.text) && e.curPos == len(e.text)
 		isAtStart := false
 		var cmap CaretMap
-		if DefaultBidiMode == BidiFull {
+		// Keep Ctrl+Left/Right on the logical word-navigation path; see the
+		// corresponding branch above.
+		if DefaultBidiMode == BidiFull && !ctrl {
 			cmap = e.caretMap()
 			isAtStart = cmap.LogicalToVisual[e.curPos] == 0
 		} else {
@@ -597,7 +599,10 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 			e.selAnchor = -1
 		}
 
-		if DefaultBidiMode == BidiFull {
+		// Plain arrows follow visual caret order in full bidi mode. Word
+		// navigation is a logical-text operation, so Ctrl+Left/Right must
+		// stay on the branch below even when full bidi input is enabled.
+		if DefaultBidiMode == BidiFull && !ctrl {
 			vPos := cmap.LogicalToVisual[e.curPos]
 			if vPos > 0 {
 				vPos--
@@ -641,7 +646,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	case vtinput.VK_RIGHT:
 		isAtEnd := false
 		var cmap CaretMap
-		if DefaultBidiMode == BidiFull {
+		if DefaultBidiMode == BidiFull && !ctrl {
 			cmap = e.caretMap()
 			isAtEnd = cmap.LogicalToVisual[e.curPos] == len(cmap.VisualToLogical)-1
 		} else {
@@ -667,7 +672,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 			e.selAnchor = -1
 		}
 
-		if DefaultBidiMode == BidiFull {
+		if DefaultBidiMode == BidiFull && !ctrl {
 			vPos := cmap.LogicalToVisual[e.curPos]
 			N := len(cmap.VisualToLogical) - 1
 			if vPos < N {
