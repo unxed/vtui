@@ -702,6 +702,35 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		})
 		return 0
 
+	case wmLButtonDblClk, wmRButtonDblClk, wmMButtonDblClk:
+		x := int16(int32(int16(lParam & 0xFFFF)))
+		y := int16(int32(int16((lParam >> 16) & 0xFFFF)))
+		cellX := int16(int(x) / h.cellW)
+		cellY := int16(int(y) / h.cellH)
+		var btn uint32
+		switch msg {
+		case wmLButtonDblClk:
+			btn = uint32(vtinput.FromLeft1stButtonPressed)
+		case wmRButtonDblClk:
+			btn = uint32(vtinput.RightmostButtonPressed)
+		case wmMButtonDblClk:
+			btn = uint32(vtinput.FromLeft2ndButtonPressed)
+		}
+		h.mu.Lock()
+		h.mouseBtn |= btn
+		currBtn := h.mouseBtn
+		h.mu.Unlock()
+		h.sendEvent(&vtinput.InputEvent{
+			Type:            vtinput.MouseEventType,
+			MouseX:          cellX,
+			MouseY:          cellY,
+			KeyDown:         true,
+			ButtonState:     currBtn,
+			MouseEventFlags: vtinput.DoubleClick,
+			ControlKeyState: h.getModifiers(),
+		})
+		return 0
+
 	case wmMouseMove:
 		x := int16(int32(int16(lParam & 0xFFFF)))
 		y := int16(int32(int16((lParam >> 16) & 0xFFFF)))
