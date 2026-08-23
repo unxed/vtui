@@ -34,7 +34,12 @@ type Edit struct {
 	ColorUnchangedIdx  int
 	ColorSelectedIdx   int
 	HistoryID          string
-	OnTextChange       func(string)
+	// NoAutoComplete opts this field out of the completion menu, the
+	// equivalent of Far's DIF_NOAUTOCOMPLETE. Far uses it for the editor's
+	// go-to-line prompt, where a drop-down over a few digits is only in the
+	// way.
+	NoAutoComplete bool
+	OnTextChange   func(string)
 	// PathHintsEnabled lets the autocomplete menu ask PathHintProvider for
 	// file path suggestions in addition to history matches.
 	PathHintsEnabled  bool
@@ -49,6 +54,46 @@ type HistoryProvider interface {
 }
 
 var GlobalHistoryProvider HistoryProvider
+
+// AutoCompleteEnabled gates the completion menu that opens while typing.
+// It mirrors Opt.Dialogs.AutoComplete in Far: a subtractive switch only. A
+// field still has to qualify on its own -- history entries, or path hints
+// with a provider installed, matching DIF_HISTORY and DIF_EDITPATH -- and
+// turning this on can never bring the menu to a field that does not.
+var AutoCompleteEnabled = true
+
+// autoCompletes reports whether typing in this field may open the menu.
+func (e *Edit) autoCompletes() bool {
+	if !AutoCompleteEnabled || e.NoAutoComplete || e.IsDisabled() {
+		return false
+	}
+	// A drop-down listing what was typed into a masked field would put the
+	// secret on screen in clear text.
+	if e.PasswordMode {
+		return false
+	}
+	return len(e.History) > 0 || (e.PathHintsEnabled && PathHintProvider != nil)
+}
+
+// maybeOpenAutoComplete opens the completion menu after typed was inserted,
+// when the field qualifies and anything matches. A field with history opens
+// on any character, as in Far; a path-only field keeps its old behaviour of
+// waiting for a separator, so that typing a long path does not rebuild the
+// menu on every keystroke.
+func (e *Edit) maybeOpenAutoComplete(typed rune) {
+	if FrameManager == nil || !e.autoCompletes() {
+		return
+	}
+	if len(e.History) == 0 && typed != '/' && typed != '\\' {
+		return
+	}
+	if _, isAc := FrameManager.GetTopFrame().(*AutoCompleteMenu); isAc {
+		return
+	}
+	if ac := NewAutoCompleteMenu(e); ac.HasMatches() {
+		FrameManager.Push(ac)
+	}
+}
 
 func NewEdit(x, y, width int, defaultText string) *Edit {
 	e := &Edit{
@@ -887,15 +932,7 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 			e.OnTextChange(string(e.text))
 		}
 		e.NotifyChange()
-		// Path hints: typing a path separator in an enabled edit opens the
-		// autocomplete menu when the host provider has anything to suggest.
-		if (testChar == '/' || testChar == '\\') && e.PathHintsEnabled && PathHintProvider != nil && FrameManager != nil {
-			if _, isAc := FrameManager.GetTopFrame().(*AutoCompleteMenu); !isAc {
-				if ac := NewAutoCompleteMenu(e); ac.HasMatches() {
-					FrameManager.Push(ac)
-				}
-			}
-		}
+		e.maybeOpenAutoComplete(testChar)
 		return true
 	}
 
