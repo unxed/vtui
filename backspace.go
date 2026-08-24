@@ -19,16 +19,6 @@ package vtui
 // See w3c/i18n-drafts "Cursor Movement and Deletion of Unicode Text" and
 // unxed/f4#546.
 
-const (
-	runeZWJ           = 0x200D
-	runeVS16          = 0xFE0F
-	runeCombiningKey  = 0x20E3
-	firstSkinTone     = 0x1F3FB
-	lastSkinTone      = 0x1F3FF
-	firstRegionalInd  = 0x1F1E6
-	lastRegionalIndic = 0x1F1FF
-)
-
 // clusterIsAtomicForBackspace reports whether a cluster must be removed whole
 // rather than one code point at a time.
 func clusterIsAtomicForBackspace(cluster []rune) bool {
@@ -38,11 +28,11 @@ func clusterIsAtomicForBackspace(cluster []rune) bool {
 	regional := 0
 	for _, r := range cluster {
 		switch {
-		case r == runeZWJ, r == runeVS16, r == runeCombiningKey:
+		case r == runeZWJ, r == runeVS16, r == runeKeycap:
 			return true
-		case r >= firstSkinTone && r <= lastSkinTone:
+		case r >= runeModifierFirst && r <= runeModifierLast:
 			return true
-		case r >= firstRegionalInd && r <= lastRegionalIndic:
+		case r >= runeRegionalFirst && r <= runeRegionalLast:
 			regional++
 		}
 	}
