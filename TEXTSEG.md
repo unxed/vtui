@@ -62,12 +62,26 @@ Delete eats part of a shaped unit (unxed/f4#546).
 walker as `Edit.DisplayObject` and `MultiLineEdit`. Any new caret, selection
 or hit-testing code belongs on that side too.
 
-**Open question, deliberately left alone:** deletion *granularity* still
-differs between hosts. `Edit` deletes a whole cluster on Backspace, while
-f4's editor peels a trailing Indic/Thaana mark off first
-(`textlayout.TrailingModifierStart`), which is what Windows edit controls do.
-Unifying the two is a behaviour decision, not a segmentation bug, and is not
-part of this change.
+### Backspace deletes a code point, everything else a cluster
+
+Cursoring, selection and forward Delete step over a whole cluster. Backspace
+does not: it peels one code point off the end of the preceding cluster, which
+is what UAX #29 explicitly allows and what Windows edit controls, Notepad and
+the browsers do. Deleting a base character forwards takes its marks with it, so
+nothing is orphaned; deleting a trailing mark backwards is safe on its own and
+lets a mistyped composition be corrected without retyping the syllable. The
+W3C i18n note "Cursor Movement and Deletion of Unicode Text" is the readable
+write-up of the de facto behaviour.
+
+Emoji are the exception everyone makes: ZWJ sequences, keycaps, flags and
+skin-tone modifiers stay atomic in both directions. `backspace.go` holds the
+rule; `Edit` and `MultiLineEdit` narrow their deletion range through
+`backspaceStart` and nothing else has to know about it.
+
+**Known gap:** in `BidiFull` mode `Edit` picks the cluster to backspace by its
+*visual* neighbour, so a caret at the logical end of a purely RTL string sits
+at visual position 0 and Backspace becomes a no-op. That is a bidi-mapping
+question, not a segmentation one, and is untouched here.
 
 ## Highlighter attributes are indexed by rune
 

@@ -815,11 +815,12 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 				if start > end {
 					start, end = end, start
 				}
+				start = backspaceStart(e.text, start, end)
 				e.text = append(e.text[:start], e.text[end:]...)
-				e.curPos = cmap.VisualToLogical[vPos-1]
+				e.curPos = start
 			}
 		} else if e.curPos > 0 {
-			prevBoundary := e.prevClusterBoundary(e.curPos)
+			prevBoundary := backspaceStart(e.text, e.prevClusterBoundary(e.curPos), e.curPos)
 			e.text = append(e.text[:prevBoundary], e.text[e.curPos:]...)
 			e.curPos = prevBoundary
 		}
