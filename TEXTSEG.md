@@ -46,6 +46,29 @@ strictly wcwidth terminal.
 - `SanitizeCluster` instead of `SanitizeRune`, whenever the surrounding text
   is at hand. `SanitizeRune` remains for callers that only have one rune.
 
+### Caret boundaries use the terminal clusters, not the UAX ones
+
+`ForEachCluster` / `ForEachClusterAt` are the public UAX #29 walkers. They are
+right for measuring and for callers that count runes, and wrong for anything
+that positions a caret: UAX #29 splits an Indic virama from the consonant that
+follows it, while `forEachTerminalCluster` joins the pair the way a shaping
+terminal draws it. If a widget paints with one walker and moves the caret with
+the other, the two disagree about how many cells the text occupies — the
+cursor appears on the right glyph but edits a fraction of it, and Backspace or
+Delete eats part of a shaped unit (unxed/f4#546).
+
+`Edit.prevClusterBoundary`, `Edit.nextClusterBoundary` and
+`Edit.cursorPositionAtX` therefore use `forEachTerminalCluster`, the same
+walker as `Edit.DisplayObject` and `MultiLineEdit`. Any new caret, selection
+or hit-testing code belongs on that side too.
+
+**Open question, deliberately left alone:** deletion *granularity* still
+differs between hosts. `Edit` deletes a whole cluster on Backspace, while
+f4's editor peels a trailing Indic/Thaana mark off first
+(`textlayout.TrailingModifierStart`), which is what Windows edit controls do.
+Unifying the two is a behaviour decision, not a segmentation bug, and is not
+part of this change.
+
 ## Highlighter attributes are indexed by rune
 
 `Highlighter.Highlight` returns one attribute per rune of the line. Not per
