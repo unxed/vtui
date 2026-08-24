@@ -219,6 +219,7 @@ func (e *Edit) Show(scr *ScreenBuf) {
 func (e *Edit) caretMap() CaretMap {
 	return BuildCaretMap(string(e.text))
 }
+
 // prevClusterBoundary and nextClusterBoundary must walk the *terminal*
 // clusters, the same units DisplayObject paints and columnToLogicalPos
 // resolves. ForEachClusterAt stops at the raw UAX #29 boundaries, which split
