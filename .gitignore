@@ -10,3 +10,4 @@ bindings/c/build
 bindings/cpp/build
 afix.ap
 afailed.*
+test-app.exe
