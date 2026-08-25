@@ -125,6 +125,52 @@ string first. During visual reordering, these attributes travel with their
 respective clusters. This guarantees that logical highlighting boundaries
 remain perfectly attached to the text content even when a logically contiguous
 span is split and reordered into visually separate runs.
+## Bidirectional text is laid out per line, left to right by default
+
+`bidi.go` runs the Unicode Bidirectional Algorithm over one line at a time.
+The algorithm itself is the reference implementation that
+`golang.org/x/text/unicode/bidi` carries in `core.go` and `bracket.go`,
+copied verbatim into `internal/uba`, because that package's public API
+cannot fix the paragraph direction to left to right, does not expose the
+embedding levels that rule L2 needs, and never pairs a bracket (it stores
+each bracket as its own pair value). Its tables are still what classify the
+characters.
+
+`LayoutBidi(text, clusters, dir)` is the one entry point: it takes the line
+and its grapheme clusters, whichever walker produced them, and returns the
+level of every cluster, the visual order (rule L2 applied over clusters, so
+a mark never parts from its base) and the mirrored glyphs (L4). Everything
+else — `VisualString`, `VisualStringWithMap`, `BuildCaretMap` — is built on
+it, and an application that keeps its own cluster boundaries should call it
+directly rather than reimplement the reordering.
+
+The base direction is `DefaultBidiParagraph`, and it is **left to right**
+unless the application says otherwise. Detecting it from the first strong
+character (UAX #9 P2, P3) is what a plain text viewer does, and it turns a
+left to right line that merely starts with a right to left word inside out:
+`ދިވެހިބަސް - Divehi` became `- Divehi ...` followed by the Thaana word. Notepad,
+a browser text field and every left to right interface fix the paragraph to
+left to right and reverse the right to left words in place; so does vtui.
+
+Caret positions inside mixed text follow `BidiLayout.CaretVisual`: the caret
+stands at the trailing edge of the cluster it logically follows, so it walks
+right through Latin, jumps to the far right of a right to left word on
+entering it, walks left through it, and rests at that word's left edge after
+its last letter, where the next letter of it will appear. This is the
+convention of the Windows edit controls and Notepad; a caret that always
+moves in the screen direction is the browser convention, and neither is
+mandated by the standard.
+
+The terminal is told that the rows it receives are already in visual order
+(`terminal_env.go` sends BDSM reset and SCP left to right, the terminal-wg
+BiDi recommendation's "explicit LTR" mode, whenever `DefaultBidiMode` is not
+`BidiOff`). A terminal that runs the algorithm itself, VTE for one, would
+otherwise reorder the row a second time; Windows Terminal and the other
+emulators without bidi support ignore the sequences, and they are the ones
+for which reordering here is the only way to read Hebrew or Arabic at all.
+Arabic contextual shaping on such a terminal is a separate problem: the
+terminal shapes runs in the order it receives them, which is reversed.
+
 ## Where the rest of the work is written down
 
 This file describes the machinery. The task it belongs to, what is done, what
