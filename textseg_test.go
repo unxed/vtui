@@ -97,8 +97,8 @@ func TestClusterPaths_Equivalent(t *testing.T) {
 				break
 			}
 		}
-		if got, want := StringWidth(s), widthOf(s); got != want {
-			t.Errorf("%q: StringWidth = %d, uniseg walk = %d", s, got, want)
+		if got, want := StringWidth(s), displayWidthOf(s); got != want {
+			t.Errorf("%q: StringWidth = %d, terminal display walk = %d", s, got, want)
 		}
 	}
 }
@@ -112,23 +112,22 @@ func clusterListRef(s string) []string {
 	return out
 }
 
-// widthOf sums the reference walk's widths; it is the old StringWidth body.
-func widthOf(s string) int {
+func displayWidthOf(s string) int {
 	total := 0
-	forEachClusterUniseg(s, func(_ string, w, _, _ int) {
+	forEachDisplayCluster(s, func(_ string, w, _, _ int) {
 		total += w
 	})
 	return total
 }
 
-func TestStringWidth_MatchesWcwidth(t *testing.T) {
+func TestStringWidth_MatchesTerminalDisplayPolicy(t *testing.T) {
 	cases := []struct {
 		in   string
 		want int
 	}{
 		{"", 0},
 		{"hello", 5},
-		{"नमस्ते", 4},
+		{"नमस्ते", 3},
 		{"বাংলা", 2},
 		{"مرحبا", 5},
 		{"A世B", 4},
@@ -204,10 +203,11 @@ func TestStringToCharInfo_KeepsMarksWithBase(t *testing.T) {
 
 func TestStringToCharInfo_Devanagari(t *testing.T) {
 	// The whole point of the exercise: a Hindi word must claim exactly as many
-	// cells as a wcwidth terminal gives it, or every dialog around it shifts.
+	// terminal display cells as the rendering path gives it, or every dialog
+	// around it shifts.
 	ci := StringToCharInfo("नमस्ते", 0)
-	if len(ci) != 4 {
-		t.Fatalf("expected 4 cells for नमस्ते, got %d", len(ci))
+	if len(ci) != 3 {
+		t.Fatalf("expected 3 cells for नमस्ते, got %d", len(ci))
 	}
 	for i, c := range ci {
 		if c.Char == WideCharFiller {

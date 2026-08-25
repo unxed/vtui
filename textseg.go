@@ -543,6 +543,18 @@ func ForEachClusterAt(s string, fn func(cluster string, width, offset, runeIndex
 	forEachClusterUniseg(s, fn)
 }
 
+// forEachDisplayCluster walks the terminal-level clusters used by layout and
+// screen rendering. It keeps the fast path for strings that cannot contain a
+// multi-rune cluster, while joining Indic virama sequences in the same way as
+// the editor and bidi code.
+func forEachDisplayCluster(s string, fn func(cluster string, width, offset, runeIndex int)) {
+	if !scanNeedsFullSegmentation(s) {
+		forEachClusterSimple(s, fn)
+		return
+	}
+	forEachTerminalCluster(s, fn)
+}
+
 // forEachTerminalCluster walks the clusters that the terminal treats as one
 // cell-level editing and rendering unit. Unicode grapheme tables used by
 // older terminal stacks can split an Indic virama from the following
@@ -658,13 +670,10 @@ func AppendCluster(target []CharInfo, cluster string, width int, attr uint64) []
 }
 
 // StringWidth returns the width of a string in terminal columns, counting
-// grapheme clusters rather than runes.
+// terminal display clusters rather than runes.
 func StringWidth(s string) int {
-	if !scanNeedsFullSegmentation(s) {
-		return measureWidthSimple(s)
-	}
 	total := 0
-	forEachClusterUniseg(s, func(_ string, w, _, _ int) {
+	forEachDisplayCluster(s, func(_ string, w, _, _ int) {
 		total += w
 	})
 	return total
@@ -765,18 +774,17 @@ func truncateStringWidth(s string, w int, tail string) (string, int) {
 
 	var sb strings.Builder
 	used := 0
-	g := uniseg.NewGraphemes(s)
-	for g.Next() {
-		from, to := g.Positions()
-		text, cw := SanitizeCluster(s[from:to])
-		if cw == 0 {
-			continue
+	stopped := false
+	forEachDisplayCluster(s, func(text string, cw, _, _ int) {
+		if stopped {
+			return
 		}
 		if used+cw > budget {
-			break
+			stopped = true
+			return
 		}
 		sb.WriteString(text)
 		used += cw
-	}
+	})
 	return sb.String() + tail, used + tailW
 }

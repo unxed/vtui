@@ -76,7 +76,7 @@ func (p *Painter) DrawString(x, y int, text string, attr uint64) {
 // DrawHighlightedText draws a pre-parsed string with a specific hotkey position.
 func (p *Painter) DrawHighlightedText(x, y int, cleanText string, hkPos int, normAttr, highAttr uint64) {
 	cells := make([]CharInfo, 0, len(cleanText))
-	ForEachClusterAt(cleanText, func(cluster string, w, _, runeIdx int) {
+	forEachDisplayCluster(cleanText, func(cluster string, w, _, runeIdx int) {
 		attr := normAttr
 		if hkPos >= runeIdx && hkPos < runeIdx+utf8.RuneCountInString(cluster) {
 			attr = highAttr

@@ -1,9 +1,6 @@
 package vtui
 
-import (
-	"github.com/mattn/go-runewidth"
-	"github.com/unxed/vtinput"
-)
+import "github.com/unxed/vtinput"
 
 // Button represents an interactive button.
 type Button struct {
@@ -23,7 +20,7 @@ func NewButton(x, y int, text string) *Button {
 	// Buttons in Far always look like "[ Text ]"
 	b.SetText(text)
 	// Calculate width based on the parsed clean text
-	b.X2 = b.X1 + runewidth.StringWidth(b.cleanText) - 1
+	b.X2 = b.X1 + StringWidth(b.cleanText) - 1
 	return b
 }
 
@@ -117,7 +114,7 @@ func (b *Button) SizeSpecH() SizeSpec {
 	if b.sizeSpecH != nil {
 		return *b.sizeSpecH
 	}
-	w := runewidth.StringWidth(b.cleanText)
+	w := StringWidth(b.cleanText)
 	if w < 8 {
 		w = 8
 	}
