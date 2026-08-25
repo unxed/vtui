@@ -839,6 +839,32 @@ func isGhostProneText(ch uint64) bool {
 	return true
 }
 
+// cellAdvanceTrusted reports whether every terminal can be relied upon to
+// advance its cursor by exactly the columns vtui gave this cell: printable
+// ASCII, the box drawing and block element ranges, and the single column
+// letters of Latin, Greek and Cyrillic. Everything else (a composite cluster,
+// a wide character, an emoji, any script a terminal shapes) may be measured
+// differently by the terminal than by go-runewidth, and the renderer resyncs
+// the cursor after it. wide is true when the cell is followed by a filler:
+// go-runewidth widens Cyrillic in an East Asian locale, the terminal need not.
+func cellAdvanceTrusted(ch uint64, wide bool) bool {
+	switch {
+	case wide:
+		return false
+	case ch < 0x80:
+		return true
+	case ch >= 0x2500 && ch <= 0x259F:
+		return true
+	case IsCompChar(ch):
+		return false
+	case ch >= 0xA0 && ch <= 0x052F:
+		// Latin-1 Supplement through Cyrillic Supplement; the combining
+		// diacritical marks block sits in the middle of that range.
+		return ch < 0x0300 || ch > 0x036F
+	}
+	return false
+}
+
 func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 	needsDraw := force
 	if !needsDraw {
@@ -858,6 +884,7 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 
 	r.termCursorInvalid = true
 	lastX, lastY := -1, -1
+	resync := false
 	r.lastAttr = ^uint64(0)
 
 	var activePal *[256]uint32
@@ -914,8 +941,19 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				continue
 			}
 
-			if x != lastX+1 || y != lastY {
-				if y == lastY && !rowHasGhost {
+			char := buf[idx].Char
+			if char == WideCharFiller {
+				// The right half of a wide character. If its left half was
+				// just written the terminal cursor already sits past it;
+				// otherwise leave lastX alone so the next cell repositions.
+				if lastY == y && lastX == x-1 {
+					lastX = x
+				}
+				continue
+			}
+
+			if x != lastX+1 || y != lastY || resync {
+				if y == lastY && !rowHasGhost && !resync {
 					if x > lastX+1 {
 						r.writeRelCursor(x-lastX-1, 'C')
 					} else {
@@ -924,6 +962,7 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				} else {
 					r.writeCursorPos(y+1, x+1)
 				}
+				resync = false
 			}
 
 			attr := buf[idx].Attributes
@@ -932,11 +971,6 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				r.lastAttr = attr
 			}
 
-			char := buf[idx].Char
-			if char == WideCharFiller {
-				lastX, lastY = x, y
-				continue
-			}
 			if char == 0 {
 				r.frameOut.WriteByte(' ')
 			} else if char < 0x80 {
@@ -945,6 +979,18 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				r.frameOut.WriteString(CellString(char))
 			} else {
 				r.frameOut.WriteRune(rune(char))
+			}
+			// A terminal advances by the columns *it* measures for the text,
+			// not by the cells vtui allotted, and no two width tables fully
+			// agree (Indic conjuncts, ambiguous width, emoji sequences, the
+			// Unicode version). Text is written as a stream, so one column
+			// of disagreement used to drag everything after it on the row
+			// along: that is the leaning dialog of unxed/f4#546. After any
+			// cell where the two could differ, the next cell is placed with
+			// an absolute cursor position, which confines the damage to the
+			// cell itself.
+			if !cellAdvanceTrusted(char, x+1 < w && buf[idx+1].Char == WideCharFiller) {
+				resync = true
 			}
 			lastX, lastY = x, y
 		}

@@ -15,6 +15,17 @@ const (
 	seqDefaultCursor     = "\x1b[0 q"
 	seqResetPalette      = "\x1b]104\x07"
 	seqResetAttributes   = "\x1b[0m"
+	// vtui hands the terminal rows in visual order (see bidi.go), so a
+	// terminal that runs the bidi algorithm itself (VTE, and everything
+	// following the terminal-wg BiDi recommendation) must be told not to
+	// reorder them a second time: BDSM reset selects explicit mode, SCP the
+	// left to right character path. Terminals without bidi support ignore
+	// both. The pair is restored to the defaults (implicit, unset) on the
+	// way out. Never do this with bidi control characters: they are text,
+	// they take a cell in some terminals and none in others, and the
+	// recommendation discards them in implicit mode anyway.
+	seqBidiExplicitLTR = "\x1b[8l\x1b[1 k"
+	seqBidiImplicit    = "\x1b[8h\x1b[0 k"
 )
 
 var (
@@ -79,6 +90,9 @@ func Suspend() {
 		out := getTermOut()
 		vt := consoleUsesVT()
 		if vt {
+			if DefaultBidiMode != BidiOff {
+				out.WriteString(seqBidiImplicit)
+			}
 			out.WriteString(seqAutoWrapOn) // Restore auto-wrap
 		}
 		if inAltScreen {
@@ -164,6 +178,9 @@ func resumeLocked(withAltScreen bool) error {
 			setAltScreenOS(true)
 			if vt {
 				out.WriteString(seqAutoWrapOff) // Disable auto-wrap for exact rendering
+				if DefaultBidiMode != BidiOff {
+					out.WriteString(seqBidiExplicitLTR)
+				}
 			}
 			out.Sync()
 		}
