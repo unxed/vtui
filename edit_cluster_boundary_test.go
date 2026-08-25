@@ -119,7 +119,11 @@ func TestEditDeleteRemovesWholeTerminalCluster(t *testing.T) {
 		"",
 	}
 	for i, expected := range want {
-		e.ProcessKey(&vtinput.InputEvent{VirtualKeyCode: vtinput.VK_DELETE})
+		e.ProcessKey(&vtinput.InputEvent{
+			Type:           vtinput.KeyEventType,
+			KeyDown:        true,
+			VirtualKeyCode: vtinput.VK_DELETE,
+		})
 		if got := e.GetText(); got != expected {
 			t.Fatalf("Delete #%d = %q, want %q", i+1, got, expected)
 		}
