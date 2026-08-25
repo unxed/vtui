@@ -14,7 +14,11 @@ func backspaceWalk(t *testing.T, text string, want []string) {
 	e := newBoundaryEdit(text)
 	e.curPos = len(e.text)
 	for i, expected := range want {
-		e.ProcessKey(&vtinput.InputEvent{VirtualKeyCode: vtinput.VK_BACK})
+		e.ProcessKey(&vtinput.InputEvent{
+			Type:           vtinput.KeyEventType,
+			KeyDown:        true,
+			VirtualKeyCode: vtinput.VK_BACK,
+		})
 		if got := e.GetText(); got != expected {
 			t.Fatalf("Backspace #%d on %q = %q, want %q", i+1, text, got, expected)
 		}
