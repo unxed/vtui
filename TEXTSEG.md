@@ -46,6 +46,43 @@ strictly wcwidth terminal.
 - `SanitizeCluster` instead of `SanitizeRune`, whenever the surrounding text
   is at hand. `SanitizeRune` remains for callers that only have one rune.
 
+### Caret boundaries use the terminal clusters, not the UAX ones
+
+`ForEachCluster` / `ForEachClusterAt` are the public UAX #29 walkers. They are
+right for measuring and for callers that count runes, and wrong for anything
+that positions a caret: UAX #29 splits an Indic virama from the consonant that
+follows it, while `forEachTerminalCluster` joins the pair the way a shaping
+terminal draws it. If a widget paints with one walker and moves the caret with
+the other, the two disagree about how many cells the text occupies — the
+cursor appears on the right glyph but edits a fraction of it, and Backspace or
+Delete eats part of a shaped unit (unxed/f4#546).
+
+`Edit.prevClusterBoundary`, `Edit.nextClusterBoundary` and
+`Edit.cursorPositionAtX` therefore use `forEachTerminalCluster`, the same
+walker as `Edit.DisplayObject` and `MultiLineEdit`. Any new caret, selection
+or hit-testing code belongs on that side too.
+
+### Backspace deletes a code point, everything else a cluster
+
+Cursoring, selection and forward Delete step over a whole cluster. Backspace
+does not: it peels one code point off the end of the preceding cluster, which
+is what UAX #29 explicitly allows and what Windows edit controls, Notepad and
+the browsers do. Deleting a base character forwards takes its marks with it, so
+nothing is orphaned; deleting a trailing mark backwards is safe on its own and
+lets a mistyped composition be corrected without retyping the syllable. The
+W3C i18n note "Cursor Movement and Deletion of Unicode Text" is the readable
+write-up of the de facto behaviour.
+
+Emoji are the exception everyone makes: ZWJ sequences, keycaps, flags and
+skin-tone modifiers stay atomic in both directions. `backspace.go` holds the
+rule; `Edit` and `MultiLineEdit` narrow their deletion range through
+`backspaceStart` and nothing else has to know about it.
+
+**Known gap:** in `BidiFull` mode `Edit` picks the cluster to backspace by its
+*visual* neighbour, so a caret at the logical end of a purely RTL string sits
+at visual position 0 and Backspace becomes a no-op. That is a bidi-mapping
+question, not a segmentation one, and is untouched here.
+
 ## Highlighter attributes are indexed by rune
 
 `Highlighter.Highlight` returns one attribute per rune of the line. Not per

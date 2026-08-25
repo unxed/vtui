@@ -219,13 +219,20 @@ func (e *Edit) Show(scr *ScreenBuf) {
 func (e *Edit) caretMap() CaretMap {
 	return BuildCaretMap(string(e.text))
 }
+
+// prevClusterBoundary and nextClusterBoundary must walk the *terminal*
+// clusters, the same units DisplayObject paints and columnToLogicalPos
+// resolves. ForEachClusterAt stops at the raw UAX #29 boundaries, which split
+// an Indic virama from the consonant that follows it; the caret would then
+// land inside a shaped glyph and Backspace/Delete would eat a fraction of a
+// cell. See TEXTSEG.md and unxed/f4#546.
 func (e *Edit) prevClusterBoundary(pos int) int {
 	if pos <= 0 {
 		return 0
 	}
 	s := string(e.text)
 	lastBoundary := 0
-	ForEachClusterAt(s, func(cluster string, w, offset, runeIndex int) {
+	forEachTerminalCluster(s, func(cluster string, w, offset, runeIndex int) {
 		if runeIndex < pos {
 			lastBoundary = runeIndex
 		}
@@ -237,7 +244,7 @@ func (e *Edit) nextClusterBoundary(pos int) int {
 	s := string(e.text)
 	nextBoundary := len(e.text)
 	found := false
-	ForEachClusterAt(s, func(cluster string, w, offset, runeIndex int) {
+	forEachTerminalCluster(s, func(cluster string, w, offset, runeIndex int) {
 		if !found && runeIndex > pos {
 			nextBoundary = runeIndex
 			found = true
@@ -809,11 +816,12 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 				if start > end {
 					start, end = end, start
 				}
+				start = backspaceStart(e.text, start, end)
 				e.text = append(e.text[:start], e.text[end:]...)
-				e.curPos = cmap.VisualToLogical[vPos-1]
+				e.curPos = start
 			}
 		} else if e.curPos > 0 {
-			prevBoundary := e.prevClusterBoundary(e.curPos)
+			prevBoundary := backspaceStart(e.text, e.prevClusterBoundary(e.curPos), e.curPos)
 			e.text = append(e.text[:prevBoundary], e.text[e.curPos:]...)
 			e.curPos = prevBoundary
 		}
@@ -1298,7 +1306,7 @@ func (e *Edit) cursorPositionAtX(x int) int {
 			result = cmap.VisualToLogical[vIdx]
 		}
 	} else {
-		ForEachClusterAt(string(e.text), func(cluster string, w, _, runeIndex int) {
+		forEachTerminalCluster(string(e.text), func(cluster string, w, _, runeIndex int) {
 			if found || runeIndex < e.leftPos {
 				return
 			}

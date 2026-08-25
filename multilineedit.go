@@ -707,14 +707,15 @@ func (m *MultiLineEdit) backspace() {
 	clusters := visualClusters(line)
 	if DefaultBidiMode == BidiFull && HasRTL(string(line)) && visualPos > 0 {
 		cluster := clusters[visualPos-1]
-		m.removeRange(cluster.logicalPos, cluster.logicalEnd)
-		m.curCol = cluster.logicalPos
+		start := backspaceStart(line, cluster.logicalPos, cluster.logicalEnd)
+		m.removeRange(start, cluster.logicalEnd)
+		m.curCol = start
 		m.ensureVisible()
 		m.notifyChange()
 		return
 	}
 	if m.curCol > 0 {
-		start := previousClusterBoundary(line, m.curCol)
+		start := backspaceStart(line, previousClusterBoundary(line, m.curCol), m.curCol)
 		m.lines[m.curRow] = append(line[:start], line[m.curCol:]...)
 		m.curCol = start
 		m.ensureVisible()
