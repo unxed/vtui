@@ -120,12 +120,12 @@ func TestEveryLayerIsPositionedAgain(t *testing.T) {
 func TestOtherModesStillSendOneImage(t *testing.T) {
 	surf := gradientSurface(32, 24)
 	for _, mode := range []string{"", "fixed", "adaptive"} {
-		e := newSixelEncoderWith(func(k string) string {
+		e := newSixelEncoderWithOS(func(k string) string {
 			if k == "VTUI_SIXEL_PALETTE" {
 				return mode
 			}
 			return ""
-		})
+		}, "linux")
 		layers := e.encodeLayers(surf, 0, 0, 32, 24, 32, 24)
 		if len(layers) != 1 {
 			t.Errorf("%q: got %d layers, want exactly one", mode, len(layers))
@@ -137,16 +137,17 @@ func TestOtherModesStillSendOneImage(t *testing.T) {
 	}
 }
 
-// Windows Terminal is the terminal this exists for, and it must not have to be
-// asked. Everywhere else the full-colour stream is smaller and needs no
-// compositing promise, so the default has to stay where it was.
+// Windows Terminal and native OpenConsole are the terminals this exists for,
+// and neither must have to be asked. WezTerm and foot are the known terminals
+// where per-band palettes are safe; an unknown terminal gets one adaptive
+// palette instead.
 func TestWindowsTerminalGetsLayersByDefault(t *testing.T) {
-	wt := newSixelEncoderWith(func(k string) string {
+	wt := newSixelEncoderWithOS(func(k string) string {
 		if k == "WT_SESSION" {
 			return "e4a1f0c2-0000-0000-0000-000000000000"
 		}
 		return ""
-	})
+	}, "linux")
 	if !wt.layered {
 		t.Error("Windows Terminal did not get the layered encoder")
 	}
@@ -154,12 +155,40 @@ func TestWindowsTerminalGetsLayersByDefault(t *testing.T) {
 		t.Error("Windows Terminal got the full-colour stream as well")
 	}
 
-	elsewhere := newSixelEncoderWith(func(string) string { return "" })
+	elsewhere := newSixelEncoderWithOS(func(string) string { return "" }, "linux")
 	if elsewhere.layered {
 		t.Error("a terminal that is not Windows Terminal got layers")
 	}
-	if !elsewhere.trueColor {
-		t.Error("the full-colour default moved")
+	if elsewhere.trueColor || !elsewhere.adaptive {
+		t.Errorf("unknown terminal got layered=%v trueColor=%v adaptive=%v, want false false true", elsewhere.layered, elsewhere.trueColor, elsewhere.adaptive)
+	}
+
+	openConsole := newSixelEncoderWithOS(func(string) string { return "" }, "windows")
+	if !openConsole.layered {
+		t.Error("native OpenConsole did not get the layered encoder")
+	}
+	if openConsole.trueColor {
+		t.Error("native OpenConsole got the per-band full-colour stream")
+	}
+
+	wezterm := newSixelEncoderWithOS(func(k string) string {
+		if k == "WEZTERM_PANE" {
+			return "0"
+		}
+		return ""
+	}, "windows")
+	if wezterm.layered || !wezterm.trueColor {
+		t.Errorf("wezterm on Windows got layered=%v trueColor=%v, want false true", wezterm.layered, wezterm.trueColor)
+	}
+
+	foot := newSixelEncoderWithOS(func(k string) string {
+		if k == "TERM" {
+			return "foot-extra"
+		}
+		return ""
+	}, "linux")
+	if foot.layered || !foot.trueColor {
+		t.Errorf("foot got layered=%v trueColor=%v, want false true", foot.layered, foot.trueColor)
 	}
 }
 

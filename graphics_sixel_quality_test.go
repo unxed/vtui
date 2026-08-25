@@ -111,9 +111,9 @@ func TestSixelAdaptivePaletteQuality(t *testing.T) {
 	}
 }
 
-func TestSixelAdaptivePaletteOptIn(t *testing.T) {
-	if newSixelEncoderWith(func(string) string { return "" }).adaptive {
-		t.Error("adaptive must default to off")
+func TestSixelAdaptivePaletteSelection(t *testing.T) {
+	if !newSixelEncoderWith(func(string) string { return "" }).adaptive {
+		t.Error("adaptive must be the conservative default for an unknown terminal")
 	}
 	if !newSixelEncoderWith(func(string) string { return "adaptive" }).adaptive {
 		t.Error("VTUI_SIXEL_PALETTE=adaptive must enable adaptive mode")
@@ -134,10 +134,11 @@ func TestSixelAdaptiveEncoderUsesImagePalette(t *testing.T) {
 
 	// The fixed cube and its greys never contain 128 (nearest greys are 127
 	// and 134), so it cannot emit the image's exact colour as 50%. It has
-	// to be asked for now: the default gives every band its own palette and
-	// would reproduce the grey exactly, which is the point of it.
+	// to be asked for explicitly: the per-band encoder would reproduce the
+	// grey exactly, which is the point of it.
 	fixed := newSixelEncoder()
 	fixed.trueColor = false
+	fixed.adaptive = false
 	fixedOut := fixed.encode(surf, 0, 0, 4, 4, 4, 4)
 	if strings.Contains(fixedOut, ";2;50;50;50") {
 		t.Errorf("fixed palette must not quantise 128 grey to itself: %q", fixedOut)

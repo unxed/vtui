@@ -116,7 +116,12 @@ func sixelDecodeLive(t *testing.T, s string) (int, int, []int32) {
 // trueColorSixel is the default encoder with the cell size pinned, so the
 // output does not depend on the host terminal.
 func trueColorSixel() *sixelEncoder {
-	e := newSixelEncoder()
+	e := newSixelEncoderWithOS(func(k string) string {
+		if k == "VTUI_SIXEL_PALETTE" {
+			return "truecolor"
+		}
+		return ""
+	}, "linux")
 	e.cellSize = func(cw, ch int) (int, int) { return cw, ch }
 	return e
 }
@@ -326,14 +331,16 @@ func TestSixelTrueColorParallelMatchesSerial(t *testing.T) {
 // registers at the end of the image instead of as it goes.
 func TestSixelPaletteModeFromEnvironment(t *testing.T) {
 	cases := map[string][2]bool{ // {trueColor, adaptive}
-		"":         {true, false},
-		"fixed":    {false, false},
-		"adaptive": {false, true},
-		"ADAPTIVE": {false, true},
-		"nonsense": {true, false},
+		"":          {false, true},
+		"fixed":     {false, false},
+		"adaptive":  {false, true},
+		"ADAPTIVE":  {false, true},
+		"truecolor": {true, false},
+		"per-band":  {true, false},
+		"nonsense":  {true, false},
 	}
 	for value, want := range cases {
-		e := newSixelEncoderWith(func(string) string { return value })
+		e := newSixelEncoderWithOS(func(string) string { return value }, "linux")
 		if e.trueColor != want[0] || e.adaptive != want[1] {
 			t.Errorf("%q: trueColor=%v adaptive=%v, want %v", value, e.trueColor, e.adaptive, want)
 		}

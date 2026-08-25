@@ -70,7 +70,7 @@ func sixelCellSize(cw, ch int) (int, int) {
 }
 
 func sixelCellSizeWith(env func(string) string, goos string, cw, ch int) (int, int) {
-	if env("WT_SESSION") != "" || (goos == "windows" && !isWezTermEnv(env)) {
+	if isWindowsSixelHost(env, goos) {
 		return 10, 20
 	}
 	if cw <= 0 || ch <= 0 {
@@ -220,22 +220,36 @@ func newSixelEncoder() *sixelEncoder {
 	return newSixelEncoderWith(os.Getenv)
 }
 
-// newSixelEncoderWith is newSixelEncoder with the environment injected so the
-// palette opt-in is testable without a terminal: VTUI_SIXEL_PALETTE=adaptive.
+// newSixelEncoderWith is newSixelEncoder with the environment injected so
+// terminal selection and VTUI_SIXEL_PALETTE are testable without a terminal.
 func newSixelEncoderWith(env func(string) string) *sixelEncoder {
+	return newSixelEncoderWithOS(env, runtime.GOOS)
+}
+
+// newSixelEncoderWithOS is newSixelEncoderWith with the host OS injected as
+// well. The Windows console path must be testable on the Unix CI builders.
+func newSixelEncoderWithOS(env func(string) string, goos string) *sixelEncoder {
 	mode := strings.ToLower(strings.TrimSpace(env("VTUI_SIXEL_PALETTE")))
 	layered := mode == "layered"
-	if mode == "" && layeredSixelDefault(env) {
-		layered = true
+	adaptive := mode == "adaptive"
+	trueColor := mode == "truecolor" || mode == "per-band"
+	named := mode == "adaptive" || mode == "fixed" || mode == "layered" || trueColor
+	if mode == "" {
+		layered = layeredSixelDefaultWith(env, goos)
+		trueColor = !layered && trueColorSixelDefault(env)
+		adaptive = !layered && !trueColor
+	} else if !named {
+		// Preserve the old escape hatch: any explicit, unknown value means
+		// that the caller has chosen the per-band stream deliberately.
+		trueColor = true
 	}
-	named := mode == "adaptive" || mode == "fixed" || mode == "layered"
 	return &sixelEncoder{
 		cache:       make(map[uint64]sixelCacheEntry),
-		adaptive:    mode == "adaptive",
+		adaptive:    adaptive,
 		layered:     layered,
 		layerMax:    sixelLayerMax,
 		layerBudget: sixelLayerBudget,
-		trueColor:   !layered && !named,
+		trueColor:   trueColor,
 	}
 }
 
@@ -243,20 +257,37 @@ func newSixelEncoderWith(env func(string) string) *sixelEncoder {
 // overlapping transparent sixel images, which is what makes the layered
 // encoder legal there.
 //
-// Windows Terminal is the case that matters and the reason this exists: its
-// parser keeps a raster indexed until it flushes, so an encoder that
-// redefines a register between bands can recolour bands already decoded --
-// the full-colour form is not available there. Layering is, and it is not a
-// workaround the terminal merely tolerates: see microsoft/terminal#20020,
-// where the one report of it breaking turned out to be the reporter's own
-// encoder omitting P2=1, and where sixteen and even two hundred and
-// fifty-six layers are reported working.
+// Windows Terminal and native OpenConsole are the cases that matter: they
+// share the parser which keeps a raster indexed until it flushes, so an
+// encoder that redefines a register between bands can recolour bands already
+// decoded. The full-colour form is not available there. Layering is, and it
+// is not a workaround the terminal merely tolerates: see
+// microsoft/terminal#20020, where the one report of it breaking turned out
+// to be the reporter's own encoder omitting P2=1, and where sixteen and even
+// two hundred and fifty-six layers are reported working.
 //
-// The check is deliberately a single terminal rather than a table. Every
-// other terminal vtui sends sixel to takes the full-colour stream, which is
-// smaller and needs no compositing promise at all.
+// WezTerm and foot are the terminals whose per-band behaviour has been
+// verified. Unknown terminals use one adaptive palette instead of receiving a
+// stream whose palette semantics have not been checked.
 func layeredSixelDefault(env func(string) string) bool {
-	return env("WT_SESSION") != ""
+	return layeredSixelDefaultWith(env, runtime.GOOS)
+}
+
+func layeredSixelDefaultWith(env func(string) string, goos string) bool {
+	return isWindowsSixelHost(env, goos)
+}
+
+// isWindowsSixelHost identifies Windows Terminal, including WSL sessions
+// hosted by it, and native OpenConsole. WezTerm on Windows is excluded: it
+// owns the terminal-side SIXEL renderer behind the ConPTY bridge.
+func isWindowsSixelHost(env func(string) string, goos string) bool {
+	return env("WT_SESSION") != "" || (goos == "windows" && !isWezTermEnv(env))
+}
+
+func trueColorSixelDefault(env func(string) string) bool {
+	term := strings.ToLower(env("TERM"))
+	program := strings.ToLower(env("TERM_PROGRAM"))
+	return isWezTermEnv(env) || strings.Contains(term, "foot") || strings.Contains(program, "foot")
 }
 
 // adaptiveSixelPalette builds a median-cut palette of up to 255 colours with
