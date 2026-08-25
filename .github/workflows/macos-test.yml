@@ -28,9 +28,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # go.mod sets the minimum language version, while govulncheck checks the
+      # standard library used for the build, so CI needs the latest patch.
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.26.x'
 
       - name: Build
         run: go build ./...
