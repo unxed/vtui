@@ -16,10 +16,10 @@ require (
 	github.com/unxed/keytrans v0.1.32
 	github.com/unxed/kiwi-go v0.1.0
 	github.com/unxed/vtinput v0.1.5
-	golang.org/x/image v0.44.0
+	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.40.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 )
 
 require (

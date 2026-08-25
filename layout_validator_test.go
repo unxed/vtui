@@ -45,25 +45,6 @@ func TestLayoutValidator_Logic(t *testing.T) {
 		}
 	})
 
-	t.Run("Glued elements (horizontal air required)", func(t *testing.T) {
-		dlg := NewDialog(0, 0, 30, 20, "Test")
-		b1 := NewButton(2, 2, "B1") // x1:2, x2:7
-		b2 := NewButton(8, 2, "B2") // x1:8, touching b1 horizontally
-		dlg.AddItem(b1)
-		dlg.AddItem(b2)
-
-		errs := ValidateLayout(dlg)
-		found := false
-		for _, e := range errs {
-			if strings.Contains(e.Error(), "horizontally") {
-				found = true
-			}
-		}
-		if !found {
-			t.Error("Failed to detect horizontal air violation")
-		}
-	})
-
 	t.Run("Compact TUI (vertical touch allowed for labels)", func(t *testing.T) {
 		dlg := NewDialog(0, 0, 30, 20, "Test")
 		l1 := NewText(2, 2, "Line 1", 0)

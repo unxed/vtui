@@ -502,6 +502,9 @@ func TestEdit_Editing(t *testing.T) {
 }
 
 func TestEdit_Rendering(t *testing.T) {
+	// Rendering must use the palette this test asserts against, regardless of
+	// which palette-customizing test shuffle ran first.
+	SetDefaultPalette()
 	scr := NewSilentScreenBuf()
 	scr.AllocBuf(10, 1)
 	e := NewEdit(0, 0, 10, "abc")
@@ -512,9 +515,6 @@ func TestEdit_Rendering(t *testing.T) {
 
 	e.Show(scr)
 	e.DisplayObject(scr)
-
-	// Must initialize default palette
-	SetDefaultPalette()
 
 	colNorm := Palette[ColDialogEdit]
 	colSel := Palette[ColDialogEditSelected]

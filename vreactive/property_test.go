@@ -22,7 +22,6 @@ func TestProperty_CycleDetection(t *testing.T) {
 }
 
 func TestProperty_SafeSet(t *testing.T) {
-	p := NewProperty(0)
 	called := false
 
 	GlobalUpdateQueue = &mockUpdateQueue{
@@ -32,6 +31,7 @@ func TestProperty_SafeSet(t *testing.T) {
 		},
 	}
 	defer func() { GlobalUpdateQueue = nil }()
+	p := NewProperty(0)
 
 	SafeSet(p, 42)
 	if !called {

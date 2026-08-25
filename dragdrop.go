@@ -257,18 +257,26 @@ func DeliverDragEvent(ev *DragEvent) DropAction {
 		return DropNone
 	}
 
-	if !DragDeliverToUI || FrameManager == nil || FrameManager.taskChanIn == nil {
+	// Backend delivery belongs to the manager and policy which were active
+	// when this event arrived. Re-reading package globals while waiting lets a
+	// later host/test lifecycle silently redirect an in-flight gesture.
+	deliverToUI := DragDeliverToUI
+	fm := FrameManager
+	timeout := DragDeliverTimeout
+	if !deliverToUI || fm == nil || !fm.hasTaskPump() {
 		return safeHandleDrag(t, ev)
 	}
 
 	res := make(chan DropAction, 1)
-	FrameManager.PostTask(func() { res <- safeHandleDrag(t, ev) })
+	if !fm.enqueueTask(func() { res <- safeHandleDrag(t, ev) }) {
+		return DropNone
+	}
 	select {
 	case action := <-res:
 		DebugLog("DND: %s handled as %s", ev.Phase, action)
 		return action
-	case <-time.After(DragDeliverTimeout):
-		DebugLog("DND: UI thread silent for %s, reporting no action", DragDeliverTimeout)
+	case <-time.After(timeout):
+		DebugLog("DND: UI thread silent for %s, reporting no action", timeout)
 		return DropNone
 	}
 }

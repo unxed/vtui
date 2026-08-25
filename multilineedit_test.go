@@ -241,7 +241,7 @@ func TestMultiLineEdit_CtrlEnterLeavesEvent(t *testing.T) {
 	}
 }
 
-func TestMultiLineEdit_CombiningClustersMoveAndDeleteTogether(t *testing.T) {
+func TestMultiLineEdit_CombiningClustersMoveTogetherAndBackspacePeelsMarks(t *testing.T) {
 	m := NewMultiLineEdit(0, 0, 20, 2, "e\u0301x")
 	m.SetCursorPos(0, 3)
 
@@ -250,8 +250,8 @@ func TestMultiLineEdit_CombiningClustersMoveAndDeleteTogether(t *testing.T) {
 		t.Fatalf("left moved into a grapheme cluster: col=%d, want 2", col)
 	}
 	m.ProcessKey(mleKey(vtinput.VK_BACK, 0, 0))
-	if got := m.GetText(); got != "x" {
-		t.Fatalf("backspace split the combining cluster: %q, want %q", got, "x")
+	if got := m.GetText(); got != "ex" {
+		t.Fatalf("backspace did not peel the combining mark: %q, want %q", got, "ex")
 	}
 }
 

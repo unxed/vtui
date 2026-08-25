@@ -3,6 +3,8 @@ package vtui
 import "testing"
 
 func TestLocalization_Msg(t *testing.T) {
+	original := SnapshotStrings()
+	t.Cleanup(func() { ReplaceStrings(original) })
 	// 1. Test built-in string
 	if Msg("vtui.Ok") != "&Ok" {
 		t.Errorf("Expected '&Ok', got %q", Msg("vtui.Ok"))
@@ -28,6 +30,8 @@ func TestLocalization_Msg(t *testing.T) {
 	}
 }
 func TestReverseLookup(t *testing.T) {
+	original := SnapshotStrings()
+	t.Cleanup(func() { ReplaceStrings(original) })
 	AddStrings(map[string]string{
 		"Test.ReverseKey": "UniqueTranslatedString",
 	})

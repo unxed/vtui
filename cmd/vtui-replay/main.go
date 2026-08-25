@@ -51,14 +51,29 @@ func replaySession(r io.Reader, verify bool, speed float64) error {
 
 	fm := vtui.NewFrameManager()
 	fm.Init(scr)
+	fm.Push(vtui.NewDesktop())
 	defer fm.Shutdown()
+	fm.SetHostMode(true)
+	runDone := make(chan struct{})
+	go func() {
+		fm.Run()
+		close(runDone)
+	}()
 
 	clientReader, serverWriter := io.Pipe()
 	serverReader, clientWriter := io.Pipe()
 
 	session := vtui.NewProtocolSession(serverReader, serverWriter, fm)
+	serveDone := make(chan struct{})
 	go func() {
 		_ = session.Serve()
+		close(serveDone)
+	}()
+	defer func() {
+		_ = clientWriter.Close()
+		<-serveDone
+		_ = serverWriter.Close()
+		<-runDone
 	}()
 
 	scanner := bufio.NewScanner(r)
@@ -105,7 +120,5 @@ func replaySession(r io.Reader, verify bool, speed float64) error {
 		}
 	}
 
-	_ = clientWriter.Close()
-	_ = serverWriter.Close()
 	return scanner.Err()
 }

@@ -97,10 +97,11 @@ type Table struct {
 	SortCompare   func(a, b TableRow, col int) int
 
 	// QuickSearch enables type-to-filter: while the table is focused,
-	// printable characters go into a search string shown in a line below the
-	// table, and rows are filtered by fuzzy match (Myers' bit-vector
+	// printable characters go into a search string shown in a line above the
+	// table header, and rows are filtered by fuzzy match (Myers' bit-vector
 	// algorithm) against all columns, best match wins. The filtered list is
-	// ranked by (edit distance, match position). Default is false.
+	// ranked by (edit distance, match position), best match at the top —
+	// closest to the search line. Default is false.
 	QuickSearch bool
 	// SearchCaseSensitive makes QuickSearch case-sensitive (default false).
 	SearchCaseSensitive bool
@@ -116,6 +117,9 @@ type Table struct {
 	ColorItemSelectCursorIdx int
 	ColorTitleIdx            int
 	ColorBoxIdx              int
+	// ColorHighlightIdx is the QuickSearch match highlight; applied last, on
+	// top of every other cell color. Defaults to ColMenuHighlight.
+	ColorHighlightIdx int
 
 	// colWidths caches the resolved column widths (flexible columns expanded);
 	// reused across frames to avoid allocations in the render hot path.
@@ -159,6 +163,7 @@ func NewTable(x, y, w, h int, columns []TableColumn) *Table {
 		ColorItemSelectCursorIdx: ColTableSelectedText,
 		ColorTitleIdx:            ColTableColumnTitle,
 		ColorBoxIdx:              ColTableBox,
+		ColorHighlightIdx:        ColMenuHighlight,
 		SortColumn:               -1,
 	}
 	t.canFocus = true
@@ -358,6 +363,9 @@ func (t *Table) resort() {
 
 	if len(t.searchRunes) > 0 {
 		t.ItemCount = len(t.order)
+		// While a query is being typed, keep the focus on the most
+		// relevant row (the top one, right below the search line).
+		t.SelectPos = 0
 	} else {
 		t.ItemCount = n
 	}
@@ -374,25 +382,33 @@ func (t *Table) resort() {
 // match across all columns wins) and ranks them by (distance, position).
 // The matched cell span is remembered per row for needle highlighting.
 func (t *Table) applySearchFilter() {
-	matcher := newFuzzyMatcher(string(t.searchRunes), t.SearchCaseSensitive)
+	matcher := NewFuzzyMatcher(string(t.searchRunes), t.SearchCaseSensitive)
 	t.matchBuf = t.matchBuf[:0]
 	rowCount := len(t.Rows)
+
 	if t.cellProvider != nil {
 		rowCount = t.cellProvider.RowCount()
 	} else if t.rowProvider != nil {
 		rowCount = t.rowProvider.RowCount()
 	}
+
 	if cap(t.matchSpans) < rowCount {
 		t.matchSpans = make([]cellHighlight, rowCount)
 	} else {
 		t.matchSpans = t.matchSpans[:rowCount]
 	}
+
 	for i := range t.matchSpans {
 		t.matchSpans[i].col = -1
 	}
+
+	hasExact := false
+
 	for i := 0; i < rowCount; i++ {
 		bestScore := -1
 		bestStart, bestEnd, bestCol := 0, 0, 0
+		exactHit := false
+
 		for col := range t.Columns {
 			cellText := ""
 			if t.cellProvider != nil {
@@ -405,35 +421,37 @@ func (t *Table) applySearchFilter() {
 			} else {
 				cellText = t.Rows[i].GetCellText(col)
 			}
-			score, start, end, ok := matcher.match(cellText)
+
+			score, start, end, ok := matcher.Match(cellText)
 			if ok && (bestScore < 0 || score < bestScore || (score == bestScore && start < bestStart)) {
 				bestScore, bestStart, bestEnd, bestCol = score, start, end, col
 			}
+
+			exactHit = exactHit || matcher.IsMatchExact()
 		}
+
 		if bestScore >= 0 {
+			if exactHit {
+				bestScore = -1 // exact match always wins sort
+				hasExact = true
+			}
 			t.matchBuf = append(t.matchBuf, searchMatch{i, bestScore, bestStart})
 			t.matchSpans[i] = cellHighlight{bestCol, bestStart, bestEnd}
 		}
 	}
-	if t.SearchExactOnHit {
-		hasExact := false
+
+	if t.SearchExactOnHit && hasExact {
+		// Exact matches exist: drop rows with a greater distance as irrelevant.
+		write := 0
 		for _, m := range t.matchBuf {
-			if t.rowHasExactSearchHit(m.idx, string(t.searchRunes)) {
-				hasExact = true
-				break
+			if m.score == -1 {
+				t.matchBuf[write] = m
+				write++
 			}
 		}
-		if hasExact {
-			write := 0
-			for _, m := range t.matchBuf {
-				if t.rowHasExactSearchHit(m.idx, string(t.searchRunes)) {
-					t.matchBuf[write] = m
-					write++
-				}
-			}
-			t.matchBuf = t.matchBuf[:write]
-		}
+		t.matchBuf = t.matchBuf[:write]
 	}
+
 	sort.Slice(t.matchBuf, func(a, b int) bool {
 		ma, mb := t.matchBuf[a], t.matchBuf[b]
 		if ma.score != mb.score {
@@ -444,34 +462,16 @@ func (t *Table) applySearchFilter() {
 		}
 		return ma.idx < mb.idx
 	})
+
 	if cap(t.order) < len(t.matchBuf) {
 		t.order = make([]int, len(t.matchBuf))
 	} else {
 		t.order = t.order[:len(t.matchBuf)]
 	}
+
 	for i, m := range t.matchBuf {
 		t.order[i] = m.idx
 	}
-}
-
-func (t *Table) rowHasExactSearchHit(row int, query string) bool {
-	for col := range t.Columns {
-		cellText := ""
-		if t.cellProvider != nil {
-			cellText = t.cellProvider.GetCellText(row, col)
-		} else if t.rowProvider != nil {
-			cells := t.rowProvider.Row(row)
-			if col < len(cells) {
-				cellText = cells[col]
-			}
-		} else if row >= 0 && row < len(t.Rows) {
-			cellText = t.Rows[row].GetCellText(col)
-		}
-		if strings.EqualFold(cellText, query) {
-			return true
-		}
-	}
-	return false
 }
 
 // SearchText returns the current QuickSearch string.
@@ -537,28 +537,29 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 
 	yOffset := 0
 
-	// 1. Draw Header
-	widths := t.resolvedWidths()
-	if t.ShowHeader {
-		t.drawRow(scr, t.Y1, -1, -1, Palette[t.ColorTitleIdx], widths)
+	// 1. Draw the QuickSearch line above everything else
+	if t.QuickSearch {
+		t.drawSearchLine(scr)
 		yOffset++
 	}
 
-	// 2. Draw Data Rows (ViewHeight already excludes header and search line).
-	// While a search is active, results are shown bottom-up (best match right
-	// above the search line), telescope-style.
+	// 2. Draw Header
+	widths := t.resolvedWidths()
+	if t.ShowHeader {
+		t.drawRow(scr, t.Y1+yOffset, -1, -1, Palette[t.ColorTitleIdx], widths)
+		yOffset++
+	}
+
+	// 3. Draw Data Rows (ViewHeight already excludes header and search line).
+	// Search results rank top-down: the best match sits right below the
+	// header, closest to the search line.
 	dataHeight := t.ViewHeight
 	if dataHeight < 0 {
 		dataHeight = 0
 	}
-	bottomUp := len(t.searchRunes) > 0
-	dataBottom := t.Y1 + yOffset + dataHeight - 1
 	for i := 0; i < dataHeight; i++ {
 		displayPos := t.TopPos + i
 		currY := t.Y1 + yOffset + i
-		if bottomUp {
-			currY = dataBottom - i
-		}
 
 		if displayPos < t.ItemCount {
 			rowIdx := t.rowAt(displayPos)
@@ -572,26 +573,24 @@ func (t *Table) DisplayObject(scr *ScreenBuf) {
 		}
 	}
 
-	// 3. Draw Vertical Separators if needed
+	// 4. Draw Vertical Separators if needed
 	if t.ShowSeparators {
 		p := NewPainter(scr)
 		currX := t.X1
-		sepChar := boxSymbols[bsV]     // │
-		sepY2 := t.Y2 - t.MarginBottom // do not cross the search line
+		sepChar := boxSymbols[bsV] // │
+		sepY1 := t.Y1
+		if t.QuickSearch {
+			sepY1++ // do not cross the search line
+		}
 		for i := 0; i < len(t.Columns)-1; i++ {
 			currX += widths[i]
-			p.Fill(currX, t.Y1, currX, sepY2, sepChar, Palette[t.ColorBoxIdx])
+			p.Fill(currX, sepY1, currX, t.Y2, sepChar, Palette[t.ColorBoxIdx])
 			currX++
 		}
 	}
 
-	// 4. Draw Scrollbar
+	// 5. Draw Scrollbar
 	t.DrawScrollBar(scr)
-
-	// 5. Draw the QuickSearch line
-	if t.QuickSearch {
-		t.drawSearchLine(scr)
-	}
 }
 
 func (t *Table) drawRow(scr *ScreenBuf, y int, rowIdx int, displayPos int, attr uint64, widths []int) {
@@ -671,7 +670,8 @@ func (t *Table) drawRow(scr *ScreenBuf, y int, rowIdx int, displayPos int, attr 
 		} else {
 			t.cellBuf = FillCharInfoAligned(t.cellBuf, text, widths[colIdx], col.Alignment, cellAttr)
 		}
-		// Invert the colors of the matched substring (QuickSearch highlight).
+		// Paint the matched substring with the highlight color (QuickSearch).
+		// Goes last, on top of all other colors.
 		if rowIdx >= 0 && len(t.searchRunes) > 0 && rowIdx < len(t.matchSpans) {
 			if span := t.matchSpans[rowIdx]; span.col == colIdx {
 				t.applyCellHighlight(t.cellBuf, text, widths[colIdx], col.Alignment, span)
@@ -693,9 +693,10 @@ func (t *Table) drawRow(scr *ScreenBuf, y int, rowIdx int, displayPos int, attr 
 	}
 }
 
-// applyCellHighlight inverts the colors of the cells covered by the matched
-// substring. span.start/span.end are rune indices in the original cell text;
-// they are mapped to display cells accounting for truncation, alignment
+// applyCellHighlight repaints the cells covered by the matched substring with
+// the highlight color, overriding whatever state/selection attributes were
+// resolved before. span.start/span.end are rune indices in the original cell
+// text; they are mapped to display cells accounting for truncation, alignment
 // padding and wide runes.
 func (t *Table) applyCellHighlight(cis []CharInfo, text string, width int, align Alignment, span cellHighlight) {
 	truncated := TruncateString(text, width, "")
@@ -720,7 +721,7 @@ func (t *Table) applyCellHighlight(cis []CharInfo, text string, width int, align
 		}
 		if runeIdx >= span.start && runeIdx <= span.end {
 			for k := 0; k < w && cellPos+k < len(cis); k++ {
-				cis[cellPos+k].Attributes = InvertColors(cis[cellPos+k].Attributes)
+				cis[cellPos+k].Attributes = Palette[t.ColorHighlightIdx]
 			}
 		}
 		cellPos += w
@@ -769,33 +770,14 @@ func (t *Table) ProcessKey(e *vtinput.InputEvent) bool {
 		return false
 	}
 
-	searchActive := len(t.searchRunes) > 0
 	switch e.VirtualKeyCode {
 	case vtinput.VK_UP:
-		// With bottom-up search results Up moves towards worse matches.
-		if searchActive {
-			if t.SelectPos == t.ItemCount-1 {
-				return false
-			}
-		} else if t.SelectPos == 0 {
+		if t.SelectPos == 0 {
 			return false
 		}
 	case vtinput.VK_DOWN:
-		if searchActive {
-			if t.SelectPos == 0 {
-				return false
-			}
-		} else if t.SelectPos == t.ItemCount-1 {
+		if t.SelectPos == t.ItemCount-1 {
 			return false
-		}
-	}
-
-	if searchActive {
-		switch e.VirtualKeyCode {
-		case vtinput.VK_UP:
-			return t.MoveSelection(1)
-		case vtinput.VK_DOWN:
-			return t.MoveSelection(-1)
 		}
 	}
 
@@ -965,31 +947,6 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 		}
 	}
 
-	// With bottom-up search results, clicks in the data area map to rows
-	// counted from the bottom; consume them all so the generic handler does
-	// not mis-map empty rows above the results.
-	if len(t.searchRunes) > 0 && e.Type == vtinput.MouseEventType && e.ButtonState != 0 && e.KeyDown {
-		dataTop := t.Y1 + t.MarginTop
-		dataBottom := dataTop + t.ViewHeight - 1
-		mx, my := int(e.MouseX), int(e.MouseY)
-		if my >= dataTop && my <= dataBottom && mx >= t.X1 && mx < t.X1+t.GetContentWidth() {
-			idx := t.TopPos + (dataBottom - my)
-			if idx >= 0 && idx < t.ItemCount {
-				oldPos := t.SelectPos
-				t.SelectPos = idx
-				if t.SelectPos != oldPos && t.OnSelect != nil {
-					t.OnSelect(t.SelectPos)
-				}
-				isLeftDoubleClick := e.ButtonState == vtinput.FromLeft1stButtonPressed && (e.MouseEventFlags&vtinput.DoubleClick) != 0
-				isMiddleClick := e.ButtonState == vtinput.FromLeft2ndButtonPressed
-				if (isLeftDoubleClick || isMiddleClick) && t.OnAction != nil {
-					t.OnAction(t.SelectPos)
-				}
-			}
-			return true
-		}
-	}
-
 	handled := t.HandleMouse(e)
 	if !handled && colChanged {
 		t.SelectCol = originalCol
@@ -998,15 +955,16 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 }
 
 func (t *Table) SetPosition(x1, y1, x2, y2 int) {
-	t.MarginTop = map[bool]int{true: 1, false: 0}[t.ShowHeader]
-	t.MarginBottom = map[bool]int{true: 1, false: 0}[t.QuickSearch]
+	t.MarginTop = map[bool]int{true: 1, false: 0}[t.ShowHeader] + map[bool]int{true: 1, false: 0}[t.QuickSearch]
+	t.MarginBottom = 0
 	t.ScrollView.SetPosition(x1, y1, x2, y2)
 }
 
-// drawSearchLine renders the QuickSearch string in the bottom line of the
-// table: "> text" with a hardware cursor while the table is focused.
+// drawSearchLine renders the QuickSearch string in the top line of the
+// table, above the header: "> text" with a hardware cursor while the table
+// is focused.
 func (t *Table) drawSearchLine(scr *ScreenBuf) {
-	y := t.Y2
+	y := t.Y1
 	attr := Palette[t.ColorTextIdx]
 	scr.FillRect(t.X1, y, t.X2, y, ' ', attr)
 

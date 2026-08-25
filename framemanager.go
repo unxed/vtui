@@ -7,6 +7,7 @@ import (
 	"github.com/unxed/vtui/vreactive"
 	"golang.org/x/term"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -220,6 +221,9 @@ type frameManager struct {
 	RedrawChan  chan struct{}
 	TaskChan    chan func()
 	taskChanIn  chan func()
+	taskDone    chan struct{}
+	taskMu      sync.Mutex
+	taskWG      sync.WaitGroup
 	EventChan   chan *vtinput.InputEvent
 	EventFilter func(*vtinput.InputEvent) bool
 	// needsRender is set from background goroutines as well as the UI one --
@@ -233,6 +237,10 @@ type frameManager struct {
 
 	pendingFar2l map[uint8]chan *vtinput.Far2lStack
 	far2lMu      sync.Mutex
+	// Far2lEnabled is the startup default. Negotiation completes after Run has
+	// started, so its result belongs to this manager rather than that global.
+	far2lEnabled    atomic.Bool
+	far2lConfigured atomic.Bool
 
 	// Global standard UI components
 	DisabledCommands CommandSet
@@ -266,8 +274,17 @@ type frameManager struct {
 	workspaceNewTabX         int
 	workspaceTabDrag         *AppScreen
 	workspaceTabDragHits     []workspaceTabHit
-	running                  bool
-	lastTitle                string
+	// The UI graph itself stays single-goroutine-owned. These atomics only
+	// coordinate callers which need to stop that goroutine or observe that its
+	// shutdown has completed.
+	running       atomic.Bool
+	stopRequested atomic.Bool
+	shutdown      atomic.Bool
+	uiOwnershipMu sync.Mutex
+	lifecycleMu   sync.Mutex
+	runDone       chan struct{}
+	shutdownDone  bool
+	lastTitle     string
 
 	lastMouseClickTime     time.Time
 	lastMouseX, lastMouseY int
@@ -714,6 +731,12 @@ func (fm *frameManager) Screen() *ScreenBuf {
 
 // Init initializes the FrameManager with a ScreenBuf.
 func (fm *frameManager) Init(scr *ScreenBuf) {
+	fm.shutdown.Store(false)
+	fm.stopRequested.Store(false)
+	fm.lifecycleMu.Lock()
+	fm.shutdownDone = false
+	fm.lifecycleMu.Unlock()
+
 	fm.scr = scr
 	fm.frames = make([]Frame, 0, 10)
 	fm.Screens = []*AppScreen{{Number: 1, Frames: fm.frames}}
@@ -730,6 +753,8 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 	fm.workspaceTabDragHits = nil
 	fm.currentToast = nil
 	fm.needsRender.Store(true)
+	fm.far2lEnabled.Store(Far2lEnabled)
+	fm.far2lConfigured.Store(true)
 
 	if fm.RedrawChan == nil {
 		fm.RedrawChan = make(chan struct{}, 1)
@@ -739,34 +764,7 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 		fm.animWake = make(chan struct{}, 1)
 	}
 
-	if fm.taskChanIn == nil {
-		fm.taskChanIn = make(chan func())
-		fm.TaskChan = make(chan func())
-
-		go func() {
-			var queue []func()
-			for {
-				if len(queue) == 0 {
-					task, ok := <-fm.taskChanIn
-					if !ok {
-						return
-					}
-					queue = append(queue, task)
-				} else {
-					select {
-					case task, ok := <-fm.taskChanIn:
-						if !ok {
-							return
-						}
-						queue = append(queue, task)
-					case fm.TaskChan <- queue[0]:
-						queue[0] = nil
-						queue = queue[1:]
-					}
-				}
-			}
-		}()
-	}
+	fm.startTaskPump()
 
 	fm.injectedEvents = make([]*vtinput.InputEvent, 0)
 	SetDefaultPalette()
@@ -785,6 +783,67 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 		os.Stdout.WriteString("\x1b]104\x07")
 	}
 
+}
+
+// startTaskPump creates one queue pump for this manager. The goroutine uses
+// captured channels because Init and Shutdown replace the lifecycle fields.
+func (fm *frameManager) startTaskPump() {
+	fm.taskMu.Lock()
+	defer fm.taskMu.Unlock()
+	if fm.taskChanIn != nil {
+		return
+	}
+
+	in := make(chan func())
+	out := make(chan func())
+	done := make(chan struct{})
+	fm.taskChanIn = in
+	fm.TaskChan = out
+	fm.taskDone = done
+	fm.taskWG.Add(1)
+	go func() {
+		defer fm.taskWG.Done()
+		var queue []func()
+		for {
+			if len(queue) == 0 {
+				select {
+				case task := <-in:
+					queue = append(queue, task)
+				case <-done:
+					return
+				}
+				continue
+			}
+
+			select {
+			case task := <-in:
+				queue = append(queue, task)
+			case out <- queue[0]:
+				queue[0] = nil
+				queue = queue[1:]
+			case <-done:
+				return
+			}
+		}
+	}()
+}
+
+func (fm *frameManager) stopTaskPump() {
+	fm.taskMu.Lock()
+	done := fm.taskDone
+	if done != nil {
+		close(done)
+		fm.taskDone = nil
+		fm.taskChanIn = nil
+		fm.TaskChan = nil
+	}
+	fm.taskMu.Unlock()
+
+	// The pump never takes taskMu. Waiting after the unlock also keeps a task
+	// which was already posting from being trapped behind this teardown.
+	if done != nil {
+		fm.taskWG.Wait()
+	}
 }
 
 // Push adds a new frame to the top of the stack and assigns a number if it's non-modal.
@@ -985,8 +1044,61 @@ func (fm *frameManager) Redraw() {
 
 // PostTask schedules a function to be executed safely on the main UI thread.
 func (fm *frameManager) PostTask(task func()) {
-	if fm.taskChanIn != nil {
-		fm.taskChanIn <- task
+	fm.enqueueTask(task)
+}
+
+func (fm *frameManager) enqueueTask(task func()) bool {
+	if task == nil {
+		return false
+	}
+	fm.taskMu.Lock()
+	in, done := fm.taskChanIn, fm.taskDone
+	fm.taskMu.Unlock()
+	if in == nil || done == nil {
+		return false
+	}
+	select {
+	case in <- task:
+		return true
+	case <-done:
+		return false
+	}
+}
+
+func (fm *frameManager) hasTaskPump() bool {
+	fm.taskMu.Lock()
+	defer fm.taskMu.Unlock()
+	return fm.taskChanIn != nil && fm.taskDone != nil
+}
+
+// callOnUI runs fn on the event-loop goroutine and waits for its result. Before
+// Run starts, uiOwnershipMu makes direct setup calls and Run mutually exclusive.
+func (fm *frameManager) callOnUI(fn func() error) error {
+	if !fm.running.Load() {
+		fm.uiOwnershipMu.Lock()
+		defer fm.uiOwnershipMu.Unlock()
+		if fm.shutdown.Load() {
+			return fmt.Errorf("frame manager is shut down")
+		}
+		return fn()
+	}
+
+	result := make(chan error, 1)
+	fm.lifecycleMu.Lock()
+	runDone := fm.runDone
+	if !fm.running.Load() || runDone == nil {
+		fm.lifecycleMu.Unlock()
+		return fmt.Errorf("frame manager stopped before scheduling task")
+	}
+	fm.lifecycleMu.Unlock()
+	if !fm.enqueueTask(func() { result <- fn() }) {
+		return fmt.Errorf("frame manager task pump is stopped")
+	}
+	select {
+	case err := <-result:
+		return err
+	case <-runDone:
+		return fmt.Errorf("frame manager stopped before running task")
 	}
 }
 
@@ -1073,6 +1185,10 @@ func (fm *frameManager) PostEvent(ev vtinput.InputEvent) {
 // timeout > 0 waits up to the given duration.
 // Returns false when the application should terminate (no frames left or shutdown).
 func (fm *frameManager) Step(timeout time.Duration) bool {
+	return fm.stepWithSize(timeout, GetTerminalSize)
+}
+
+func (fm *frameManager) stepWithSize(timeout time.Duration, getSize func() (int, int, error)) bool {
 	if fm.IsShutdown() {
 		return false
 	}
@@ -1098,7 +1214,7 @@ func (fm *frameManager) Step(timeout time.Duration) bool {
 	if injected {
 		if e != nil {
 			if e.Type == vtinput.ResizeEventType {
-				fm.handleResize()
+				fm.handleResizeWith(getSize)
 			} else {
 				fm.dispatchEvent(e, true)
 			}
@@ -1122,7 +1238,7 @@ func (fm *frameManager) Step(timeout time.Duration) bool {
 			}
 			if ev != nil {
 				if ev.Type == vtinput.ResizeEventType {
-					fm.handleResize()
+					fm.handleResizeWith(getSize)
 				} else {
 					fm.dispatchEvent(ev, false)
 				}
@@ -1148,7 +1264,7 @@ func (fm *frameManager) Step(timeout time.Duration) bool {
 			}
 			if ev != nil {
 				if ev.Type == vtinput.ResizeEventType {
-					fm.handleResize()
+					fm.handleResizeWith(getSize)
 				} else {
 					fm.dispatchEvent(ev, false)
 				}
@@ -1176,7 +1292,7 @@ func (fm *frameManager) Step(timeout time.Duration) bool {
 		}
 		if ev != nil {
 			if ev.Type == vtinput.ResizeEventType {
-				fm.handleResize()
+				fm.handleResizeWith(getSize)
 			} else {
 				fm.dispatchEvent(ev, false)
 			}
@@ -1188,7 +1304,11 @@ func (fm *frameManager) Step(timeout time.Duration) bool {
 }
 
 func (fm *frameManager) handleResize() {
-	width, height, err := GetTerminalSize()
+	fm.handleResizeWith(GetTerminalSize)
+}
+
+func (fm *frameManager) handleResizeWith(getSize func() (int, int, error)) {
+	width, height, err := getSize()
 	DebugLog("FM_RESIZE: handleResize triggered. GetTerminalSize returned: %dx%d (err: %v). Current scr: %dx%d", width, height, err, fm.scr.width, fm.scr.height)
 	if err != nil {
 		return
@@ -1198,10 +1318,47 @@ func (fm *frameManager) handleResize() {
 
 // Shutdown clears all frames, stops the event loop, and cleanly restores the terminal state. Safe and idempotent.
 func (fm *frameManager) Shutdown() {
-	fm.running = false
+	fm.shutdown.Store(true)
+	fm.stopRequested.Store(true)
+	select {
+	case fm.RedrawChan <- struct{}{}:
+	default:
+	}
+	if fm.running.Load() {
+		return
+	}
+
+	fm.uiOwnershipMu.Lock()
+	if !fm.running.Load() {
+		fm.finishShutdown()
+	}
+	fm.uiOwnershipMu.Unlock()
+}
+
+// shutdownAndWait is for owners outside the UI goroutine, such as a protocol
+// session. Shutdown itself cannot always wait because UI callbacks call it too.
+func (fm *frameManager) shutdownAndWait() {
+	fm.Shutdown()
+	fm.lifecycleMu.Lock()
+	done := fm.runDone
+	fm.lifecycleMu.Unlock()
+	if done != nil {
+		<-done
+	}
+}
+
+func (fm *frameManager) finishShutdown() {
+	fm.lifecycleMu.Lock()
+	if fm.shutdownDone {
+		fm.lifecycleMu.Unlock()
+		return
+	}
+	fm.shutdownDone = true
 	fm.Screens = nil
 	fm.frames = nil
 	fm.capturedFrame = nil
+	fm.lifecycleMu.Unlock()
+
 	if fm.scr != nil {
 		fm.scr.SetCursorVisible(true)
 		// If a Suspend already restored the terminal (quit path), this flush
@@ -1214,11 +1371,12 @@ func (fm *frameManager) Shutdown() {
 	}
 	Suspend()
 	CleanupStderrLog()
+	fm.stopTaskPump()
 }
 
 // IsShutdown returns true if the FrameManager has been shut down explicitly.
 func (fm *frameManager) IsShutdown() bool {
-	return fm.Screens == nil
+	return fm.shutdown.Load()
 }
 
 func (fm *frameManager) RegisterFar2lWaiter(id uint8) chan *vtinput.Far2lStack {
@@ -2078,9 +2236,11 @@ func (fm *frameManager) GetBackendName() string {
 }
 func (fm *frameManager) GetSyncStats() string {
 	tLen, tCap := 0, 0
+	fm.taskMu.Lock()
 	if fm.TaskChan != nil {
 		tLen, tCap = len(fm.TaskChan), cap(fm.TaskChan)
 	}
+	fm.taskMu.Unlock()
 	eLen, eCap := 0, 0
 	if fm.EventChan != nil {
 		eLen, eCap = len(fm.EventChan), cap(fm.EventChan)
@@ -2119,11 +2279,7 @@ func (fm *frameManager) ResizeWindow(cols, rows int) {
 // Stop signals the main loop to exit.
 func (fm *frameManager) Stop() {
 	DebugLog("FM: Stop() requested. Deactivating menus and exiting loop.")
-	// Safety: deactivate top menu before leaving to avoid stale sub-menus on return
-	if fm.MenuBar != nil {
-		fm.MenuBar.Active = false
-	}
-	fm.running = false
+	fm.stopRequested.Store(true)
 	// Wake up the select loop immediately
 	select {
 	case fm.RedrawChan <- struct{}{}:
@@ -2144,14 +2300,36 @@ type softwareBlinkRenderer interface {
 }
 
 func (fm *frameManager) Run(readers ...*vtinput.Reader) {
+	fm.uiOwnershipMu.Lock()
+	defer fm.uiOwnershipMu.Unlock()
+	if fm.shutdown.Load() {
+		return
+	}
+	runDone := make(chan struct{})
+	fm.lifecycleMu.Lock()
+	if fm.running.Load() {
+		fm.lifecycleMu.Unlock()
+		return
+	}
+	fm.running.Store(true)
+	fm.runDone = runDone
+	fm.lifecycleMu.Unlock()
+	fm.stopRequested.Store(false)
+
 	if len(readers) > 0 && readers[0] != nil {
 		fm.Reader = readers[0]
 		fm.EventChan = readers[0].GetEventChan()
 		defer readers[0].Close()
 	}
-	fm.running = true
+	workersDone := make(chan struct{})
+	var workers sync.WaitGroup
 	// Restore cursor visibility on exit
 	defer func() {
+		close(workersDone)
+		workers.Wait()
+		if fm.stopRequested.Load() && fm.MenuBar != nil {
+			fm.MenuBar.Active = false
+		}
 		if r := recover(); r != nil {
 			// Note: RecordCrash now generates its own full stack dump
 			DebugLog("FATAL PANIC IN RUN LOOP: %v", r)
@@ -2164,8 +2342,9 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 			CleanupStderrLog()
 			os.Exit(2)
 		}
-		fm.running = false
-		if fm.scr != nil {
+		if fm.shutdown.Load() {
+			fm.finishShutdown()
+		} else if fm.scr != nil {
 			fm.scr.SetCursorVisible(true)
 			// Skip the flush if Suspend already restored the terminal: this
 			// defer runs after the quit path's Suspend(), and a frame written
@@ -2176,15 +2355,20 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 			}
 		}
 		CleanupStderrLog()
+		fm.lifecycleMu.Lock()
+		fm.running.Store(false)
+		if fm.runDone == runDone {
+			close(runDone)
+			fm.runDone = nil
+		}
+		fm.lifecycleMu.Unlock()
 	}()
 
 	// Configure channel for tracking window resizing
 	sigChan := make(chan os.Signal, 1)
 	watchResizeSignal(sigChan)
-
-	// Closed when Run exits, so the idle heartbeat and resize forwarder stop.
-	done := make(chan struct{})
-	defer close(done)
+	defer signal.Stop(sigChan)
+	getTerminalSize := GetTerminalSize
 
 	// Heartbeat for animations and cursor blinking: ticks at ~30fps while
 	// animations are active. The lighter 250ms idle tick only exists for
@@ -2219,7 +2403,9 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 		}
 	}
 
+	workers.Add(1)
 	go func() {
+		defer workers.Done()
 		tmr := time.NewTimer(33 * time.Millisecond)
 		if !tmr.Stop() {
 			select {
@@ -2251,7 +2437,7 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 					select {
 					case <-fm.animWake:
 						continue
-					case <-done:
+					case <-workersDone:
 						return
 					}
 				}
@@ -2268,7 +2454,7 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 				case <-idleTmr.C:
 					fm.Redraw()
 					continue
-				case <-done:
+				case <-workersDone:
 					return
 				}
 			}
@@ -2284,7 +2470,7 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 				}
 			case <-tmr.C:
 				fm.PostTask(func() { fm.tickAnimations() })
-			case <-done:
+			case <-workersDone:
 				return
 			}
 		}
@@ -2293,12 +2479,25 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 	// Terminal size polling: skipped in GUI backends; adaptive fallback in TTY.
 	sizeChan := make(chan struct{}, 1)
 	if !fm.isGUI() {
+		workers.Add(1)
 		go func() {
-			lastW, lastH, _ := GetTerminalSize()
+			defer workers.Done()
+			lastW, lastH, _ := getTerminalSize()
 			interval := 200 * time.Millisecond
-			for fm.running {
-				time.Sleep(interval)
-				w, h, err := GetTerminalSize()
+			for {
+				timer := time.NewTimer(interval)
+				select {
+				case <-timer.C:
+				case <-workersDone:
+					if !timer.Stop() {
+						select {
+						case <-timer.C:
+						default:
+						}
+					}
+					return
+				}
+				w, h, err := getTerminalSize()
 				if err == nil && w > 0 && h > 0 && (w != lastW || h != lastH) {
 					lastW, lastH = w, h
 					interval = 200 * time.Millisecond
@@ -2314,24 +2513,26 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 	}
 
 	// Forward resize notifications to the event queue
+	workers.Add(1)
 	go func() {
+		defer workers.Done()
 		for {
 			select {
 			case <-sigChan:
-				fm.PostTask(func() { fm.handleResize() })
+				fm.PostTask(func() { fm.handleResizeWith(getTerminalSize) })
 			case <-sizeChan:
-				fm.PostTask(func() { fm.handleResize() })
-			case <-done:
+				fm.PostTask(func() { fm.handleResizeWith(getTerminalSize) })
+			case <-workersDone:
 				return
 			}
 		}
 	}()
 
-	for fm.running && !fm.IsShutdown() {
+	for !fm.stopRequested.Load() && !fm.IsShutdown() {
 		if !fm.hostMode && len(fm.frames) == 0 {
 			break
 		}
-		if !fm.Step(-1) {
+		if !fm.stepWithSize(-1, getTerminalSize) {
 			if !fm.hostMode {
 				break
 			}
@@ -2623,8 +2824,8 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	if ev.Type == vtinput.Far2lEventType {
 		DebugLog("FM_DISPATCH: Processing Far2l event: cmd=%q", ev.Far2lCommand)
 		if ev.Far2lCommand == "ok" {
-			DebugLog("FM_DISPATCH: Far2l extensions successfully negotiated with host. Setting Far2lEnabled = true")
-			Far2lEnabled = true
+			DebugLog("FM_DISPATCH: Far2l extensions successfully negotiated with host")
+			fm.far2lEnabled.Store(true)
 			// A screen may have asked for its graphics protocol before the
 			// asynchronous far2l acknowledgement arrived. Switch it now so
 			// image viewers do not retain the initial GraphicsNone/kitty choice.

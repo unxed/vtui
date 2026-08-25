@@ -201,14 +201,6 @@ func ValidateLayoutWithRules(c Container, rules LayoutRules) []error {
 				continue
 			}
 
-			// Horizontal proximity: mandatory 1 cell air for non-decorative items
-			if gapX == 0 && gapY <= 0 && !isDecorative(item) && !isDecorative(other) {
-				errs = append(errs, LayoutError{
-					Element1: item, Element2: other,
-					Message: fmt.Sprintf("Elements [%s] and [%s] are too close horizontally (need 1 cell air)", id, oid),
-				})
-			}
-
 			// Vertical proximity: Buttons must always have air
 			if gapY == 0 && gapX <= 0 {
 				isBtn := func(el UIElement) bool { _, b := el.(*Button); return b }

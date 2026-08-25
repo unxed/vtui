@@ -54,9 +54,9 @@ func TestFar2lAcknowledgementUpdatesExistingScreen(t *testing.T) {
 }
 
 func TestFar2lEncoderSetUsesPackedCropAndInclusiveArea(t *testing.T) {
-	oldID := far2lIDCounter
-	far2lIDCounter = 0
-	t.Cleanup(func() { far2lIDCounter = oldID })
+	oldID := far2lIDCounter.Load()
+	far2lIDCounter.Store(0)
+	t.Cleanup(func() { far2lIDCounter.Store(oldID) })
 
 	// Two padded rows: the command must contain only the selected 2x2 crop,
 	// not the source stride or pixels outside the source rectangle.
@@ -100,9 +100,9 @@ func TestFar2lEncoderSetUsesPackedCropAndInclusiveArea(t *testing.T) {
 }
 
 func TestFar2lEncoderDeletesStaleImages(t *testing.T) {
-	oldID := far2lIDCounter
-	far2lIDCounter = 0
-	t.Cleanup(func() { far2lIDCounter = oldID })
+	oldID := far2lIDCounter.Load()
+	far2lIDCounter.Store(0)
+	t.Cleanup(func() { far2lIDCounter.Store(oldID) })
 
 	e := newFar2lEncoder()
 	surf := NewImageSurface(1, 1)
@@ -125,9 +125,9 @@ func TestFar2lEncoderDeletesStaleImages(t *testing.T) {
 }
 
 func TestScreenBufFlushFar2lGraphics(t *testing.T) {
-	oldID := far2lIDCounter
-	far2lIDCounter = 0
-	t.Cleanup(func() { far2lIDCounter = oldID })
+	oldID := far2lIDCounter.Load()
+	far2lIDCounter.Store(0)
+	t.Cleanup(func() { far2lIDCounter.Store(oldID) })
 
 	scr := NewScreenBuf()
 	var out bytes.Buffer

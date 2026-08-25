@@ -54,6 +54,29 @@ func TestAutoComplete_Matching(t *testing.T) {
 	}
 }
 
+func TestAutoComplete_MatchRanking(t *testing.T) {
+	SetDefaultPalette()
+	edit := NewEdit(0, 0, 20, "git")
+	edit.History = []string{
+		"got",        // fuzzy: 1 error (k = 1)
+		"a git x",    // substring at 2
+		"git status", // prefix
+		"git",        // exact, must win despite being last in history
+	}
+
+	ac := NewAutoCompleteMenu(edit)
+
+	want := []string{"git", "git status", "a git x", "got"}
+	if len(ac.Matches) != len(want) {
+		t.Fatalf("expected %d matches, got %d: %v", len(want), len(ac.Matches), ac.Matches)
+	}
+	for i := range want {
+		if ac.Matches[i] != want[i] {
+			t.Errorf("match %d: expected %q, got %q (all: %v)", i, want[i], ac.Matches[i], ac.Matches)
+		}
+	}
+}
+
 func TestAutoComplete_TabCompletion(t *testing.T) {
 	SetDefaultPalette()
 	FrameManager.Init(NewSilentScreenBuf())
