@@ -54,8 +54,10 @@ func TestAutoComplete_OpensOnTypingInHistoryField(t *testing.T) {
 	if got := edit.GetText(); got != "git c" {
 		t.Fatalf("typing did not reach the edit: text is %q", got)
 	}
-	if len(ac.Matches) != 1 || ac.Matches[0] != "git commit" {
-		t.Errorf("menu did not filter down while typing: %v", ac.Matches)
+	// Fuzzy matching keeps "git status" (1 error, k = 1) as a tail result,
+	// but the prefix match must rank first.
+	if len(ac.Matches) != 2 || ac.Matches[0] != "git commit" || ac.Matches[1] != "git status" {
+		t.Errorf("menu did not rank matches while typing: %v", ac.Matches)
 	}
 }
 
