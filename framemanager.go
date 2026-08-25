@@ -280,6 +280,8 @@ type frameManager struct {
 	running       atomic.Bool
 	stopRequested atomic.Bool
 	shutdown      atomic.Bool
+	// uiOwnershipMu serializes direct UI access with transitions into and out
+	// of Run. It must never span the event loop because callOnUI waits on it.
 	uiOwnershipMu sync.Mutex
 	lifecycleMu   sync.Mutex
 	runDone       chan struct{}
@@ -1074,14 +1076,15 @@ func (fm *frameManager) hasTaskPump() bool {
 // callOnUI runs fn on the event-loop goroutine and waits for its result. Before
 // Run starts, uiOwnershipMu makes direct setup calls and Run mutually exclusive.
 func (fm *frameManager) callOnUI(fn func() error) error {
+	fm.uiOwnershipMu.Lock()
 	if !fm.running.Load() {
-		fm.uiOwnershipMu.Lock()
 		defer fm.uiOwnershipMu.Unlock()
 		if fm.shutdown.Load() {
 			return fmt.Errorf("frame manager is shut down")
 		}
 		return fn()
 	}
+	fm.uiOwnershipMu.Unlock()
 
 	result := make(chan error, 1)
 	fm.lifecycleMu.Lock()
@@ -2300,20 +2303,24 @@ type softwareBlinkRenderer interface {
 }
 
 func (fm *frameManager) Run(readers ...*vtinput.Reader) {
+	// Only hold uiOwnershipMu while publishing the running transition. Never
+	// extend it across the event loop: callOnUI may be waiting for this lock.
 	fm.uiOwnershipMu.Lock()
-	defer fm.uiOwnershipMu.Unlock()
 	if fm.shutdown.Load() {
+		fm.uiOwnershipMu.Unlock()
 		return
 	}
-	runDone := make(chan struct{})
 	fm.lifecycleMu.Lock()
 	if fm.running.Load() {
 		fm.lifecycleMu.Unlock()
+		fm.uiOwnershipMu.Unlock()
 		return
 	}
+	runDone := make(chan struct{})
 	fm.running.Store(true)
 	fm.runDone = runDone
 	fm.lifecycleMu.Unlock()
+	fm.uiOwnershipMu.Unlock()
 	fm.stopRequested.Store(false)
 
 	if len(readers) > 0 && readers[0] != nil {
@@ -2342,6 +2349,8 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 			CleanupStderrLog()
 			os.Exit(2)
 		}
+		fm.uiOwnershipMu.Lock()
+		fm.running.Store(false)
 		if fm.shutdown.Load() {
 			fm.finishShutdown()
 		} else if fm.scr != nil {
@@ -2356,12 +2365,12 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 		}
 		CleanupStderrLog()
 		fm.lifecycleMu.Lock()
-		fm.running.Store(false)
 		if fm.runDone == runDone {
 			close(runDone)
 			fm.runDone = nil
 		}
 		fm.lifecycleMu.Unlock()
+		fm.uiOwnershipMu.Unlock()
 	}()
 
 	// Configure channel for tracking window resizing

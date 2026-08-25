@@ -169,6 +169,25 @@ func TestProtocol_Lifecycle(t *testing.T) {
 	_ = serverWriter.Close()
 }
 
+func TestProtocol_QuitBeforeRunDoesNotDeadlock(t *testing.T) {
+	fm := &frameManager{}
+	session := &ProtocolSession{fm: fm}
+	done := make(chan error, 1)
+
+	go func() {
+		done <- session.handleMessage(&DownMessage{Op: "quit"})
+	}()
+
+	select {
+	case err := <-done:
+		if err != io.EOF {
+			t.Fatalf("quit returned %v, want io.EOF", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("quit deadlocked before frame manager Run")
+	}
+}
+
 func TestProtocol_PipeClosureTeardown(t *testing.T) {
 	SetDefaultPalette()
 	scr := NewSilentScreenBuf()
