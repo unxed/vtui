@@ -10,7 +10,12 @@ import (
 // cw x ch the caller passes, so the tests below do not depend on the host
 // terminal (Windows Terminal would otherwise force the 10x20 virtual cell).
 func fixedSixel() *sixelEncoder {
-	e := newSixelEncoder()
+	e := newSixelEncoderWithOS(func(k string) string {
+		if k == "VTUI_SIXEL_PALETTE" {
+			return "fixed"
+		}
+		return ""
+	}, "linux")
 	e.cellSize = func(cw, ch int) (int, int) { return cw, ch }
 	return e
 }
