@@ -9,7 +9,7 @@ func TestRunAsync_TaskExecutionAndCancellation(t *testing.T) {
 	// Setup isolated FrameManager for the test
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
-	fm.TaskChan = make(chan func(), 10)
+	defer fm.Shutdown()
 
 	oldFm := FrameManager
 	FrameManager = fm

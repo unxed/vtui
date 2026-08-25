@@ -75,6 +75,10 @@ type ProtocolSession struct {
 	throttleMap   map[string]time.Time
 	recordFile    *os.File
 	recordStart   time.Time
+	eventMu       sync.Mutex
+	eventClosed   bool
+	eventWG       sync.WaitGroup
+	closeDone     chan struct{}
 }
 
 // NewProtocolSession creates a new protocol session over the given I/O streams.
@@ -99,6 +103,7 @@ func NewProtocolSession(in io.Reader, out io.Writer, fm *frameManager) *Protocol
 		throttleMap:   make(map[string]time.Time),
 		recordFile:    recF,
 		recordStart:   time.Now(),
+		closeDone:     make(chan struct{}),
 	}
 
 	// Wire FrameManager event sink to protocol output
@@ -136,8 +141,33 @@ func (ps *ProtocolSession) send(msg UpMessage) error {
 	return err
 }
 
+func (ps *ProtocolSession) recordDown(line []byte) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	if ps.closed || ps.recordFile == nil {
+		return
+	}
+	var raw any
+	_ = json.Unmarshal(line, &raw)
+	recLine, _ := json.Marshal(map[string]any{
+		"time": time.Since(ps.recordStart).Seconds(),
+		"dir":  "down",
+		"msg":  raw,
+	})
+	_, _ = ps.recordFile.Write(append(recLine, '\n'))
+	_ = ps.recordFile.Sync()
+}
+
 func (ps *ProtocolSession) handleUIEvent(ev UIEvent) {
+	ps.eventMu.Lock()
+	if ps.eventClosed {
+		ps.eventMu.Unlock()
+		return
+	}
+	ps.eventWG.Add(1)
+	ps.eventMu.Unlock()
 	go func() {
+		defer ps.eventWG.Done()
 		switch ev.Kind {
 		case "command":
 			_ = ps.send(UpMessage{
@@ -193,18 +223,7 @@ func (ps *ProtocolSession) Serve() error {
 		if ps.tracing {
 			fmt.Fprintf(os.Stderr, "[VTUI_TRACE:DOWN] %s\n", string(line))
 		}
-		if ps.recordFile != nil {
-			elapsed := time.Since(ps.recordStart).Seconds()
-			var raw any
-			_ = json.Unmarshal(line, &raw)
-			recLine, _ := json.Marshal(map[string]any{
-				"time": elapsed,
-				"dir":  "down",
-				"msg":  raw,
-			})
-			_, _ = ps.recordFile.Write(append(recLine, '\n'))
-			_ = ps.recordFile.Sync()
-		}
+		ps.recordDown(line)
 
 		var msg DownMessage
 		if err := json.Unmarshal(line, &msg); err != nil {
@@ -236,13 +255,17 @@ func (ps *ProtocolSession) Serve() error {
 func (ps *ProtocolSession) handleMessage(msg *DownMessage) error {
 	switch msg.Op {
 	case "hello":
-		w, h := 80, 25
-		if ps.fm != nil && ps.fm.scr != nil {
-			w, h = ps.fm.scr.width, ps.fm.scr.height
-		}
-		backend := "ansi"
+		w, h, backend := 80, 25, "ansi"
 		if ps.fm != nil {
-			backend = ps.fm.GetBackendName()
+			if err := ps.fm.callOnUI(func() error {
+				if ps.fm.scr != nil {
+					w, h = ps.fm.scr.width, ps.fm.scr.height
+				}
+				backend = ps.fm.GetBackendName()
+				return nil
+			}); err != nil {
+				return err
+			}
 		}
 		return ps.send(UpMessage{
 			Op:       "welcome",
@@ -273,50 +296,62 @@ func (ps *ProtocolSession) handleMessage(msg *DownMessage) error {
 		if frameID == "" {
 			frameID = msg.Tree.ID
 		}
-		doc := &VuiDocument{
-			VuiVersion: 1,
-			Root:       msg.Tree,
-		}
-		win, err := LoadVuiDocument(doc)
-		if err != nil {
-			return fmt.Errorf("mount error: %w", err)
-		}
-		if frameID != "" {
-			win.SetID(frameID)
-		}
-		ps.mountedFrames[frameID] = win
-		ps.fm.Push(win)
-		ps.fm.Redraw()
-		return nil
+		return ps.fm.callOnUI(func() error {
+			doc := &VuiDocument{
+				VuiVersion: 1,
+				Root:       msg.Tree,
+			}
+			win, err := LoadVuiDocument(doc)
+			if err != nil {
+				return fmt.Errorf("mount error: %w", err)
+			}
+			if frameID != "" {
+				win.SetID(frameID)
+			}
+			ps.mountedFrames[frameID] = win
+			ps.fm.Push(win)
+			ps.fm.Redraw()
+			return nil
+		})
 
 	case "patch":
-		return ps.applyPatch(msg)
+		return ps.fm.callOnUI(func() error { return ps.applyPatch(msg) })
 
 	case "call":
-		return ps.handleCall(msg)
+		return ps.fm.callOnUI(func() error { return ps.handleCall(msg) })
 
 	case "message":
 		buttons := msg.Buttons
 		if len(buttons) == 0 {
 			buttons = []string{"&Ok"}
 		}
-		dlg := ShowMessage(msg.Title, msg.Text, buttons)
-		if msg.FrameID != "" {
-			dlg.SetID(msg.FrameID)
-		}
-		ps.fm.Redraw()
-		return nil
+		return ps.fm.callOnUI(func() error {
+			dlg := createMessageDialog(msg.Title, msg.Text, buttons, legacyKindFromTitle(msg.Title))
+			if msg.FrameID != "" {
+				dlg.SetID(msg.FrameID)
+			}
+			ps.fm.Push(dlg)
+			ps.fm.Redraw()
+			return nil
+		})
 
 	case "close":
-		if f, ok := ps.mountedFrames[msg.FrameID]; ok {
-			f.Close()
-			delete(ps.mountedFrames, msg.FrameID)
-			ps.fm.Redraw()
-		}
-		return nil
+		return ps.fm.callOnUI(func() error {
+			if f, ok := ps.mountedFrames[msg.FrameID]; ok {
+				f.Close()
+				delete(ps.mountedFrames, msg.FrameID)
+				ps.fm.Redraw()
+			}
+			return nil
+		})
 
 	case "quit":
-		ps.fm.Shutdown()
+		if err := ps.fm.callOnUI(func() error {
+			ps.fm.Shutdown()
+			return nil
+		}); err != nil {
+			return err
+		}
 		return io.EOF
 
 	default:
@@ -410,9 +445,15 @@ func frameMatchesIDString(f Frame) string {
 
 // Close terminates the protocol session and tears down the UI safely.
 func (ps *ProtocolSession) Close() {
+	ps.eventMu.Lock()
+	ps.eventClosed = true
+	ps.eventMu.Unlock()
+
 	ps.mu.Lock()
 	if ps.closed {
+		done := ps.closeDone
 		ps.mu.Unlock()
+		<-done
 		return
 	}
 	ps.closed = true
@@ -421,8 +462,11 @@ func (ps *ProtocolSession) Close() {
 		ps.recordFile = nil
 	}
 	ps.mu.Unlock()
+	ps.eventWG.Wait()
 
 	if ps.fm != nil {
-		ps.fm.Shutdown()
+		ps.fm.SetEventSink(nil)
+		ps.fm.shutdownAndWait()
 	}
+	close(ps.closeDone)
 }

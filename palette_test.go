@@ -2,7 +2,18 @@ package vtui
 
 import "testing"
 
+func preserveTestPalette(t *testing.T) {
+	t.Helper()
+	palette := append([]uint64(nil), Palette...)
+	themePalette := ThemePalette
+	t.Cleanup(func() {
+		Palette = palette
+		ThemePalette = themePalette
+	})
+}
+
 func TestSetDefaultPalette(t *testing.T) {
+	preserveTestPalette(t)
 	// Reset palette to ensure the function fills it
 	Palette = make([]uint64, LastPaletteColor)
 

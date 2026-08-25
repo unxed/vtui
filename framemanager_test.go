@@ -6,6 +6,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -1158,9 +1159,11 @@ func TestFrameManager_SizePolling(t *testing.T) {
 	oldGetSize := GetTerminalSize
 	defer func() { GetTerminalSize = oldGetSize }()
 
-	mockW, mockH := 80, 24
+	var mockW, mockH atomic.Int64
+	mockW.Store(80)
+	mockH.Store(24)
 	GetTerminalSize = func() (int, int, error) {
-		return mockW, mockH, nil
+		return int(mockW.Load()), int(mockH.Load()), nil
 	}
 
 	fm := &frameManager{}
@@ -1184,7 +1187,8 @@ func TestFrameManager_SizePolling(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Change mock size to trigger polling mechanism
-	mockW, mockH = 100, 30
+	mockW.Store(100)
+	mockH.Store(30)
 
 	// Wait for the polling interval (200ms) + buffer time
 	time.Sleep(300 * time.Millisecond)
@@ -1631,6 +1635,7 @@ func TestFrameManager_ScreensMenuUsesStructuredAlignedWorkspaceInfo(t *testing.T
 func TestFrameManager_TaskCleanup(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 
 	w1 := NewWindow(0, 0, 10, 10, "TaskWin")
 	fm.Push(w1)
@@ -1639,10 +1644,9 @@ func TestFrameManager_TaskCleanup(t *testing.T) {
 		t.Fatal("Frame not pushed")
 	}
 
-	fm.TaskChan = make(chan func(), 1)
-	fm.TaskChan <- func() {
+	fm.PostTask(func() {
 		w1.SetExitCode(0)
-	}
+	})
 
 	// Emulate Run() block extraction and execution
 	task := <-fm.TaskChan

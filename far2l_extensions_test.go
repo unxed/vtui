@@ -8,6 +8,8 @@ import (
 )
 
 func TestFar2lClipboard_Disabled(t *testing.T) {
+	oldEnabled := Far2lEnabled
+	t.Cleanup(func() { Far2lEnabled = oldEnabled })
 	Far2lEnabled = false
 	ok := SetFar2lClipboard("test")
 	if ok {
@@ -21,6 +23,11 @@ func TestFar2lClipboard_Disabled(t *testing.T) {
 }
 
 func TestFar2lInteract_Timeout(t *testing.T) {
+	oldEnabled, oldFM := Far2lEnabled, FrameManager
+	t.Cleanup(func() {
+		Far2lEnabled = oldEnabled
+		FrameManager = oldFM
+	})
 	Far2lEnabled = true
 	// Init minimal FrameManager
 	FrameManager = &frameManager{}
@@ -56,7 +63,15 @@ func TestFar2lInteract_Timeout(t *testing.T) {
 }
 
 func TestFar2lInteract_Success(t *testing.T) {
+	oldEnabled, oldFM := Far2lEnabled, FrameManager
+	oldID := far2lIDCounter.Load()
+	t.Cleanup(func() {
+		Far2lEnabled = oldEnabled
+		FrameManager = oldFM
+		far2lIDCounter.Store(oldID)
+	})
 	Far2lEnabled = true
+	far2lIDCounter.Store(0)
 	idToWait := uint8(0)
 
 	// Mocking the interaction loop
@@ -70,10 +85,10 @@ func TestFar2lInteract_Success(t *testing.T) {
 
 	go func() {
 		// Wait for the ID to be assigned by Far2lInteract
-		for far2lIDCounter == 0 {
+		for far2lIDCounter.Load() == 0 {
 			time.Sleep(10 * time.Millisecond)
 		}
-		idToWait = far2lIDCounter
+		idToWait = uint8(far2lIDCounter.Load())
 
 		// Prepare reply
 		resp := vtinput.Far2lStack{}
@@ -103,10 +118,19 @@ func TestFar2lInteract_Success(t *testing.T) {
 }
 
 func TestFar2lInteract_NoEventStealing(t *testing.T) {
+	oldEnabled, oldFM := Far2lEnabled, FrameManager
+	oldID := far2lIDCounter.Load()
+	t.Cleanup(func() {
+		Far2lEnabled = oldEnabled
+		FrameManager = oldFM
+		far2lIDCounter.Store(oldID)
+	})
 	Far2lEnabled = true
+	far2lIDCounter.Store(0)
 
 	localFm := &frameManager{}
 	localFm.Init(NewSilentScreenBuf())
+	defer localFm.Shutdown()
 	localFm.EventChan = make(chan *vtinput.InputEvent, 10)
 	FrameManager = localFm
 
@@ -149,9 +173,7 @@ func TestFar2lInteract_NoEventStealing(t *testing.T) {
 	// We wait a bit to ensure WaitFar2lResponse has processed the kp event.
 	time.Sleep(100 * time.Millisecond)
 
-	localFm.far2lMu.Lock()
-	idToWait := far2lIDCounter
-	localFm.far2lMu.Unlock()
+	idToWait := uint8(far2lIDCounter.Load())
 
 	resp := vtinput.Far2lStack{}
 	resp.PushU16(24) // height
@@ -182,8 +204,11 @@ func TestFar2lInteract_NoEventStealing(t *testing.T) {
 	}
 }
 func TestIssue117_WaitFar2lResponse_TaskPumping(t *testing.T) {
+	oldFM := FrameManager
+	t.Cleanup(func() { FrameManager = oldFM })
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 	FrameManager = fm
 
 	taskExecuted := false
@@ -215,8 +240,11 @@ func TestIssue117_WaitFar2lResponse_TaskPumping(t *testing.T) {
 }
 
 func TestIssue117_WaitFar2lResponse_TimeoutCleanup(t *testing.T) {
+	oldFM := FrameManager
+	t.Cleanup(func() { FrameManager = oldFM })
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
 	FrameManager = fm
 
 	// Wait for a non-existent reply with a short 50ms timeout

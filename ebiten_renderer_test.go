@@ -309,6 +309,7 @@ func pixelAt(t *testing.T, r *EbitenRenderer, x, y int) (rr, g, b uint8) {
 // Frame characters must go through the geometric path, not the font, so that
 // neighbouring cells join. A font glyph would leave the seam column unlit.
 func TestEbitenRenderer_BoxCharsJoinAcrossCells(t *testing.T) {
+	preserveTestPalette(t)
 	// A nil face proves the point twice over: if the box path were not taken
 	// these cells would render as nothing at all.
 	r := NewEbitenRenderer(nil, nil, 8, 16, 1)
