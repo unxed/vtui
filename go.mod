@@ -1,6 +1,6 @@
 module github.com/unxed/vtui
 
-go 1.26.0
+go 1.26.6
 
 require (
 	github.com/gogpu/gg v0.52.3
