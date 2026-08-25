@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/unxed/vtinput"
@@ -19,15 +20,19 @@ var (
 	GlobalClipboardAccessManager ClipboardAccessManager
 	Far2lEnabled                 bool
 	far2lInteractMu              sync.Mutex
-	far2lIDCounter               uint8
+	far2lIDCounter               atomic.Uint32
 )
 
 // Far2lInteract sends a request to the terminal emulator and optionally waits for a reply.
 func Far2lInteract(stk *vtinput.Far2lStack, wait bool) *vtinput.Far2lStack {
-	return Far2lInteractTimeout(stk, wait, 2*time.Second)
+	return far2lInteractTimeout(FrameManager, stk, wait, 2*time.Second)
 }
 
 func Far2lInteractTimeout(stk *vtinput.Far2lStack, wait bool, timeout time.Duration) *vtinput.Far2lStack {
+	return far2lInteractTimeout(FrameManager, stk, wait, timeout)
+}
+
+func far2lInteractTimeout(fm *frameManager, stk *vtinput.Far2lStack, wait bool, timeout time.Duration) *vtinput.Far2lStack {
 	far2lInteractMu.Lock()
 	defer far2lInteractMu.Unlock()
 
@@ -35,8 +40,8 @@ func Far2lInteractTimeout(stk *vtinput.Far2lStack, wait bool, timeout time.Durat
 	DebugLog("VTUI_FAR2L_INTERACT: Sending ID=%d, payload_len=%d, wait=%v", id, len(payload), wait)
 	_, _ = os.Stdout.Write(payload)
 
-	if wait && FrameManager != nil {
-		return FrameManager.WaitFar2lResponse(id, timeout)
+	if wait && fm != nil {
+		return fm.WaitFar2lResponse(id, timeout)
 	}
 	DebugLog("VTUI_FAR2L: Processed without waiting for ID=%d", id)
 	return nil
@@ -54,11 +59,10 @@ func far2lInteractionPayload(stk *vtinput.Far2lStack) []byte {
 }
 
 func far2lInteractionPayloadLocked(stk *vtinput.Far2lStack) (uint8, []byte) {
-	far2lIDCounter++
-	if far2lIDCounter == 0 {
-		far2lIDCounter = 1
+	id := uint8(far2lIDCounter.Add(1))
+	if id == 0 {
+		id = uint8(far2lIDCounter.Add(1))
 	}
-	id := far2lIDCounter
 	stk.PushU8(id)
 	b64 := base64.StdEncoding.EncodeToString(*stk)
 	payload := make([]byte, 0, len(b64)+10)
@@ -73,8 +77,10 @@ func far2lInteractionPayloadLocked(stk *vtinput.Far2lStack) (uint8, []byte) {
 const clientID = "vtui-stateful-terminal-client-persistent-id-32chars"
 
 func SetFar2lClipboard(text string) bool {
-	DebugLog("VTUI_FAR2L: SetFar2lClipboard attempt, Enabled=%v, text_len=%d", Far2lEnabled, len(text))
-	if !Far2lEnabled {
+	fm := FrameManager
+	enabled := far2lEnabledFor(fm)
+	DebugLog("VTUI_FAR2L: SetFar2lClipboard attempt, Enabled=%v, text_len=%d", enabled, len(text))
+	if !enabled {
 		return false
 	}
 	// 1. Open
@@ -83,7 +89,7 @@ func SetFar2lClipboard(text string) bool {
 	stk.PushU8('o') // FARTTY_INTERACT_CLIP_OPEN
 	stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
 	DebugLog("VTUI_FAR2L: Requesting CLIP_OPEN with ID %q...", clientID)
-	reply := Far2lInteractTimeout(stk, true, 15*time.Second)
+	reply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
 
 	if reply != nil {
 		status := reply.PopU8()
@@ -103,7 +109,7 @@ func SetFar2lClipboard(text string) bool {
 			stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
 
 			DebugLog("VTUI_FAR2L: Requesting CLIP_SETDATA...")
-			setReply := Far2lInteractTimeout(stk, true, 15*time.Second)
+			setReply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
 
 			success := false
 			if setReply != nil {
@@ -120,7 +126,7 @@ func SetFar2lClipboard(text string) bool {
 			stk = &vtinput.Far2lStack{}
 			stk.PushU8('c') // FARTTY_INTERACT_CLIP_CLOSE
 			stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
-			Far2lInteract(stk, false)
+			far2lInteractTimeout(fm, stk, false, 2*time.Second)
 
 			return success
 		}
@@ -130,8 +136,10 @@ func SetFar2lClipboard(text string) bool {
 
 // GetFar2lClipboard attempts to read the clipboard using far2l extensions.
 func GetFar2lClipboard() (string, bool) {
-	DebugLog("VTUI_FAR2L: GetFar2lClipboard attempt, Enabled=%v", Far2lEnabled)
-	if !Far2lEnabled {
+	fm := FrameManager
+	enabled := far2lEnabledFor(fm)
+	DebugLog("VTUI_FAR2L: GetFar2lClipboard attempt, Enabled=%v", enabled)
+	if !enabled {
 		return "", false
 	}
 
@@ -139,7 +147,7 @@ func GetFar2lClipboard() (string, bool) {
 	stk.PushString(clientID)
 	stk.PushU8('o')
 	stk.PushU8('c')
-	reply := Far2lInteractTimeout(stk, true, 15*time.Second)
+	reply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
 
 	if reply != nil {
 		status := reply.PopU8()
@@ -150,7 +158,7 @@ func GetFar2lClipboard() (string, bool) {
 			stk.PushU32(1)  // CF_TEXT
 			stk.PushU8('g') // FARTTY_INTERACT_CLIP_GETDATA
 			stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
-			getReply := Far2lInteractTimeout(stk, true, 15*time.Second)
+			getReply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
 
 			res := ""
 			if getReply != nil {
@@ -174,10 +182,17 @@ func GetFar2lClipboard() (string, bool) {
 			stk = &vtinput.Far2lStack{}
 			stk.PushU8('c')
 			stk.PushU8('c')
-			Far2lInteract(stk, false)
+			far2lInteractTimeout(fm, stk, false, 2*time.Second)
 
 			return res, true
 		}
 	}
 	return "", false
+}
+
+func far2lEnabledFor(fm *frameManager) bool {
+	if fm != nil && fm.far2lConfigured.Load() {
+		return fm.far2lEnabled.Load()
+	}
+	return Far2lEnabled
 }

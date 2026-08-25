@@ -4,7 +4,22 @@ import (
 	"testing"
 )
 
+func useAutoLayoutTestScreen(t *testing.T) {
+	t.Helper()
+	oldFM := FrameManager
+	fm := &frameManager{}
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 25)
+	fm.Init(scr)
+	FrameManager = fm
+	t.Cleanup(func() {
+		fm.Shutdown()
+		FrameManager = oldFM
+	})
+}
+
 func TestAutoLayout_BasicPinAndStack(t *testing.T) {
+	useAutoLayoutTestScreen(t)
 	SetDefaultPalette()
 	dlg := NewCenteredDialog(50, 15, " AutoLayout Test ")
 
@@ -44,6 +59,7 @@ func TestAutoLayout_BasicPinAndStack(t *testing.T) {
 }
 
 func TestAutoLayout_ApportionWidthsEqualColumns(t *testing.T) {
+	useAutoLayoutTestScreen(t)
 	SetDefaultPalette()
 	dlg := NewCenteredDialog(72, 10, " Equal Columns ")
 
@@ -77,6 +93,7 @@ func TestAutoLayout_ApportionWidthsEqualColumns(t *testing.T) {
 }
 
 func TestAutoLayout_SnapToGridAndEqualize(t *testing.T) {
+	useAutoLayoutTestScreen(t)
 	SetDefaultPalette()
 	dlg := NewCenteredDialog(60, 10, " Snapping Test ")
 
@@ -110,6 +127,7 @@ func TestAutoLayout_SnapToGridAndEqualize(t *testing.T) {
 }
 
 func TestAutoLayout_ResizeReSolve(t *testing.T) {
+	useAutoLayoutTestScreen(t)
 	SetDefaultPalette()
 	dlg := NewCenteredDialog(50, 10, " Resize Test ")
 

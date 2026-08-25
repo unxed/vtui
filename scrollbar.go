@@ -232,10 +232,16 @@ func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
 	}
 
 	if action != 0 {
+		if sb.repeatTimer != nil {
+			sb.repeatTimer.Stop()
+		}
 		sb.repeatAction = action
 		sb.triggerStep()
 		// Start auto-repeat
-		sb.repeatTimer = time.AfterFunc(400*time.Millisecond, sb.doRepeat)
+		fm := FrameManager
+		sb.repeatTimer = time.AfterFunc(400*time.Millisecond, func() {
+			sb.doRepeat(fm)
+		})
 	}
 
 	return true
@@ -270,13 +276,18 @@ func (sb *ScrollBar) triggerStep() {
 	}
 }
 
-func (sb *ScrollBar) doRepeat() {
-	FrameManager.PostTask(func() {
+func (sb *ScrollBar) doRepeat(fm *frameManager) {
+	if fm == nil {
+		return
+	}
+	fm.PostTask(func() {
 		if sb.repeatTimer == nil {
 			return
 		}
 		sb.triggerStep()
-		sb.repeatTimer = time.AfterFunc(50*time.Millisecond, sb.doRepeat)
+		sb.repeatTimer = time.AfterFunc(50*time.Millisecond, func() {
+			sb.doRepeat(fm)
+		})
 	})
 }
 

@@ -45,17 +45,21 @@ type Property[T any] interface {
 }
 
 type property[T any] struct {
-	mu       sync.RWMutex
-	val      T
-	handlers map[int]func(T)
-	nextID   int
-	behavior BehaviorDef[T]
+	mu               sync.RWMutex
+	val              T
+	handlers         map[int]func(T)
+	nextID           int
+	behavior         BehaviorDef[T]
+	updateQueue      UpdateQueue
+	animationManager AnimationManager
 }
 
 func NewProperty[T any](initial T) Property[T] {
 	return &property[T]{
-		val:      initial,
-		handlers: make(map[int]func(T)),
+		val:              initial,
+		handlers:         make(map[int]func(T)),
+		updateQueue:      GlobalUpdateQueue,
+		animationManager: GlobalAnimationManager,
 	}
 }
 
@@ -76,10 +80,10 @@ func (p *property[T]) Set(val T) {
 	b := p.behavior
 	p.mu.RUnlock()
 
-	if b != nil && GlobalAnimationManager != nil {
+	if b != nil && p.animationManager != nil {
 		start := p.Get()
 		anim := b.CreateAnimator(start, val)
-		GlobalAnimationManager.AddAnimation(func(dt float64) bool {
+		p.animationManager.AddAnimation(func(dt float64) bool {
 			newVal, done := anim.Tick(dt)
 			p.setInternal(newVal)
 			return done
@@ -139,11 +143,15 @@ func (p *property[T]) Watch(handler func()) func() {
 // SafeSet updates the property value on the global update queue if configured.
 // Extremely useful for thread-safe mutation from background goroutines.
 func SafeSet[T any](p Property[T], val T) {
-	if GlobalUpdateQueue != nil {
-		GlobalUpdateQueue.PostTask(func() {
+	if owned, ok := p.(interface{ getUpdateQueue() UpdateQueue }); ok && owned.getUpdateQueue() != nil {
+		owned.getUpdateQueue().PostTask(func() {
 			p.Set(val)
 		})
 	} else {
 		p.Set(val)
 	}
+}
+
+func (p *property[T]) getUpdateQueue() UpdateQueue {
+	return p.updateQueue
 }

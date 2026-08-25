@@ -26,6 +26,7 @@ type FSProvider interface {
 
 // SelectDirDialog creates a standard directory selection dialog.
 func SelectDirDialog(title string, initialPath string, vfs FSProvider) *Window {
+	fm := FrameManager
 	width := 50
 	height := 18
 	dlg := NewCenteredDialog(width, height, title)
@@ -45,7 +46,7 @@ func SelectDirDialog(title string, initialPath string, vfs FSProvider) *Window {
 					}
 				}
 			})
-			FrameManager.PostTask(func() {
+			fm.PostTask(func() {
 				if dlg.IsDone() {
 					return
 				}
@@ -63,7 +64,7 @@ func SelectDirDialog(title string, initialPath string, vfs FSProvider) *Window {
 				} else {
 					lb.SetSelectPos(0)
 				}
-				FrameManager.Redraw()
+				fm.Redraw()
 			})
 		}()
 	}
@@ -116,7 +117,7 @@ func SelectDirDialog(title string, initialPath string, vfs FSProvider) *Window {
 	layout.Apply()
 
 	updateList(vfs.GetPath(), "")
-	FrameManager.Push(dlg)
+	fm.Push(dlg)
 	return dlg
 }
 
@@ -354,6 +355,7 @@ func createMessageDialog(title string, text string, buttons []string, kind Messa
 
 // SelectFileDialog creates a standard file selection dialog.
 func SelectFileDialog(title string, initialPath string, vfs FSProvider, onOk func(string)) *Window {
+	fm := FrameManager
 	width := 55
 	height := 20
 	dlg := NewCenteredDialog(width, height, title)
@@ -376,7 +378,7 @@ func SelectFileDialog(title string, initialPath string, vfs FSProvider, onOk fun
 			vfs.ReadDir(context.Background(), p, func(chunk []FSItem) {
 				allEntries = append(allEntries, chunk...)
 			})
-			FrameManager.PostTask(func() {
+			fm.PostTask(func() {
 				if dlg.IsDone() {
 					return
 				}
@@ -410,7 +412,7 @@ func SelectFileDialog(title string, initialPath string, vfs FSProvider, onOk fun
 				} else {
 					lb.SetSelectPos(0)
 				}
-				FrameManager.Redraw()
+				fm.Redraw()
 			})
 		}()
 	}
@@ -474,7 +476,7 @@ func SelectFileDialog(title string, initialPath string, vfs FSProvider, onOk fun
 	layout.Apply()
 
 	updateList(vfs.GetPath(), "")
-	FrameManager.Push(dlg)
+	fm.Push(dlg)
 	return dlg
 }
 

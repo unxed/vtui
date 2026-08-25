@@ -57,6 +57,7 @@ func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool
 
 func TestSelectDirDialog_ArrowVsEnter(t *testing.T) {
 	SetDefaultPalette()
+	FrameManager.Init(NewSilentScreenBuf())
 	tmpDir := t.TempDir()
 	vfs := &testVFS{currentPath: tmpDir}
 
@@ -128,6 +129,7 @@ func TestInputBox_OkCallback(t *testing.T) {
 
 func TestSelectFileDialog_Selection(t *testing.T) {
 	SetDefaultPalette()
+	FrameManager.Init(NewSilentScreenBuf())
 	tmpDir := t.TempDir()
 	v := &testVFS{currentPath: tmpDir}
 	os.WriteFile(filepath.Join(tmpDir, "dummy.txt"), []byte("data"), 0644)
@@ -170,6 +172,7 @@ func TestSelectFileDialog_Selection(t *testing.T) {
 
 func TestSelectDirDialog_Filtering(t *testing.T) {
 	SetDefaultPalette()
+	FrameManager.Init(NewSilentScreenBuf())
 	tmpDir := t.TempDir()
 	os.Mkdir(filepath.Join(tmpDir, "subfolder"), 0755)
 	os.WriteFile(filepath.Join(tmpDir, "should_be_hidden.txt"), []byte("data"), 0644)
@@ -199,6 +202,7 @@ func TestSelectDirDialog_Filtering(t *testing.T) {
 
 func TestDialogNavigation_UX(t *testing.T) {
 	SetDefaultPalette()
+	FrameManager.Init(NewSilentScreenBuf())
 	tmpDir := t.TempDir()
 	subPath := filepath.Join(tmpDir, "my_work_folder")
 	os.Mkdir(subPath, 0755)

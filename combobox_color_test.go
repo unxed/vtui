@@ -38,6 +38,7 @@ func TestComboBox_DropdownUsesComboPalette(t *testing.T) {
 // The visible symptom the indices above are there to prevent: a dropdown
 // painted in the dialog's own background, indistinguishable from it.
 func TestComboBox_DropdownStandsApartFromDialog(t *testing.T) {
+	preserveTestPalette(t)
 	SetDefaultPalette()
 	Palette[ColDialogText] = SetRGBBoth(0, 0x2E3436, 0xD3D7CF)
 	Palette[ColDialogComboText] = SetRGBBoth(0, 0xEEEEEC, 0x06989A)
@@ -87,6 +88,7 @@ func TestVMenu_DefaultsToMenuPalette(t *testing.T) {
 	}
 }
 func TestComboBox_DropdownOnlyFocusedFillsSelectionContinuously(t *testing.T) {
+	preserveTestPalette(t)
 	SetDefaultPalette()
 	Palette[ColDialogComboText] = SetRGBBoth(0, 0xEEEEEC, 0x37322C)
 	Palette[ColDialogComboSelectedText] = SetRGBBoth(0, 0x1E1A16, 0xE6B450)
@@ -117,6 +119,7 @@ func TestComboBox_DropdownOnlyFocusedFillsSelectionContinuously(t *testing.T) {
 }
 
 func TestComboBox_UnfocusedArrowIsVisible(t *testing.T) {
+	preserveTestPalette(t)
 	SetDefaultPalette()
 	Palette[ColDialogComboText] = SetRGBBoth(0, 0xEEEEEC, 0x37322C)
 	Palette[ColDialogComboHighlight] = SetRGBBoth(0, 0xE6CF70, 0x37322C)

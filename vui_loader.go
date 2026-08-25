@@ -90,11 +90,12 @@ func watchVuiFile(path string, targetWin *Window) {
 		return
 	}
 	lastMtime := fi.ModTime()
+	fm := FrameManager
 
 	go func() {
 		for {
 			time.Sleep(200 * time.Millisecond)
-			if FrameManager == nil || FrameManager.IsShutdown() {
+			if fm == nil || fm.IsShutdown() {
 				return
 			}
 			info, err := os.Stat(path)
@@ -104,7 +105,7 @@ func watchVuiFile(path string, targetWin *Window) {
 			if info.ModTime().After(lastMtime) {
 				lastMtime = info.ModTime()
 				DebugLog("VUI: Hot reloading %s...", path)
-				FrameManager.PostTask(func() {
+				fm.PostTask(func() {
 					stateMap := make(map[string]any)
 					walk(targetWin, func(el UIElement) bool {
 						id := el.GetId()
@@ -132,7 +133,7 @@ func watchVuiFile(path string, targetWin *Window) {
 						targetWin.SetPosition(newWin.X1, newWin.Y1, newWin.X2, newWin.Y2)
 						targetWin.rootGroup = newWin.rootGroup
 						targetWin.rootGroup.SetOwner(targetWin)
-						FrameManager.Redraw()
+						fm.Redraw()
 					}
 				})
 			}

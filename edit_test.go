@@ -92,6 +92,7 @@ func TestVMenu_ScrollbarMouseClick(t *testing.T) {
 	if m.TopPos != 0 { // 5 - height (5) = 0
 		t.Errorf("VMenu PageUp click failed, pos %d", m.TopPos)
 	}
+	m.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType})
 }
 func TestVMenu_Hotkeys(t *testing.T) {
 	m := NewVMenu("Menu")
@@ -766,6 +767,7 @@ func TestEdit_RightArrow_FullSelection_StaysInFocus(t *testing.T) {
 	}
 }
 func TestEdit_FullSelectionColorsOnlyTextPortion(t *testing.T) {
+	preserveTestPalette(t)
 	SetDefaultPalette()
 	Palette[ColDialogEdit] = SetRGBBoth(0, 0xEEEEEC, 0x37322C)
 	Palette[ColDialogEditUnchanged] = SetRGBBoth(0, 0x2E2A24, 0xE6B450)
