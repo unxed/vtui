@@ -5,6 +5,7 @@ import (
 	"github.com/unxed/vtinput"
 	"io"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -74,6 +75,55 @@ func (m *mockFrame) GetTitle() string             { return "MockFrame" }
 func (m *mockFrame) GetWorkspaceTabTitle() string { return m.tabTitle }
 func (m *mockFrame) GetWorkspaceTabMarker() string {
 	return m.tabMarker
+}
+
+func TestFrameManager_CallOnUIConcurrentRunStartup(t *testing.T) {
+	done := make(chan error, 1)
+	go func() {
+		for range 100 {
+			fm := &frameManager{}
+			fm.Init(NewSilentScreenBuf())
+			fm.SetHostMode(true)
+
+			// Queue Run on the ownership lock before callOnUI observes running.
+			fm.uiOwnershipMu.Lock()
+			runStarted := make(chan struct{})
+			runDone := make(chan struct{})
+			go func() {
+				close(runStarted)
+				fm.Run()
+				close(runDone)
+			}()
+			<-runStarted
+			runtime.Gosched()
+
+			callStarted := make(chan struct{})
+			callDone := make(chan error, 1)
+			go func() {
+				close(callStarted)
+				callDone <- fm.callOnUI(func() error { return nil })
+			}()
+			<-callStarted
+			runtime.Gosched()
+			fm.uiOwnershipMu.Unlock()
+
+			// Run lifetimes vary across platforms, so a stopped-manager error is
+			// valid here; only waiting forever indicates the regression.
+			<-callDone
+			fm.Shutdown()
+			<-runDone
+		}
+		done <- nil
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("callOnUI failed during Run startup: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("callOnUI deadlocked with concurrent Run startup")
+	}
 }
 
 func TestAppScreen_GetWorkspaceTitleIgnoresModalFrames(t *testing.T) {

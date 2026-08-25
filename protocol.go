@@ -346,12 +346,9 @@ func (ps *ProtocolSession) handleMessage(msg *DownMessage) error {
 		})
 
 	case "quit":
-		if err := ps.fm.callOnUI(func() error {
-			ps.fm.Shutdown()
-			return nil
-		}); err != nil {
-			return err
-		}
+		// Shutdown takes uiOwnershipMu itself before Run starts, so routing it
+		// through callOnUI would deadlock on that non-reentrant mutex.
+		ps.fm.Shutdown()
 		return io.EOF
 
 	default:
