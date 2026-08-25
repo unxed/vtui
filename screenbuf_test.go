@@ -506,6 +506,29 @@ func TestAnsiRenderer_RuneWriting(t *testing.T) {
 	}
 }
 
+func TestAnsiRenderer_UsesDirectionalOverrideForVisualBidiRows(t *testing.T) {
+	oldMode := DefaultBidiMode
+	DefaultBidiMode = BidiFull
+	t.Cleanup(func() { DefaultBidiMode = oldMode })
+
+	r := &AnsiRenderer{parent: &ScreenBuf{ColorProfile: ColorProfileTrueColor}}
+	text := VisualString("ދިވެހިބަސް - Divehi")
+	DefaultBidiMode = BidiOff
+	cells := StringToCharInfo(text, 0)
+	DefaultBidiMode = BidiFull
+	buf := make([]CharInfo, StringWidth(text))
+	shadow := make([]CharInfo, len(buf))
+	for i, cluster := range cells {
+		buf[i] = cluster
+	}
+	r.Render(buf, shadow, len(buf), 1, true)
+
+	got := r.frameOut.String()
+	if !strings.Contains(got, "\x1b[1;1H\u202d") || !strings.Contains(got, "\u202c") {
+		t.Fatalf("visual BiDi row lacks an LTR directional override: %q", got)
+	}
+}
+
 func TestScreenRow(t *testing.T) {
 	scr := NewSilentScreenBuf()
 	scr.AllocBuf(10, 2)

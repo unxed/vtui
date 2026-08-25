@@ -871,15 +871,17 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 		rowOff := y * w
 		firstDiff, lastDiff := -1, -1
 		rowHasGhost := false
+		rowHasRTL := false
 
 		if force {
 			firstDiff = 0
 			lastDiff = w - 1
 			rowHasGhost = true
-		} else {
-			for x := 0; x < w; x++ {
-				bCell := buf[rowOff+x]
-				sCell := shadow[rowOff+x]
+		}
+		for x := 0; x < w; x++ {
+			bCell := buf[rowOff+x]
+			sCell := shadow[rowOff+x]
+			if !force {
 				if bCell != sCell {
 					if firstDiff == -1 {
 						firstDiff = x
@@ -889,6 +891,9 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				if isGhostProneText(bCell.Char) || isGhostProneText(sCell.Char) || IsCompChar(bCell.Char) || IsCompChar(sCell.Char) {
 					rowHasGhost = true
 				}
+			}
+			if isStrongRTLRune(CellBaseRune(bCell.Char)) || isStrongRTLRune(CellBaseRune(sCell.Char)) {
+				rowHasRTL = true
 			}
 		}
 
@@ -908,6 +913,7 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 			endX = lastDiff
 		}
 
+		bidiOverrideWritten := false
 		for x := startX; x <= endX; x++ {
 			idx := rowOff + x
 			if !force && !rowHasGhost && buf[idx] == shadow[idx] {
@@ -924,6 +930,17 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				} else {
 					r.writeCursorPos(y+1, x+1)
 				}
+			}
+			// The cells contain visual-order text. An ANSI terminal that also
+			// applies UAX #9 must not reorder an already-reordered row a second
+			// time. LRO/PDF is zero-width and forces the terminal to preserve the
+			// order of the cells between the two controls. Emit it after
+			// positioning at the start of a full Unicode redraw. BidiOff
+			// deliberately leaves the terminal in charge of the logical text it
+			// receives.
+			if x == 0 && rowHasRTL && DefaultBidiMode != BidiOff && !bidiOverrideWritten {
+				r.frameOut.WriteRune('\u202d')
+				bidiOverrideWritten = true
 			}
 
 			attr := buf[idx].Attributes
@@ -947,6 +964,9 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 				r.frameOut.WriteRune(rune(char))
 			}
 			lastX, lastY = x, y
+		}
+		if bidiOverrideWritten {
+			r.frameOut.WriteRune('\u202c')
 		}
 	}
 }

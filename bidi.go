@@ -32,14 +32,16 @@ func HasRTL(s string) bool {
 	}
 
 	for _, r := range s {
-		if r >= 0x0590 && r <= 0x08FF { // Hebrew, Arabic, Syriac, Thaana, Samaritan, N'Ko, Mandaic, etc.
-			return true
-		}
-		if r >= 0xFB1D && r <= 0xFEFC { // Presentation Forms (Hebrew, Arabic)
+		if isStrongRTLRune(r) {
 			return true
 		}
 	}
 	return false
+}
+
+func isStrongRTLRune(r rune) bool {
+	return r >= 0x0590 && r <= 0x08FF || // Hebrew, Arabic, Syriac, Thaana, Samaritan, N'Ko, Mandaic, etc.
+		r >= 0xFB1D && r <= 0xFEFC // Presentation Forms (Hebrew, Arabic)
 }
 
 // VisualString reorders s from logical to visual order.
