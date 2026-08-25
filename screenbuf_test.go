@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -620,4 +621,84 @@ func TestScreenBuf_WritePassthrough_Concurrency(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// renderRow renders one row of cells and returns the bytes the renderer
+// would send to the terminal.
+func renderRow(t *testing.T, cells []CharInfo, w int) string {
+	t.Helper()
+	r := &AnsiRenderer{parent: &ScreenBuf{ColorProfile: ColorProfileTrueColor}}
+	buf := make([]CharInfo, w)
+	for i := range buf {
+		if i < len(cells) {
+			buf[i] = cells[i]
+		}
+	}
+	r.Render(buf, make([]CharInfo, w), w, 1, true)
+	return r.frameOut.String()
+}
+
+func countCursorPositions(s string) int {
+	n := 0
+	for i := 0; i+1 < len(s); i++ {
+		if s[i] != 0x1b || s[i+1] != '[' {
+			continue
+		}
+		for j := i + 2; j < len(s); j++ {
+			if c := s[j]; c >= '@' && c <= '~' {
+				if c == 'H' {
+					n++
+				}
+				break
+			}
+		}
+	}
+	return n
+}
+
+func TestAnsiRenderer_ResyncsAfterUntrustedCells(t *testing.T) {
+	// A row of text whose width the terminal cannot disagree about is
+	// written as one stream: a single cursor positioning at its start.
+	if got := countCursorPositions(renderRow(t, StringToCharInfo("abcdef", 0), 6)); got != 1 {
+		t.Errorf("ASCII row used %d cursor positionings, want 1", got)
+	}
+	if got := countCursorPositions(renderRow(t, StringToCharInfo("привет", 0), 6)); got != 1 {
+		t.Errorf("Cyrillic row used %d cursor positionings, want 1", got)
+	}
+
+	// After a cell whose advance the terminal may measure differently, the
+	// next cell is placed absolutely, so a disagreement cannot drag the
+	// rest of the row along (unxed/f4#546).
+	cases := []struct {
+		name string
+		text string
+		// the column, one based, the renderer must jump back to
+		wantCol int
+	}{
+		{"devanagari", "abcकde", 5},
+		{"wide character", "世cd", 3},
+		{"composite cluster", "ab\u0915\u094D\u0915cd", 5},
+		{"emoji", "ab😀cd", 5},
+	}
+	for _, c := range cases {
+		got := renderRow(t, StringToCharInfo(c.text, 0), 8)
+		want := fmt.Sprintf("\x1b[1;%dH", c.wantCol)
+		if !strings.Contains(got, want) {
+			t.Errorf("%s: %q lacks a resync at %q", c.name, got, want)
+		}
+	}
+}
+
+func TestAnsiRenderer_WideCharFillerDoesNotAdvanceTwice(t *testing.T) {
+	// The filler of a wide character is skipped, not written, so the
+	// renderer must not believe the terminal moved past it on its own
+	// unless the wide character itself was just sent.
+	cells := StringToCharInfo("世界", 0)
+	got := renderRow(t, cells, 4)
+	if strings.Contains(got, "\x1b[1;2H") || strings.Contains(got, "\x1b[1;4H") {
+		t.Errorf("renderer addressed a filler column: %q", got)
+	}
+	if !strings.Contains(got, "\x1b[1;3H") {
+		t.Errorf("second wide character was not resynced: %q", got)
+	}
 }

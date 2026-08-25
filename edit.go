@@ -2,10 +2,8 @@ package vtui
 
 import (
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/unxed/vtinput"
-	"golang.org/x/text/unicode/bidi"
 )
 
 type Edit struct {
@@ -298,45 +296,21 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 		})
 	})
 
-	var visualClusters []logicalCluster
-	s := string(e.text)
-	if DefaultBidiMode != BidiOff && HasRTL(s) {
-		p := bidi.Paragraph{}
-		_, err := p.SetString(s)
-		if err == nil {
-			order, err := p.Order()
-			if err == nil {
-				numRuns := order.NumRuns()
-				for i := 0; i < numRuns; i++ {
-					run := order.Run(i)
-					start, end := run.Pos()
-
-					var runClusters []logicalCluster
-					for _, c := range logicalClusters {
-						if c.runeIdx >= start && c.runeIdx <= end {
-							runClusters = append(runClusters, c)
-						}
-					}
-
-					isRTL := run.Direction() == bidi.RightToLeft
-					if isRTL {
-						for i, j := 0, len(runClusters)-1; i < j; i, j = i+1, j-1 {
-							runClusters[i], runClusters[j] = runClusters[j], runClusters[i]
-						}
-						for i := range runClusters {
-							if utf8.RuneCountInString(runClusters[i].text) == 1 {
-								runClusters[i].text = bidi.ReverseString(runClusters[i].text)
-							}
-						}
-					}
-
-					visualClusters = append(visualClusters, runClusters...)
-				}
-			}
-		}
+	visualClusters := make([]logicalCluster, 0, len(logicalClusters))
+	byRuneIndex := make(map[int]logicalCluster, len(logicalClusters))
+	for _, c := range logicalClusters {
+		byRuneIndex[c.runeIdx] = c
 	}
-
-	if len(visualClusters) == 0 {
+	// The cells are painted in the order the line is read on screen, which
+	// ForEachVisualCluster resolves with the full bidi algorithm; the
+	// per-cluster attributes computed above travel with their clusters.
+	ForEachVisualCluster(string(e.text), func(text string, _, _, runeIdx int) {
+		if c, ok := byRuneIndex[runeIdx]; ok {
+			c.text = text
+			visualClusters = append(visualClusters, c)
+		}
+	})
+	if len(visualClusters) != len(logicalClusters) {
 		visualClusters = logicalClusters
 	}
 

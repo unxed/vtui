@@ -1,7 +1,6 @@
 package vtui
 
 import (
-	"github.com/mattn/go-runewidth"
 	"github.com/unxed/vtinput"
 )
 
@@ -19,8 +18,12 @@ func NewCheckbox(x, y int, text string, threeState bool) *Checkbox {
 	cb.Y2 = y
 	cb.canFocus = true
 	cb.SetText(text)
-	// Prefix "[x] " is 4 columns wide
-	cb.X2 = cb.X1 + 4 + runewidth.StringWidth(cb.cleanText) - 1
+	// Prefix "[x] " is 4 columns wide. The label is measured with vtui's own
+	// StringWidth, the number DisplayObject then paints: go-runewidth counts
+	// runes and knows nothing of grapheme clusters, so on a Bengali or Hindi
+	// label it reported fewer columns than the checkbox draws and the widget
+	// painted outside its own box (unxed/f4#546).
+	cb.X2 = cb.X1 + 4 + StringWidth(cb.cleanText) - 1
 	return cb
 }
 
@@ -45,7 +48,7 @@ func (cb *Checkbox) DisplayObject(scr *ScreenBuf) {
 
 	p := NewPainter(scr)
 	p.DrawString(cb.X1, cb.Y1, prefix, n)
-	p.DrawHighlightedText(cb.X1+runewidth.StringWidth(prefix), cb.Y1, cb.cleanText, cb.hotkeyPos, n, h)
+	p.DrawHighlightedText(cb.X1+StringWidth(prefix), cb.Y1, cb.cleanText, cb.hotkeyPos, n, h)
 }
 
 func (cb *Checkbox) ProcessKey(e *vtinput.InputEvent) bool {

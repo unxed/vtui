@@ -423,3 +423,40 @@ func BuildCaretMap(s string) CaretMap {
 
 	return CaretMap{VisualToLogical: visualToLogical, LogicalToVisual: logicalToVisual}
 }
+
+// ForEachVisualCluster walks the terminal clusters of s in the order they are
+// drawn, left to right, handing the callback the text to draw (mirrored where
+// the cluster reads right to left), its width in columns, and the byte offset
+// and rune index it had in the logical string. It is the one place widgets
+// should get visual order from: reordering the runs of a bidi paragraph by
+// hand is what put a line's words in the wrong order in unxed/f4#546, three
+// times over, once in each widget that had copied the code.
+func ForEachVisualCluster(s string, fn func(cluster string, width, offset, runeIndex int)) {
+	if DefaultBidiMode == BidiOff || !HasRTL(s) {
+		forEachDisplayCluster(s, fn)
+		return
+	}
+	type cluster struct {
+		text      string
+		width     int
+		offset    int
+		runeIndex int
+	}
+	var logical []cluster
+	spans := make([]ClusterSpan, 0, len(s))
+	forEachTerminalCluster(s, func(text string, width, offset, runeIndex int) {
+		logical = append(logical, cluster{text: text, width: width, offset: offset, runeIndex: runeIndex})
+		spans = append(spans, ClusterSpan{Start: offset, End: offset + len(text)})
+	})
+	lay := LayoutBidi(s, spans, DefaultBidiParagraph)
+	if lay.Len() != len(logical) {
+		for _, c := range logical {
+			fn(c.text, c.width, c.offset, c.runeIndex)
+		}
+		return
+	}
+	for _, i := range lay.VisualToLogical {
+		c := logical[i]
+		fn(lay.Text(i, c.text), c.width, c.offset, c.runeIndex)
+	}
+}

@@ -1,7 +1,6 @@
 package vtui
 
 import (
-	"golang.org/x/text/unicode/bidi"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -71,87 +70,14 @@ func ParseAmpersandString(s string) (clean string, hotkey rune, hotkeyPos int) {
 // StringToCharInfoHighlighted works like StringToCharInfo but highlights the letter after &.
 func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharInfo, rune) {
 	clean, hk, hkPos := ParseAmpersandString(s)
-	if DefaultBidiMode == BidiOff || !HasRTL(clean) {
-		res := make([]CharInfo, 0, len(clean))
-		forEachDisplayCluster(clean, func(cluster string, w, _, runeIdx int) {
-			attr := normalAttr
-			if hkPos >= runeIdx && hkPos < runeIdx+utf8.RuneCountInString(cluster) {
-				attr = highAttr
-			}
-			res = AppendCluster(res, cluster, w, attr)
-		})
-		return res, hk
-	}
-
-	type logicalCluster struct {
-		text    string
-		runeIdx int
-		width   int
-		attr    uint64
-	}
-
-	var logicalClusters []logicalCluster
-	forEachTerminalCluster(clean, func(clText string, width, _, runeIdx int) {
+	res := make([]CharInfo, 0, len(clean))
+	ForEachVisualCluster(clean, func(cluster string, w, _, runeIdx int) {
 		attr := normalAttr
-		if hkPos >= runeIdx && hkPos < runeIdx+utf8.RuneCountInString(clText) {
+		if hkPos >= runeIdx && hkPos < runeIdx+utf8.RuneCountInString(cluster) {
 			attr = highAttr
 		}
-		logicalClusters = append(logicalClusters, logicalCluster{
-			text:    clText,
-			runeIdx: runeIdx,
-			width:   width,
-			attr:    attr,
-		})
+		res = AppendCluster(res, cluster, w, attr)
 	})
-
-	p := bidi.Paragraph{}
-	_, err := p.SetString(clean)
-	if err != nil {
-		res := make([]CharInfo, 0, len(clean))
-		for _, c := range logicalClusters {
-			res = AppendCluster(res, c.text, c.width, c.attr)
-		}
-		return res, hk
-	}
-	order, err := p.Order()
-	if err != nil {
-		res := make([]CharInfo, 0, len(clean))
-		for _, c := range logicalClusters {
-			res = AppendCluster(res, c.text, c.width, c.attr)
-		}
-		return res, hk
-	}
-
-	var res []CharInfo
-	numRuns := order.NumRuns()
-	for i := 0; i < numRuns; i++ {
-		run := order.Run(i)
-		start, end := run.Pos()
-
-		var runClusters []logicalCluster
-		for _, c := range logicalClusters {
-			if c.runeIdx >= start && c.runeIdx <= end {
-				runClusters = append(runClusters, c)
-			}
-		}
-
-		isRTL := run.Direction() == bidi.RightToLeft
-		if isRTL {
-			for i, j := 0, len(runClusters)-1; i < j; i, j = i+1, j-1 {
-				runClusters[i], runClusters[j] = runClusters[j], runClusters[i]
-			}
-			for i := range runClusters {
-				if utf8.RuneCountInString(runClusters[i].text) == 1 {
-					runClusters[i].text = bidi.ReverseString(runClusters[i].text)
-				}
-			}
-		}
-
-		for _, c := range runClusters {
-			res = AppendCluster(res, c.text, c.width, c.attr)
-		}
-	}
-
 	return res, hk
 }
 
@@ -167,7 +93,7 @@ func SanitizeRune(r rune) (rune, int) {
 	if r == '\uFFFD' {
 		return '?', 1
 	}
-	if r < 0x20 || r == 0x7F {
+	if isControlRune(r) {
 		return '·', 1
 	}
 	w := runewidth.RuneWidth(r)
