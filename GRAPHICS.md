@@ -85,3 +85,38 @@ Practical notes for whoever implements it:
   small and reuse one image id. Sixel is the most expensive of the three and
   is best limited to short clips or a low frame rate.
 * Audio is out of scope for the rendering layer.
+
+## Sixel colour: three encoders and how one is chosen
+
+Sixel carries 256 colour registers, and a photograph does not fit in 256
+colours. There are two ways past that, and which one is available is a
+property of the terminal rather than of the picture.
+
+**Per-band palettes, the default.** A register is redefined between bands, so
+a decoder that resolves registers as it reads them paints an unlimited number
+of colours through 256 of them. This is the smallest stream and what vtui
+sends everywhere it can.
+
+**Layers, in Windows Terminal.** Its parser keeps a raster indexed until it
+flushes, so a redefinition can recolour bands it has already decoded — the
+per-band form is not available there. Instead the picture goes several times
+to the same cell, each time as a complete DCS image with `P2=1` and a palette
+of its own, and each lands on top of the last. The first layer covers every
+pixel and each further one repaints only the pixels the layer before got
+wrong, so the stack is cheap where the picture is flat, and a stack cut short
+by the byte budget is still a whole picture rather than a holed one. See
+`graphics_sixel_layered.go`, and microsoft/terminal#20020, where the one
+report of layering breaking turned out to be a missing `P2=1` in the
+reporter's own encoder.
+
+Two things the layered path relies on. Every layer restates the cursor
+position, because a sixel dump leaves the text cursor at the sixel active
+position rather than where it started. And the whole stack goes out in one
+frame: vtui wraps a frame in synchronised output (mode 2026), which is what
+keeps a half-built stack off the screen, and layers split across two frames
+would be in two different synchronisation blocks and would visibly assemble
+themselves.
+
+`VTUI_SIXEL_PALETTE` overrides the choice — `fixed`, `adaptive`, `layered`,
+or anything else for the per-band default — and an explicit value always wins
+over the terminal.

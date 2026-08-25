@@ -150,8 +150,10 @@ func buildSixelLUT(palI [][3]int32) []uint8 {
 }
 
 // sixelCacheEntry is one encoded image, ready to be pasted after a cursor move.
+// It is a list because the layered encoder writes several DCS strings to the
+// same spot; every other mode leaves exactly one in it.
 type sixelCacheEntry struct {
-	data string
+	layers []string
 }
 
 // sixelEncoder caches encoded images so panning re-sends bytes instead of
@@ -173,6 +175,16 @@ type sixelEncoder struct {
 	// single-palette encoders remain for a decoder that resolves its
 	// registers at the end of the image rather than as it goes.
 	trueColor bool
+
+	// layered stacks several transparent images at the same spot, each with
+	// a palette of its own. See encodeLayered.
+	layered bool
+
+	// layerMax and layerBudget bound that stack. Fields rather than the
+	// constants they are set from, so a test can pin them and so a caller
+	// on a slow link has somewhere to put a smaller number later.
+	layerMax    int
+	layerBudget int
 
 	// Scratch reused across encodes; render-thread only, so never locked.
 	idx      []byte
@@ -212,11 +224,39 @@ func newSixelEncoder() *sixelEncoder {
 // palette opt-in is testable without a terminal: VTUI_SIXEL_PALETTE=adaptive.
 func newSixelEncoderWith(env func(string) string) *sixelEncoder {
 	mode := strings.ToLower(strings.TrimSpace(env("VTUI_SIXEL_PALETTE")))
-	return &sixelEncoder{
-		cache:     make(map[uint64]sixelCacheEntry),
-		adaptive:  mode == "adaptive",
-		trueColor: mode != "adaptive" && mode != "fixed",
+	layered := mode == "layered"
+	if mode == "" && layeredSixelDefault(env) {
+		layered = true
 	}
+	named := mode == "adaptive" || mode == "fixed" || mode == "layered"
+	return &sixelEncoder{
+		cache:       make(map[uint64]sixelCacheEntry),
+		adaptive:    mode == "adaptive",
+		layered:     layered,
+		layerMax:    sixelLayerMax,
+		layerBudget: sixelLayerBudget,
+		trueColor:   !layered && !named,
+	}
+}
+
+// layeredSixelDefault reports whether the terminal is known to composite
+// overlapping transparent sixel images, which is what makes the layered
+// encoder legal there.
+//
+// Windows Terminal is the case that matters and the reason this exists: its
+// parser keeps a raster indexed until it flushes, so an encoder that
+// redefines a register between bands can recolour bands already decoded --
+// the full-colour form is not available there. Layering is, and it is not a
+// workaround the terminal merely tolerates: see microsoft/terminal#20020,
+// where the one report of it breaking turned out to be the reporter's own
+// encoder omitting P2=1, and where sixteen and even two hundred and
+// fifty-six layers are reported working.
+//
+// The check is deliberately a single terminal rather than a table. Every
+// other terminal vtui sends sixel to takes the full-colour stream, which is
+// smaller and needs no compositing promise at all.
+func layeredSixelDefault(env func(string) string) bool {
+	return env("WT_SESSION") != ""
 }
 
 // adaptiveSixelPalette builds a median-cut palette of up to 255 colours with
@@ -282,12 +322,10 @@ func (s *sixelEncoder) Render(sb kittyBuffer, list []ImagePlacement, cw, ch int)
 			continue
 		}
 
-		s.writeCursor(sb, p.Row+1, p.Col+1)
-
 		key := nativeCacheKey(p.Surface.Hash(), sx, sy, sw, sh, dw, dh)
 		entry, ok := s.cache[key]
 		if !ok {
-			entry = sixelCacheEntry{data: s.encode(p.Surface, sx, sy, sw, sh, dw, dh)}
+			entry = sixelCacheEntry{layers: s.encodeLayers(p.Surface, sx, sy, sw, sh, dw, dh)}
 			s.cache[key] = entry
 			s.order = append(s.order, key)
 			if len(s.order) > sixelCacheLimit {
@@ -295,7 +333,14 @@ func (s *sixelEncoder) Render(sb kittyBuffer, list []ImagePlacement, cw, ch int)
 				s.order = s.order[1:]
 			}
 		}
-		sb.WriteString(entry.data)
+		// Every layer starts at the same cell. It has to be re-stated: a
+		// sixel dump leaves the text cursor at the sixel active position,
+		// which is the row the raster reached, so the second layer would
+		// otherwise land below the first.
+		for _, layer := range entry.layers {
+			s.writeCursor(sb, p.Row+1, p.Col+1)
+			sb.WriteString(layer)
+		}
 	}
 }
 
@@ -321,14 +366,33 @@ func sixelWriteInt(sb *strings.Builder, scratch *[16]byte, v int) {
 	sb.Write(strconv.AppendInt(scratch[:0], int64(v), 10))
 }
 
-// encode scales the crop to the destination size, quantises it and returns one
-// complete DCS string, using the fixed cube or an adaptive median-cut palette.
-func (s *sixelEncoder) encode(surf *ImageSurface, sx, sy, sw, sh, dw, dh int) string {
+// encodeLayers returns the DCS strings to write at the placement, in order.
+// Every mode but the layered one answers with a single string; see
+// graphics_sixel_layered.go for the one that does not.
+func (s *sixelEncoder) encodeLayers(surf *ImageSurface, sx, sy, sw, sh, dw, dh int) []string {
+	if !s.layered {
+		return one(s.encode(surf, sx, sy, sw, sh, dw, dh))
+	}
+	scaled := s.scaleFor(surf, sx, sy, sw, sh, dw, dh)
+	if scaled == nil {
+		return nil
+	}
+	return s.encodeLayered(scaled, dw, dh)
+}
+
+// scaleFor crops and scales the source to the raster the placement needs.
+func (s *sixelEncoder) scaleFor(surf *ImageSurface, sx, sy, sw, sh, dw, dh int) *ImageSurface {
 	src := surf
 	if sx != 0 || sy != 0 || sw != surf.Width || sh != surf.Height {
 		src = surf.Crop(sx, sy, sw, sh)
 	}
-	scaled := ScaleSurface(src, dw, dh)
+	return ScaleSurface(src, dw, dh)
+}
+
+// encode scales the crop to the destination size, quantises it and returns one
+// complete DCS string, using the fixed cube or an adaptive median-cut palette.
+func (s *sixelEncoder) encode(surf *ImageSurface, sx, sy, sw, sh, dw, dh int) string {
+	scaled := s.scaleFor(surf, sx, sy, sw, sh, dw, dh)
 	if scaled == nil {
 		return ""
 	}
@@ -348,6 +412,21 @@ func (s *sixelEncoder) encode(surf *ImageSurface, sx, sy, sw, sh, dw, dh int) st
 		palI, palDef = sixelPalI[:], sixelPalDef[:]
 		sixelQuantize(scaled, idx)
 	}
+	return s.emitIndexed(idx, palDef, dw, dh)
+}
+
+// one is the single-layer answer, and nothing at all when the encoder had
+// nothing to say.
+func one(data string) []string {
+	if data == "" {
+		return nil
+	}
+	return []string{data}
+}
+
+// emitIndexed writes one complete DCS for pixels already quantised into idx,
+// where sixelIndexTransparent means "leave this pixel alone".
+func (s *sixelEncoder) emitIndexed(idx []byte, palDef []string, dw, dh int) string {
 	remap, regs := sixelRegisters(idx)
 	if len(regs) == 0 {
 		return ""
