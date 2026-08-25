@@ -31,6 +31,32 @@ func gradientSurface(w, h int) *ImageSurface {
 	return s
 }
 
+// layeredStressSurface deliberately has more than one palette's worth of
+// colours spread across the image. A smooth gradient is too easy for the
+// adaptive palette: at this size it can serve every pixel within the layer
+// tolerance, so it quite correctly emits one layer and makes a poor fixture
+// for tests that need to inspect a stack.
+func layeredStressSurface(w, h int) *ImageSurface {
+	s := &ImageSurface{
+		Width:  w,
+		Height: h,
+		Stride: w * 4,
+		Pix:    make([]byte, w*h*4),
+		Opaque: true,
+	}
+	state := uint32(0x12345678)
+	for i := 0; i < len(s.Pix); i += 4 {
+		state = state*1664525 + 1013904223
+		s.Pix[i] = byte(state >> 24)
+		state = state*1664525 + 1013904223
+		s.Pix[i+1] = byte(state >> 24)
+		state = state*1664525 + 1013904223
+		s.Pix[i+2] = byte(state >> 24)
+		s.Pix[i+3] = 0xFF
+	}
+	return s
+}
+
 func layeredSixel() *sixelEncoder {
 	e := newSixelEncoderWith(func(k string) string {
 		if k == "VTUI_SIXEL_PALETTE" {
@@ -44,11 +70,11 @@ func layeredSixel() *sixelEncoder {
 
 func TestLayeredSendsSeveralImages(t *testing.T) {
 	e := layeredSixel()
-	surf := gradientSurface(64, 48)
+	surf := layeredStressSurface(64, 48)
 
 	layers := e.encodeLayers(surf, 0, 0, 64, 48, 64, 48)
 	if len(layers) < 2 {
-		t.Fatalf("got %d layer(s), want the gradient split across several", len(layers))
+		t.Fatalf("got %d layer(s), want the stress image split across several", len(layers))
 	}
 	if len(layers) > sixelLayerMax {
 		t.Errorf("got %d layers, want at most %d", len(layers), sixelLayerMax)
@@ -73,7 +99,7 @@ func TestLayeredSendsSeveralImages(t *testing.T) {
 // walks down the screen.
 func TestEveryLayerIsPositionedAgain(t *testing.T) {
 	e := layeredSixel()
-	surf := gradientSurface(64, 48)
+	surf := layeredStressSurface(64, 48)
 	var sb strings.Builder
 	e.Render(&sb, []ImagePlacement{{
 		Surface: surf, Col: 4, Row: 2, Cols: 6, Rows: 3,
@@ -177,7 +203,7 @@ func TestTheFirstLayerCoversThePicture(t *testing.T) {
 // already complete without it.
 func TestTheBudgetStopsTheStack(t *testing.T) {
 	e := layeredSixel()
-	surf := gradientSurface(64, 48)
+	surf := layeredStressSurface(64, 48)
 	full := e.encodeLayers(surf, 0, 0, 64, 48, 64, 48)
 	if len(full) < 2 {
 		t.Skip("this picture does not need a second layer")
