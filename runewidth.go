@@ -73,7 +73,7 @@ func StringToCharInfoHighlighted(s string, normalAttr, highAttr uint64) ([]CharI
 	clean, hk, hkPos := ParseAmpersandString(s)
 	if DefaultBidiMode == BidiOff || !HasRTL(clean) {
 		res := make([]CharInfo, 0, len(clean))
-		ForEachClusterAt(clean, func(cluster string, w, _, runeIdx int) {
+		forEachDisplayCluster(clean, func(cluster string, w, _, runeIdx int) {
 			attr := normalAttr
 			if hkPos >= runeIdx && hkPos < runeIdx+utf8.RuneCountInString(cluster) {
 				attr = highAttr
@@ -180,7 +180,7 @@ func SanitizeRune(r rune) (rune, int) {
 func StringToCharInfo(s string, attr uint64) []CharInfo {
 	s = VisualString(s)
 	res := make([]CharInfo, 0, len(s))
-	ForEachCluster(s, func(cluster string, w, _ int) {
+	forEachDisplayCluster(s, func(cluster string, w, _, _ int) {
 		res = AppendCluster(res, cluster, w, attr)
 	})
 	return res
@@ -188,7 +188,7 @@ func StringToCharInfo(s string, attr uint64) []CharInfo {
 
 func FillCharInfo(target []CharInfo, data []byte, attr uint64) []CharInfo {
 	target = target[:0]
-	ForEachCluster(string(data), func(cluster string, w, _ int) {
+	forEachDisplayCluster(string(data), func(cluster string, w, _, _ int) {
 		target = AppendCluster(target, cluster, w, attr)
 	})
 	return target
@@ -198,7 +198,7 @@ func FillCharInfo(target []CharInfo, data []byte, attr uint64) []CharInfo {
 func FillCharInfoString(target []CharInfo, s string, attr uint64) []CharInfo {
 	s = VisualString(s)
 	target = target[:0]
-	ForEachCluster(s, func(cluster string, w, _ int) {
+	forEachDisplayCluster(s, func(cluster string, w, _, _ int) {
 		target = AppendCluster(target, cluster, w, attr)
 	})
 	return target
@@ -209,7 +209,7 @@ func FillCharInfoString(target []CharInfo, s string, attr uint64) []CharInfo {
 // when the byte its first rune starts at falls inside them.
 func FillCharInfoWithSelection(target []CharInfo, data []byte, defaultAttr, selAttr uint64, fragStartOffset, selMin, selMax int) []CharInfo {
 	target = target[:0]
-	ForEachCluster(string(data), func(cluster string, w, offset int) {
+	forEachDisplayCluster(string(data), func(cluster string, w, offset, _ int) {
 		attr := defaultAttr
 		absPos := fragStartOffset + offset
 		if absPos >= selMin && absPos < selMax {
@@ -296,7 +296,7 @@ func FillCharInfoAligned(target []CharInfo, text string, width int, align Alignm
 		target = append(target, CharInfo{Char: ' ', Attributes: attr})
 	}
 	s := VisualString(truncated)
-	ForEachCluster(s, func(cluster string, w, _ int) {
+	forEachDisplayCluster(s, func(cluster string, w, _, _ int) {
 		target = AppendCluster(target, cluster, w, attr)
 	})
 	for i := 0; i < rightSpace; i++ {

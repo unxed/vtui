@@ -19,7 +19,7 @@ import (
 func StringToCharInfoWithAttrs(s string, attrs []uint64, baseAttr uint64) []CharInfo {
 	if DefaultBidiMode == BidiOff || !HasRTL(s) {
 		res := make([]CharInfo, 0, len(s))
-		ForEachClusterAt(s, func(cluster string, w, _, runeIdx int) {
+		forEachDisplayCluster(s, func(cluster string, w, _, runeIdx int) {
 			attr := baseAttr
 			if runeIdx >= 0 && runeIdx < len(attrs) {
 				attr = attrs[runeIdx]

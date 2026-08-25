@@ -1,7 +1,5 @@
 package vtui
 
-import "github.com/mattn/go-runewidth"
-
 // Text represents a simple static text label.
 type Text struct {
 	ScreenObject
@@ -23,7 +21,7 @@ func NewText(x, y int, content string, color uint64) *Text {
 	t.Y2 = y // Single line height
 	t.SetText(content)
 	// For simple labels, width is always text length
-	t.X2 = t.X1 + runewidth.StringWidth(t.cleanText) - 1
+	t.X2 = t.X1 + StringWidth(t.cleanText) - 1
 	return t
 }
 
@@ -47,7 +45,7 @@ func (t *Text) DisplayObject(scr *ScreenBuf) {
 	}
 
 	// Systemic prevention: truncate text to component width
-	txt := runewidth.Truncate(t.cleanText, width, "")
+	txt := TruncateString(t.cleanText, width, "")
 
 	p := NewPainter(scr)
 	p.DrawHighlightedText(t.X1, t.Y1, txt, t.hotkeyPos, attr, highAttr)

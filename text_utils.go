@@ -1,9 +1,6 @@
 package vtui
 
-import (
-	"github.com/mattn/go-runewidth"
-	"strings"
-)
+import "strings"
 
 // WrapText splits a string into an array of strings not exceeding maxWidth.
 // Respects \n line breaks and tries to split by spaces.
@@ -26,7 +23,7 @@ func WrapText(text string, maxWidth int) []string {
 		currentLineWidth := 0
 
 		for _, word := range words {
-			wordWidth := runewidth.StringWidth(word)
+			wordWidth := StringWidth(word)
 
 			// If a word is inherently longer than maxWidth, split it forcefully
 			if wordWidth > maxWidth {
@@ -36,25 +33,7 @@ func WrapText(text string, maxWidth int) []string {
 					currentLineWidth = 0
 				}
 
-				runes := []rune(word)
-				for len(runes) > 0 {
-					chunk := ""
-					width := 0
-					for i, r := range runes {
-						rw := runewidth.RuneWidth(r)
-						if width+rw > maxWidth {
-							chunk = string(runes[:i])
-							runes = runes[i:]
-							break
-						}
-						width += rw
-						if i == len(runes)-1 {
-							chunk = string(runes)
-							runes = nil
-						}
-					}
-					result = append(result, chunk)
-				}
+				result = append(result, splitWordByWidth(word, maxWidth)...)
 				continue
 			}
 
@@ -98,4 +77,23 @@ func TruncateMiddle(s string, maxLen int) string {
 	end := string(runes[len(runes)-(maxLen-3-half):])
 
 	return start + "..." + end
+}
+
+func splitWordByWidth(word string, maxWidth int) []string {
+	var result []string
+	var current strings.Builder
+	currentWidth := 0
+	forEachDisplayCluster(word, func(cluster string, width, _, _ int) {
+		if currentWidth > 0 && currentWidth+width > maxWidth {
+			result = append(result, current.String())
+			current.Reset()
+			currentWidth = 0
+		}
+		current.WriteString(cluster)
+		currentWidth += width
+	})
+	if current.Len() > 0 {
+		result = append(result, current.String())
+	}
+	return result
 }

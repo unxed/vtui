@@ -2,7 +2,6 @@ package vtui
 
 import (
 	"context"
-	"github.com/mattn/go-runewidth"
 	"sort"
 	"strings"
 )
@@ -198,7 +197,7 @@ func createMessageDialog(title string, text string, buttons []string, kind Messa
 	btnsWidth := 0
 	for _, b := range buttons {
 		clean, _, _ := ParseAmpersandString(b)
-		btnsWidth += runewidth.StringWidth(clean) + 4
+		btnsWidth += StringWidth(clean) + 4
 	}
 	spacing := 2
 	totalBtnsWidth := 0
@@ -213,7 +212,7 @@ func createMessageDialog(title string, text string, buttons []string, kind Messa
 	lines := WrapText(text, maxDialogWidth-sidePadding)
 	textWidth := 0
 	for _, l := range lines {
-		w := runewidth.StringWidth(l)
+		w := StringWidth(l)
 		if w > textWidth {
 			textWidth = w
 		}
@@ -224,7 +223,7 @@ func createMessageDialog(title string, text string, buttons []string, kind Messa
 		dlgWidth = totalBtnsWidth + sidePadding
 	}
 	if title != "" {
-		tw := runewidth.StringWidth(title) + 6
+		tw := StringWidth(title) + 6
 		if tw > dlgWidth {
 			dlgWidth = tw
 		}
