@@ -46,21 +46,24 @@ jobs:
         with:
           go-version: '1.26.x'
 
-      # The race detector is not part of this workflow yet; a separate job
-      # will be added later. The screen-manager, protocol teardown and Far2l
-      # races that originally kept it out have been fixed.
-      #
-      # The two skipped tests drive fm.Run with a reader on os.Stdin and rely
-      # on Run returning when stdin hits EOF. That holds on Windows, but on
-      # the macOS runner the event channel never closes and the whole suite
-      # hangs until the go test timeout. They stay skipped everywhere for now
-      # so the skip set does not vary by platform; unskip once fm.Run's exit
-      # no longer depends on platform stdin semantics.
       - name: Test
-        run: >
-          go test -count=1 -timeout 4m
-          -skip 'TestFrameManager_MenuBarNavigabilityWithSubMenu|TestFrameManager_ModalDialogBlocksF9'
-          ./...
+        run: go test -count=1 -timeout 4m ./...
+
+  race:
+    name: Race
+    runs-on: ubuntu-latest
+    env:
+      # The rest of this workflow intentionally keeps cgo disabled. Enabling
+      # it here does not reverse that decision: the race detector requires it.
+      CGO_ENABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+
+      - run: go test -race -count=1 -timeout 15m ./...
 
   vulnerabilities:
     name: Vulnerabilities
