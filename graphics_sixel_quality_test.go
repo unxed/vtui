@@ -112,13 +112,14 @@ func TestSixelAdaptivePaletteQuality(t *testing.T) {
 }
 
 func TestSixelAdaptivePaletteSelection(t *testing.T) {
-	if !newSixelEncoderWith(func(string) string { return "" }).adaptive {
+	unknownTerminal := func(string) string { return "" }
+	if !newSixelEncoderWithOS(unknownTerminal, "linux").adaptive {
 		t.Error("adaptive must be the conservative default for an unknown terminal")
 	}
-	if !newSixelEncoderWith(func(string) string { return "adaptive" }).adaptive {
+	if !newSixelEncoderWithOS(func(string) string { return "adaptive" }, "linux").adaptive {
 		t.Error("VTUI_SIXEL_PALETTE=adaptive must enable adaptive mode")
 	}
-	if !newSixelEncoderWith(func(string) string { return " ADAPTIVE " }).adaptive {
+	if !newSixelEncoderWithOS(func(string) string { return " ADAPTIVE " }, "linux").adaptive {
 		t.Error("adaptive must be case and space insensitive")
 	}
 }
