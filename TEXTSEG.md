@@ -24,19 +24,31 @@ through prose in a script that composes heavily could produce thousands, which
 is still small. It is never cleared, which is a deliberate simplification for
 now, see REVIEW.md.
 
-## Widths follow wcwidth, with the emoji exceptions everyone makes
+## Widths are what the terminal advances, summed and clamped to two
 
-`ClusterWidth` sums the width of the runes of a cluster the way a wcwidth
-terminal does. Non spacing marks, enclosing marks and format characters take
-no columns; spacing marks (the Devanagari `ा`, for one) take one. Categories
-decide before `go-runewidth` does, because `go-runewidth` gives the Devanagari
-virama a column and terminals do not.
+`ClusterWidth` sums the columns of the code points of a cluster and clamps
+the sum to two. Non spacing marks, enclosing marks and format characters are
+zero; spacing marks (the Devanagari `ा`) one; East Asian wide and fullwidth
+characters two; U+FE0F two (one on a strictly wcwidth terminal, set
+`EmojiPresentationWide` to false there). This is the rule of Windows Terminal
+and ConPTY in their "grapheme clusters" measurement mode, and a wcwidth
+terminal (VTE, xterm, foot) lands on the same count by never clustering at
+all, so it is the one number every terminal agrees on. Summing reproduces the
+emoji conventions without naming them: a ZWJ sequence, a keycap, a flag and a
+skin tone all sum past two. It also means an Indic cluster is *not* one cell
+because a font draws one glyph for it: `का` is two columns and so is the
+conjunct `स्कृ`, and pretending otherwise made every dialog drawn over Hindi
+text lean by one column per conjunct (unxed/f4#546).
 
-On top of that, sequences every terminal treats as one double wide glyph are
-pinned to two columns: ZWJ sequences, keycaps, skin tone modifiers and pairs
-of regional indicators. A cluster carrying U+FE0F is two columns as well,
-which is what modern emulators do; set `EmojiPresentationWide` to false on a
-strictly wcwidth terminal.
+`SanitizeCluster` guarantees that what reaches the terminal advances by what
+was counted: C0 and C1 controls, DEL, U+2028/2029 and lone format characters
+(a terminal executes U+0085 and U+009B and swallows the rest) become a visible
+dot, and a cluster with no base character gets a dotted circle to stand on.
+The ANSI renderer adds a second line of defence, in `screenbuf.go`: after any
+cell whose advance a terminal might measure differently (anything past
+Latin, Greek and Cyrillic, box drawing excepted) the next cell is placed with
+an absolute cursor position, so a disagreement can shift nothing but that
+cell.
 
 ## What to use where
 
@@ -48,19 +60,27 @@ strictly wcwidth terminal.
 
 ### Caret boundaries use the terminal clusters, not the UAX ones
 
-`ForEachCluster` / `ForEachClusterAt` are the public UAX #29 walkers. They are
-right for measuring and for callers that count runes, and wrong for anything
-that positions a caret: UAX #29 splits an Indic virama from the consonant that
-follows it, while `forEachTerminalCluster` joins the pair the way a shaping
-terminal draws it. If a widget paints with one walker and moves the caret with
-the other, the two disagree about how many cells the text occupies — the
-cursor appears on the right glyph but edits a fraction of it, and Backspace or
+`ForEachCluster` / `ForEachClusterAt` are the public UAX #29 walkers as
+`rivo/uniseg` implements them. They are right for measuring and for callers
+that count runes, and wrong for anything that positions a caret: their
+tables predate rule GB9c, which keeps an Indic virama with the consonant that
+follows it, while Windows Terminal and ConPTY apply GB9c from the Unicode
+16.0 tables. If a widget paints with one walker and moves the caret with the
+other, the two disagree about how many cells the text occupies — the cursor
+appears on the right glyph but edits a fraction of it, and Backspace or
 Delete eats part of a shaped unit (unxed/f4#546).
 
+`forEachTerminalCluster` therefore glues the pair back together with
+`JoinsConjunct`, which is GB9c the way the terminal applies it: pairwise, a
+virama that is `Indic_Conjunct_Break=Linker` (Devanagari, Bengali, Gujarati,
+Oriya, Telugu, Malayalam) followed by a consonant of those scripts. Other
+viramas (Kannada, Tamil, Sinhala, ...) do not join under GB9c and the
+terminal keeps them apart, so nothing here joins them either.
+
 `Edit.prevClusterBoundary`, `Edit.nextClusterBoundary` and
-`Edit.cursorPositionAtX` therefore use `forEachTerminalCluster`, the same
-walker as `Edit.DisplayObject` and `MultiLineEdit`. Any new caret, selection
-or hit-testing code belongs on that side too.
+`Edit.cursorPositionAtX` use `forEachTerminalCluster`, the same walker as
+`Edit.DisplayObject` and `MultiLineEdit`. Any new caret, selection or
+hit-testing code belongs on that side too.
 
 ### Backspace deletes a code point, everything else a cluster
 

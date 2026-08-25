@@ -41,6 +41,7 @@ const (
 	runeRegionalFirst  rune = 0x1F1E6
 	runeRegionalLast   rune = 0x1F1FF
 	runeReplacement    rune = 0xFFFD
+	runeMarkBase       rune = 0x25CC // dotted circle: a base for a mark that has none
 	runeControlVisible rune = '·'
 )
 
@@ -192,6 +193,11 @@ func runeCellWidth(r rune) int {
 	if unicode.In(r, unicode.Mn, unicode.Me, unicode.Cf) {
 		return 0
 	}
+	if unicode.Is(unicode.Mc, r) {
+		// Spacing marks (the Devanagari ा, the Bengali া) advance one
+		// column in every terminal, whatever a width table says about them.
+		return 1
+	}
 	if w := runewidth.RuneWidth(r); w > 0 {
 		return w
 	}
@@ -199,116 +205,46 @@ func runeCellWidth(r rune) int {
 }
 
 // ClusterWidth returns how many terminal columns a grapheme cluster occupies.
-// The base is the sum of the per rune widths, which is what a wcwidth driven
-// terminal does, with the emoji sequences that every terminal special cases
-// pinned to two columns.
+//
+// The rule is the one Windows Terminal and ConPTY apply in their "grapheme
+// clusters" measurement mode, and it lands on the same number a wcwidth
+// terminal (VTE, xterm, foot, ...) reaches by treating every non spacing mark
+// as zero: the columns of the code points are summed and the sum is clamped
+// to two. Non spacing marks, enclosing marks and format characters are zero,
+// spacing marks one, East Asian wide and fullwidth characters two, and U+FE0F
+// two. Summing reproduces every emoji convention without naming it (a ZWJ
+// sequence, a keycap, a flag and a skin tone all sum past two) and gives an
+// Indic spacing mark or conjunct the columns the terminal really advances by:
+// का is two cells and so is स्कृ, however one glyph the font makes of them.
+// Counting such a cluster as one cell, as an earlier version did, is exactly
+// what made every dialog drawn over Hindi text lean (unxed/f4#546).
 func ClusterWidth(cluster string) int {
 	if cluster == "" {
 		return 0
 	}
-	if r, size := utf8.DecodeRuneInString(cluster); size == len(cluster) {
-		// Single rune: no sequence to examine, except the few runes whose
-		// width rules flip on a lone occurrence (see the switch below).
-		switch r {
-		case runeZWJ, runeVS15, runeVS16, runeKeycap:
-			// fall through to the sequence rules
-		default:
-			if w := runeCellWidth(r); w > 0 {
-				return w
-			}
-			return 1
-		}
+	if clusterColumns(cluster) >= 2 {
+		return 2
 	}
+	// One column, or none at all: a cluster of nothing but zero width
+	// characters still gets a cell, because SanitizeCluster gives it a base
+	// to stand on and a caret needs somewhere to be.
+	return 1
+}
 
+// clusterColumns is the unclamped column sum of a cluster; zero means the
+// cluster has no base character of its own.
+func clusterColumns(cluster string) int {
 	sum := 0
-	regional := 0
-	hasZWJ := false
-	hasVS16 := false
-	hasVS15 := false
-	hasKeycap := false
-	hasModifier := false
-
 	for _, r := range cluster {
-		switch {
-		case r == runeZWJ:
-			hasZWJ = true
-		case r == runeVS16:
-			hasVS16 = true
-		case r == runeVS15:
-			hasVS15 = true
-		case r == runeKeycap:
-			hasKeycap = true
-		case r >= runeModifierFirst && r <= runeModifierLast:
-			hasModifier = true
-		case r >= runeRegionalFirst && r <= runeRegionalLast:
-			regional++
+		if r == runeVS16 {
+			if EmojiPresentationWide {
+				sum += 2
+			}
+			continue
 		}
 		sum += runeCellWidth(r)
 	}
-
-	switch {
-	case hasZWJ, hasKeycap, hasModifier, regional >= 2:
-		return 2
-	case hasVS15:
-		return 1
-	case hasVS16 && EmojiPresentationWide:
-		return 2
-	}
-
-	// Terminal emulators shape Indic, Arabic, Hebrew, Thai, and related
-	// scripts inside a cell cluster. Spacing marks and virama sequences are
-	// therefore not additional terminal columns even though their Unicode
-	// categories can make the wcwidth sum look wider. Keep wide base glyphs
-	// wide, but count a shaped narrow cluster as one cell.
-	if isShapedCluster(cluster) {
-		for _, r := range cluster {
-			if runeCellWidth(r) >= 2 {
-				return 2
-			}
-		}
-		return 1
-	}
-
-	if sum <= 0 {
-		// A cluster of nothing but combining marks: no base to hang them on,
-		// so give it a column of its own rather than dropping it.
-		return 1
-	}
 	return sum
-}
-
-// isShapedCluster reports whether a grapheme cluster belongs to a script
-// whose combining marks and consonant sequences are laid out as one terminal
-// glyph cell. This is a cell-width policy, not a font shaper: the complete
-// cluster is retained in CharInfo so the terminal can perform its own glyph
-// shaping when the frame is flushed.
-func isShapedCluster(cluster string) bool {
-	runeCount := 0
-	shapedScript := false
-	for _, r := range cluster {
-		runeCount++
-		if unicode.In(r,
-			unicode.Arabic,
-			unicode.Bengali,
-			unicode.Devanagari,
-			unicode.Gujarati,
-			unicode.Gurmukhi,
-			unicode.Hebrew,
-			unicode.Kannada,
-			unicode.Khmer,
-			unicode.Lao,
-			unicode.Malayalam,
-			unicode.Myanmar,
-			unicode.Oriya,
-			unicode.Sinhala,
-			unicode.Tamil,
-			unicode.Telugu,
-			unicode.Thai,
-		) {
-			shapedScript = true
-		}
-	}
-	return shapedScript && runeCount > 1
 }
 
 // NextCluster splits off the first grapheme cluster of s. It returns the
@@ -328,9 +264,15 @@ func NextCluster(s string) (cluster string, width int, size int) {
 }
 
 // SanitizeCluster makes a cluster safe to put on screen. Line breaks are
-// dropped, other control characters become a visible dot, and a replacement
-// character becomes a question mark, as before. The returned width is zero
-// when the cluster must not be emitted at all.
+// dropped. Other control characters (C0, DEL, the C1 range, the Unicode line
+// and paragraph separators) and lone format characters become a visible dot:
+// a terminal either swallows them or executes them (U+0085 is a line feed,
+// U+009B starts a control sequence) and in no case advances one column for
+// them, which is what vtui has to count. A replacement character becomes a
+// question mark, as before. A cluster with no base character (a lone
+// combining mark) gets a dotted circle to sit on, so that it really occupies
+// the one column it is given. The returned width is zero when the cluster
+// must not be emitted at all.
 func SanitizeCluster(cluster string) (string, int) {
 	if cluster == "" {
 		return "", 0
@@ -343,16 +285,28 @@ func SanitizeCluster(cluster string) (string, int) {
 	if r == '\n' || r == '\r' {
 		return "", 0
 	}
-	if size == len(cluster) {
-		switch {
-		case r == runeReplacement:
-			return "?", 1
-		case r < 0x20 || r == 0x7F:
-			return string(runeControlVisible), 1
-		}
+	switch {
+	case r == runeReplacement && size == len(cluster):
+		return "?", 1
+	case isControlRune(r):
+		return string(runeControlVisible), 1
+	case size == len(cluster) && unicode.Is(unicode.Cf, r):
+		return string(runeControlVisible), 1
+	}
+	if clusterColumns(cluster) == 0 {
+		cluster = string(runeMarkBase) + cluster
 	}
 	return cluster, ClusterWidth(cluster)
-} // clusterFormingRange is a closed interval of code points that can join a
+}
+
+// isControlRune reports the code points a terminal must never receive as
+// text: C0 and C1 controls, DEL, and the Unicode line and paragraph
+// separators.
+func isControlRune(r rune) bool {
+	return r < 0x20 || (r >= 0x7F && r <= 0x9F) || r == '\u2028' || r == '\u2029'
+}
+
+// clusterFormingRange is a closed interval of code points that can join a
 // multi-rune grapheme cluster under UAX #29.
 type clusterFormingRange struct {
 	lo, hi rune
@@ -465,7 +419,7 @@ func simpleRuneWidth(r rune) int {
 		return 0
 	case r == runeReplacement:
 		return 1
-	case r < 0x20 || r == 0x7F:
+	case isControlRune(r):
 		return 1
 	default:
 		if w := runewidth.RuneWidth(r); w > 0 {
@@ -488,7 +442,7 @@ func forEachClusterSimple(s string, fn func(cluster string, width, offset, runeI
 			// dropped, like SanitizeCluster
 		case r == runeReplacement:
 			fn("?", 1, offset, runeIndex)
-		case r < 0x20 || r == 0x7F:
+		case isControlRune(r):
 			fn(string(runeControlVisible), 1, offset, runeIndex)
 		default:
 			w := runewidth.RuneWidth(r)
@@ -580,7 +534,7 @@ func forEachTerminalCluster(s string, fn func(cluster string, width, offset, run
 	for g.Next() {
 		from, to := g.Positions()
 		current := s[from:to]
-		if havePrevious && endsInIndicVirama(previous) && startsWithLetter(current) {
+		if havePrevious && JoinsConjunct(previous, current) {
 			previous += current
 		} else {
 			emit()
@@ -608,7 +562,7 @@ func forEachTerminalClusterRaw(s string, fn func(cluster string, offset, runeInd
 	for g.Next() {
 		from, to := g.Positions()
 		current := s[from:to]
-		if havePrevious && endsInIndicVirama(previous) && startsWithLetter(current) {
+		if havePrevious && JoinsConjunct(previous, current) {
 			previous += current
 		} else {
 			emit()
@@ -620,40 +574,54 @@ func forEachTerminalClusterRaw(s string, fn func(cluster string, offset, runeInd
 	emit()
 }
 
-func startsWithLetter(s string) bool {
-	r, _ := utf8.DecodeRuneInString(s)
-	return unicode.IsLetter(r)
+// JoinsConjunct reports whether a terminal draws prev and next as one cell
+// level unit: prev ends in a virama that Unicode classes as
+// Indic_Conjunct_Break=Linker and next starts with a consonant of the same
+// script (Devanagari, Bengali, Gujarati, Oriya, Telugu or Malayalam in the
+// 16.0 tables). That is UAX #29 rule GB9c the way Windows Terminal and ConPTY
+// apply it, pairwise, from their Unicode 16.0 tables; uniseg's older tables
+// split the pair, so the walkers here glue it back together. Viramas of the
+// other Indic scripts (Kannada, Tamil, Sinhala, ...) do not join under GB9c,
+// and the terminal keeps them apart too, so neither does this.
+func JoinsConjunct(prev, next string) bool {
+	last, _ := utf8.DecodeLastRuneInString(prev)
+	first, _ := utf8.DecodeRuneInString(next)
+	return isConjunctLinker(last) && isConjunctConsonant(first)
 }
 
-func endsInIndicVirama(s string) bool {
-	r, _ := utf8.DecodeLastRuneInString(s)
+// isConjunctLinker is Indic_Conjunct_Break=Linker, Unicode 16.0.
+func isConjunctLinker(r rune) bool {
 	switch r {
-	case
-		'\u094D',                     // Devanagari
-		'\u09CD',                     // Bengali
-		'\u0A4D',                     // Gurmukhi
-		'\u0ACD',                     // Gujarati
-		'\u0B4D',                     // Oriya
-		'\u0BCD',                     // Tamil
-		'\u0C4D',                     // Telugu
-		'\u0CCD',                     // Kannada
-		'\u0D3B', '\u0D3C', '\u0D4D', // Malayalam
-		'\u0DCA', // Sinhala
-		'\u1039', // Myanmar
-		'\u1714', // Tagalog
-		'\u17D2', // Khmer
-		'\u1A60', // Tai Tham
-		'\u1BAA', // Sundanese
-		'\uA806', // Syloti Nagri
-		'\uA8C4', // Saurashtra
-		'\uA953', // Rejang
-		'\uA9C0', // Javanese
-		'\uAAF6', // Meetei Mayek
-		'\uABED': // Meetei Mayek
+	case '\u094D', '\u09CD', '\u0ACD', '\u0B4D', '\u0C4D', '\u0D4D':
 		return true
-	default:
+	}
+	return false
+}
+
+// conjunctConsonants is Indic_Conjunct_Break=Consonant, Unicode 16.0, as
+// closed ranges sorted by their first code point.
+var conjunctConsonants = [...][2]rune{
+	{0x0915, 0x0939}, {0x0958, 0x095F}, {0x0978, 0x097F}, // Devanagari
+	{0x0995, 0x09A8}, {0x09AA, 0x09B0}, {0x09B2, 0x09B2}, {0x09B6, 0x09B9}, {0x09DC, 0x09DD}, {0x09DF, 0x09DF}, {0x09F0, 0x09F1}, // Bengali
+	{0x0A95, 0x0AA8}, {0x0AAA, 0x0AB0}, {0x0AB2, 0x0AB3}, {0x0AB5, 0x0AB9}, {0x0AF9, 0x0AF9}, // Gujarati
+	{0x0B15, 0x0B28}, {0x0B2A, 0x0B30}, {0x0B32, 0x0B33}, {0x0B35, 0x0B39}, {0x0B5C, 0x0B5D}, {0x0B5F, 0x0B5F}, {0x0B71, 0x0B71}, // Oriya
+	{0x0C15, 0x0C28}, {0x0C2A, 0x0C39}, {0x0C58, 0x0C5A}, // Telugu
+	{0x0D15, 0x0D3A}, // Malayalam
+}
+
+func isConjunctConsonant(r rune) bool {
+	if r < 0x0915 || r > 0x0D3A {
 		return false
 	}
+	for _, rg := range conjunctConsonants {
+		if r < rg[0] {
+			return false
+		}
+		if r <= rg[1] {
+			return true
+		}
+	}
+	return false
 }
 
 // AppendCluster puts a cluster into a cell slice, following it with as many
@@ -734,7 +702,7 @@ func truncateSimple(s string, w int, tail string) (string, int) {
 		switch {
 		case r == runeReplacement:
 			sb.WriteByte('?')
-		case r < 0x20 || r == 0x7F:
+		case isControlRune(r):
 			sb.WriteRune(runeControlVisible)
 		default:
 			sb.WriteRune(r)
