@@ -104,6 +104,8 @@ type WaylandHost struct {
 	repeatMods     vtinput.ControlKeyState
 	repeatNext     time.Time
 	currentMods    vtinput.ControlKeyState
+	numLockOn      bool
+	numLockKnown   bool
 	lCtrl, rCtrl   bool
 	lAlt, rAlt     bool
 	lShift, rShift bool
@@ -552,6 +554,22 @@ func (h *WaylandHost) Key(win *window.Window, input *window.Input, timeMs uint32
 	h.mu.Unlock()
 
 	mods := h.getMods(input)
+	h.mu.Lock()
+	if isDown && vk == vtinput.VK_NUMLOCK && h.numLockKnown {
+		h.numLockOn = !h.numLockOn
+	}
+	if numLockOn, ok := waylandNumLockFromKeysym(notUnicode, mods&vtinput.ShiftPressed != 0); ok {
+		h.numLockOn = numLockOn
+		h.numLockKnown = true
+	}
+	if h.numLockKnown && h.numLockOn {
+		mods |= vtinput.NumLockOn
+	} else {
+		mods &^= vtinput.NumLockOn
+	}
+	h.currentMods = mods
+	h.mu.Unlock()
+
 	mods |= enhancedKeyForX11Keysym(notUnicode)
 
 	h.mu.Lock()
@@ -643,10 +661,30 @@ func (h *WaylandHost) Focus(w *window.Window, device *window.Input) {
 	h.mu.Lock()
 	h.stopKeyRepeatLocked()
 	h.currentMods = 0
+	h.numLockOn = false
+	h.numLockKnown = false
 	h.lCtrl, h.rCtrl = false, false
 	h.lAlt, h.rAlt = false, false
 	h.lShift, h.rShift = false, false
 	h.mu.Unlock()
+}
+
+// waylandNumLockFromKeysym recovers the XKB NumLock state from a keypad
+// keysym. Unlike an ordinary modifier, NumLock is already consumed by XKB
+// while selecting the keysym, so the Wayland window package does not expose
+// it through Input.GetModifiers. Shift reverses the keypad selection: a
+// numeric keysym means NumLock is on without Shift and off with Shift; a
+// navigation keysym means the opposite.
+func waylandNumLockFromKeysym(keysym uint32, shift bool) (bool, bool) {
+	switch {
+	case keysym >= 0xffb0 && keysym <= 0xffb9, // XK_KP_0 .. XK_KP_9
+		keysym == 0xffae: // XK_KP_Decimal
+		return !shift, true
+	case keysym >= 0xff95 && keysym <= 0xff9f: // XK_KP_Home .. XK_KP_Delete
+		return shift, true
+	default:
+		return false, false
+	}
 }
 
 // Unused Handlers to satisfy interface

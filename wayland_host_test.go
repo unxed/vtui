@@ -38,20 +38,48 @@ func TestWaylandEnhancedKeyMapping(t *testing.T) {
 	}
 }
 
+func TestWaylandNumLockFromKeysym(t *testing.T) {
+	tests := []struct {
+		name   string
+		keysym uint32
+		shift  bool
+		want   bool
+		known  bool
+	}{
+		{"numeric keypad", 0xffb5, false, true, true},
+		{"numeric keypad with shift", 0xffb5, true, false, true},
+		{"navigation keypad", 0xff9d, false, false, true},
+		{"navigation keypad with shift", 0xff9d, true, true, true},
+		{"ordinary home", 0xff50, false, false, false},
+		{"keypad add does not reveal lock", 0xffab, false, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, known := waylandNumLockFromKeysym(tt.keysym, tt.shift)
+			if got != tt.want || known != tt.known {
+				t.Fatalf("waylandNumLockFromKeysym(0x%x, shift=%v) = %v, %v; want %v, %v",
+					tt.keysym, tt.shift, got, known, tt.want, tt.known)
+			}
+		})
+	}
+}
+
 func TestWaylandFocusLossClearsKeyboardState(t *testing.T) {
 	host := &WaylandHost{
-		isRepeating: true,
-		repeatVK:    vtinput.VK_LMENU,
-		repeatChar:  'x',
-		repeatMods:  vtinput.LeftAltPressed,
-		repeatNext:  time.Now().Add(time.Second),
-		currentMods: vtinput.LeftAltPressed,
-		lCtrl:       true,
-		rCtrl:       true,
-		lAlt:        true,
-		rAlt:        true,
-		lShift:      true,
-		rShift:      true,
+		isRepeating:  true,
+		repeatVK:     vtinput.VK_LMENU,
+		repeatChar:   'x',
+		repeatMods:   vtinput.LeftAltPressed,
+		repeatNext:   time.Now().Add(time.Second),
+		currentMods:  vtinput.LeftAltPressed,
+		numLockOn:    true,
+		numLockKnown: true,
+		lCtrl:        true,
+		rCtrl:        true,
+		lAlt:         true,
+		rAlt:         true,
+		lShift:       true,
+		rShift:       true,
 	}
 
 	// Gaining focus must not discard state established by a subsequent key
@@ -69,9 +97,9 @@ func TestWaylandFocusLossClearsKeyboardState(t *testing.T) {
 		t.Fatalf("repeat state not cleared: active=%v vk=%d char=%q mods=%d next=%v",
 			host.isRepeating, host.repeatVK, host.repeatChar, host.repeatMods, host.repeatNext)
 	}
-	if host.currentMods != 0 || host.lCtrl || host.rCtrl || host.lAlt || host.rAlt || host.lShift || host.rShift {
-		t.Fatalf("modifier state not cleared: mods=%d ctrl=%v/%v alt=%v/%v shift=%v/%v",
-			host.currentMods, host.lCtrl, host.rCtrl, host.lAlt, host.rAlt, host.lShift, host.rShift)
+	if host.currentMods != 0 || host.numLockOn || host.numLockKnown || host.lCtrl || host.rCtrl || host.lAlt || host.rAlt || host.lShift || host.rShift {
+		t.Fatalf("modifier state not cleared: mods=%d numlock=%v/%v ctrl=%v/%v alt=%v/%v shift=%v/%v",
+			host.currentMods, host.numLockOn, host.numLockKnown, host.lCtrl, host.rCtrl, host.lAlt, host.rAlt, host.lShift, host.rShift)
 	}
 }
 
