@@ -7,6 +7,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/mattn/go-runewidth"
 	"github.com/rivo/uniseg"
 )
@@ -68,8 +70,7 @@ func RegisterCluster(cluster string) uint64 {
 	if cluster == "" {
 		return 0
 	}
-	r, size := utf8.DecodeRuneInString(cluster)
-	if size == len(cluster) {
+	if r, size := utf8.DecodeRuneInString(cluster); size == len(cluster) {
 		return uint64(r)
 	}
 
@@ -80,18 +81,39 @@ func RegisterCluster(cluster string) uint64 {
 		return id
 	}
 
+	// Cache miss. Fold a decomposed sequence to its precomposed form first
+	// (SanitizeCluster already does this for text that went through the
+	// layout walk, so this only pays off for direct callers), then cache the
+	// result under the raw spelling too: repeat frames stay allocation-free
+	// whichever spelling arrives.
+	raw := cluster
+	if nfc := norm.NFC.String(cluster); nfc != cluster {
+		cluster = nfc
+	}
+
 	clusters.mu.Lock()
 	defer clusters.mu.Unlock()
-	if id, ok := clusters.byStr[cluster]; ok {
+	if id, ok := clusters.byStr[raw]; ok {
 		return id
 	}
-	next := CompCharFlag | uint64(len(clusters.byID)+1)
-	if next > MaxCompChar {
-		return uint64(r)
+	if r, size := utf8.DecodeRuneInString(cluster); size == len(cluster) {
+		id = uint64(r)
+	} else if existing, ok := clusters.byStr[cluster]; ok {
+		id = existing
+	} else {
+		next := CompCharFlag | uint64(len(clusters.byID)+1)
+		if next > MaxCompChar {
+			r, _ := utf8.DecodeRuneInString(cluster)
+			return uint64(r) // lossy fallback; deliberately not cached
+		}
+		clusters.byID = append(clusters.byID, cluster)
+		clusters.byStr[cluster] = next
+		id = next
 	}
-	clusters.byID = append(clusters.byID, cluster)
-	clusters.byStr[cluster] = next
-	return next
+	if raw != cluster {
+		clusters.byStr[raw] = id
+	}
+	return id
 }
 
 // CellString returns the text a cell carries. Fillers and empty cells render
@@ -292,6 +314,13 @@ func SanitizeCluster(cluster string) (string, int) {
 		return string(runeControlVisible), 1
 	case size == len(cluster) && unicode.Is(unicode.Cf, r):
 		return string(runeControlVisible), 1
+	}
+	// Fold a decomposed sequence to its precomposed form before the width
+	// is taken, so width, stored cluster and cursor advance all agree, and
+	// so a letter with an NFC equivalent ("и"+U+0306) reaches every backend
+	// as the plain rune ("й") terminals render as one ordinary cell.
+	if size != len(cluster) && !norm.NFC.IsNormalString(cluster) {
+		cluster = norm.NFC.String(cluster)
 	}
 	if clusterColumns(cluster) == 0 {
 		cluster = string(runeMarkBase) + cluster
