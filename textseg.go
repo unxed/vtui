@@ -97,14 +97,14 @@ func RegisterCluster(cluster string) uint64 {
 		return id
 	}
 	if r, size := utf8.DecodeRuneInString(cluster); size == len(cluster) {
-		id = uint64(r)
+		id = uint64(r) //nolint:gosec // DecodeRuneInString never returns a negative rune
 	} else if existing, ok := clusters.byStr[cluster]; ok {
 		id = existing
 	} else {
 		next := CompCharFlag | uint64(len(clusters.byID)+1)
 		if next > MaxCompChar {
 			r, _ := utf8.DecodeRuneInString(cluster)
-			return uint64(r) // lossy fallback; deliberately not cached
+			return uint64(r) //nolint:gosec // never negative; lossy fallback, deliberately not cached
 		}
 		clusters.byID = append(clusters.byID, cluster)
 		clusters.byStr[cluster] = next
