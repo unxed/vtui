@@ -616,6 +616,40 @@ func TestFrameManager_PostTask(t *testing.T) {
 		t.Error("Posted task was not executed")
 	}
 }
+
+func TestPostQuitCommandPostsToUIQueue(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewSilentScreenBuf())
+	defer fm.Shutdown()
+
+	oldFm := FrameManager
+	FrameManager = fm
+	defer func() { FrameManager = oldFm }()
+
+	handled := false
+	frame := newMockFrame(0, 0, 10, 10, false)
+	frame.onHandleCommand = func(cmd int, args any) bool {
+		if cmd == CmQuit {
+			handled = true
+			return true
+		}
+		return false
+	}
+	fm.Push(frame)
+
+	postQuitCommand()
+	select {
+	case task := <-fm.TaskChan:
+		task()
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("native close did not post a UI task")
+	}
+
+	if !handled {
+		t.Fatal("posted native close did not dispatch CmQuit")
+	}
+}
+
 func TestFrameManager_FocusOnRemove(t *testing.T) {
 	fm := &frameManager{}
 	fm.Init(NewSilentScreenBuf())
