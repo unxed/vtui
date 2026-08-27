@@ -187,13 +187,14 @@ func TestCellString_SpecialCells(t *testing.T) {
 	}
 }
 
+// A decomposed letter is kept in one cell, stored in its precomposed (NFC) form.
 func TestStringToCharInfo_KeepsMarksWithBase(t *testing.T) {
 	ci := StringToCharInfo("e\u0301X", 7)
 	if len(ci) != 2 {
 		t.Fatalf("expected 2 cells, got %d", len(ci))
 	}
-	if CellString(ci[0].Char) != "e\u0301" {
-		t.Errorf("cell 0: got %q, want %q", CellString(ci[0].Char), "e\u0301")
+	if CellString(ci[0].Char) != "é" {
+		t.Errorf("cell 0: got %q, want %q", CellString(ci[0].Char), "é")
 	}
 	if ci[1].Char != 'X' {
 		t.Errorf("cell 1: got %X, want 'X'", ci[1].Char)
@@ -350,7 +351,10 @@ func TestTruncateString_NeverSplitsACluster(t *testing.T) {
 	if got := TruncateString("A世B", 3, ""); got != "A世" {
 		t.Errorf("got %q, want %q", got, "A世")
 	}
-	if got := TruncateString("e\u0301XY", 2, ""); got != "e\u0301X" {
+	if got := TruncateString("e\u0301XY", 2, ""); got != "\u00e9X" {
+		// The truncating path rebuilds from sanitized clusters, which fold
+		// decomposed sequences to NFC; the mark still travels with its
+		// base, stored precomposed.
 		t.Errorf("combining mark must travel with its base: got %q", got)
 	}
 	if got := TruncateString("abcdef", 4, "…"); got != "abc…" {
@@ -409,5 +413,38 @@ func TestEmojiPresentationWideSetting(t *testing.T) {
 	EmojiPresentationWide = true
 	if got := ClusterWidth("❤\uFE0F"); got != 2 {
 		t.Errorf("with the setting on emoji presentation is wide: got %d, want 2", got)
+	}
+}
+
+// TestRegisterCluster_NFC: a decomposed letter is stored as its precomposed
+// rune so every backend renders it as one ordinary cell.
+func TestRegisterCluster_NFC(t *testing.T) {
+	if got := RegisterCluster("и\u0306"); got != uint64('й') {
+		t.Fatalf("RegisterCluster(NFD й) = %#x, want %#x", got, uint64('й'))
+	}
+	if got := RegisterCluster("e\u0301"); got != uint64('é') {
+		t.Fatalf("RegisterCluster(NFD é) = %#x, want %#x", got, uint64('é'))
+	}
+	if got := RegisterCluster("a\u0305"); !IsCompChar(got) {
+		t.Fatalf("RegisterCluster(a+overline) = %#x, want composite", got)
+	}
+}
+
+// TestStringToCharInfo_NFDHangul: decomposed Hangul (what macOS filesystems
+// return) is folded to the composed syllable, one wide cell plus filler.
+func TestStringToCharInfo_NFDHangul(t *testing.T) {
+	const nfd = "\u1112\u1161\u11ab" // NFD 한
+	ci := StringToCharInfo(nfd, 0)
+	if len(ci) != 2 {
+		t.Fatalf("expected 2 cells for NFD 한, got %d", len(ci))
+	}
+	if CellString(ci[0].Char) != "한" {
+		t.Errorf("cell 0: got %q, want %q", CellString(ci[0].Char), "한")
+	}
+	if ci[1].Char != WideCharFiller {
+		t.Errorf("cell 1: got %#x, want WideCharFiller", ci[1].Char)
+	}
+	if got := StringWidth(nfd); got != 2 {
+		t.Errorf("StringWidth = %d, want 2", got)
 	}
 }

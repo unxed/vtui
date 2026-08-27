@@ -165,8 +165,11 @@ func TestX11Host_SendEvent_ClosedChannelSafety(t *testing.T) {
 }
 
 func TestX11Renderer_GlyphCacheUniqueness(t *testing.T) {
-	ch1 := RegisterCluster("e\u0301")
-	ch2 := RegisterCluster("e\u0308")
+	// Clusters with no precomposed form, so they stay composite: NFC folds
+	// "e\u0301"-style sequences to plain runes and they would never hit the
+	// glyph-key path this test guards.
+	ch1 := RegisterCluster("a\u0305")
+	ch2 := RegisterCluster("e\u0305")
 
 	key1 := glyphKey{ch1, 0, 0, 1}
 	key2 := glyphKey{ch2, 0, 0, 1}
