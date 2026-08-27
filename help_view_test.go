@@ -50,6 +50,65 @@ Success
 	}
 }
 
+func TestHelpView_F1ReturnsToContentsWithoutStacking(t *testing.T) {
+	oldFM := FrameManager
+	fm := &frameManager{}
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(100, 30)
+	fm.Init(scr)
+	FrameManager = fm
+	defer func() { FrameManager = oldFM }()
+
+	oldHelp := GlobalHelpEngine
+	engine := NewHelpEngine(&mockHelpVFS{})
+	engine.AddTopic(&HelpTopic{Name: "Panels", Lines: []string{"panel help"}})
+	engine.AddTopic(&HelpTopic{Name: "Contents", Lines: []string{"contents help"}})
+	GlobalHelpEngine = engine
+	defer func() { GlobalHelpEngine = oldHelp }()
+
+	host := newMockFrame(0, 0, 100, 30, false)
+	host.SetHelp("Panels")
+	fm.Push(host)
+
+	f1 := &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_F1}
+	fm.dispatchEvent(f1, false)
+	help, ok := fm.GetTopFrame().(*HelpView)
+	if !ok {
+		t.Fatalf("first F1 top frame = %T, want HelpView", fm.GetTopFrame())
+	}
+	if help.current.Name != "Panels" {
+		t.Fatalf("first F1 topic = %q, want Panels", help.current.Name)
+	}
+
+	// The first F1 inside help keeps the historical default-topic behavior,
+	// while all subsequent presses must stay in this same window.
+	fm.dispatchEvent(f1, false)
+	if fm.GetTopFrame() != help {
+		t.Fatalf("second F1 stacked or replaced HelpView with %T", fm.GetTopFrame())
+	}
+	if help.current.Name != "Contents" {
+		t.Fatalf("second F1 topic = %q, want Contents", help.current.Name)
+	}
+	if len(help.history) != 1 {
+		t.Fatalf("second F1 history length = %d, want 1", len(help.history))
+	}
+
+	for i := 0; i < 3; i++ {
+		fm.dispatchEvent(f1, false)
+	}
+	if len(fm.frames) != 2 {
+		t.Fatalf("repeated F1 frame count = %d, want one host and one HelpView", len(fm.frames))
+	}
+	if fm.GetTopFrame() != help || len(help.history) != 1 {
+		t.Fatalf("repeated F1 changed HelpView stack/history: top=%T history=%d", fm.GetTopFrame(), len(help.history))
+	}
+
+	fm.dispatchEvent(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_ESCAPE}, false)
+	if len(fm.frames) != 1 || fm.GetTopFrame() != host {
+		t.Fatalf("one Escape did not close the sole HelpView: frames=%d top=%T", len(fm.frames), fm.GetTopFrame())
+	}
+}
+
 func TestHelpView_BackRestoresOriginatingLinkAndViewport(t *testing.T) {
 	engine := NewHelpEngine(&mockHelpVFS{})
 	lines := make([]string, 20)

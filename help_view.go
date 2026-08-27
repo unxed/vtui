@@ -300,6 +300,17 @@ func (hv *HelpView) ProcessKey(e *vtinput.InputEvent) bool {
 
 	// 1. Handle Help-specific navigation BEFORE BaseWindow focus cycling
 	switch e.VirtualKeyCode {
+	case vtinput.VK_F1:
+		// HelpView has no contextual topic of its own. If F1 reaches the
+		// embedded BaseWindow, it calls ShowHelp and pushes another HelpView
+		// for the default topic on every press. Keep the existing F1 behavior
+		// of returning to the contents topic, but do it in this window and
+		// avoid adding duplicate history entries once it is already there.
+		if hv.current == nil || hv.current.Name != UIStrings.DefaultHelp {
+			hv.SwitchTopic(UIStrings.DefaultHelp)
+		}
+		return true
+
 	case vtinput.VK_TAB:
 		if len(hv.current.Links) == 0 {
 			return hv.BaseWindow.ProcessKey(e)
