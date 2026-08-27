@@ -507,6 +507,33 @@ func TestAnsiRenderer_RuneWriting(t *testing.T) {
 	}
 }
 
+func TestAnsiRenderer_FreeBSDConsoleAvoidsPrivateModesAndOSC(t *testing.T) {
+	oldFreeBSDConsole := IsFreeBSDConsole
+	IsFreeBSDConsole = true
+	defer func() { IsFreeBSDConsole = oldFreeBSDConsole }()
+
+	scr := NewScreenBuf()
+	var output bytes.Buffer
+	scr.Writer = &output
+	palette := XTerm256Palette
+	scr.ThemePalette = &palette
+	scr.AllocBuf(2, 1)
+	scr.Write(0, 0, []CharInfo{{Char: 'O'}, {Char: 'K'}})
+	scr.SetCursorPos(1, 0)
+	scr.SetCursorVisible(true)
+	scr.Flush()
+
+	got := output.String()
+	for _, unsupported := range []string{"\x1b[?", "\x1b]"} {
+		if strings.Contains(got, unsupported) {
+			t.Errorf("FreeBSD console frame contains unsupported sequence prefix %q: %q", unsupported, got)
+		}
+	}
+	if !strings.Contains(got, "\x1b[=0S") {
+		t.Errorf("FreeBSD console frame did not restore its native visible cursor: %q", got)
+	}
+}
+
 func TestScreenRow(t *testing.T) {
 	scr := NewSilentScreenBuf()
 	scr.AllocBuf(10, 2)

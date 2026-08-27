@@ -36,6 +36,22 @@ var (
 	ManageCursorStyle bool = true
 )
 
+func terminalInputProtocols() vtinput.Protocol {
+	// FreeBSD's direct console is not an xterm-compatible byte sink.  In
+	// particular, the syscons parser treats the bytes after an unknown DEC
+	// private-mode introducer as printable text.  Raw mode is still required,
+	// but enabling mouse, focus, paste and keyboard protocols would paint their
+	// numeric mode names onto the screen.
+	if IsFreeBSDConsole {
+		return 0
+	}
+	return vtinput.DefaultProtocols
+}
+
+var enableTerminalInput = func() (func(), error) {
+	return vtinput.EnableProtocols(terminalInputProtocols())
+}
+
 var getTermOut = func() interface {
 	WriteString(string) (int, error)
 	Sync() error
@@ -89,24 +105,30 @@ func Suspend() {
 	if isPrepared {
 		out := getTermOut()
 		vt := consoleUsesVT()
-		if vt {
+		modernVT := vt && !IsFreeBSDConsole
+		if modernVT {
 			if DefaultBidiMode != BidiOff {
 				out.WriteString(seqBidiImplicit)
 			}
 			out.WriteString(seqAutoWrapOn) // Restore auto-wrap
 		}
 		if inAltScreen {
-			if vt {
+			if modernVT {
 				out.WriteString(seqAltScreenOff)
 			}
 			inAltScreen = false
 		}
 		setAltScreenOS(false)
-		if vt {
+		if modernVT {
 			if ManageCursorStyle {
 				out.WriteString(seqDefaultCursor)
 			}
 			out.WriteString(seqResetPalette + seqResetAttributes)
+		} else if vt {
+			// syscons' native local-cursor command.  Unlike DECTCEM it is
+			// understood by the sc terminal emulator and does not leak digits
+			// onto the visible screen.
+			out.WriteString("\x1b[=0S" + seqResetAttributes)
 		}
 		out.Sync()
 		// seqResetPalette (OSC 104) throws away the colors we loaded into
@@ -165,18 +187,23 @@ func resumeLocked(withAltScreen bool) error {
 	if !isPrepared {
 		out := getTermOut()
 		vt := consoleUsesVT()
+		modernVT := vt && !IsFreeBSDConsole
 
 		if withAltScreen {
 			// 1. Enter AltScreen FIRST. Many terminals (like Kitty) reset
 			// their keyboard protocol state when switching screen buffers.
 			if !inAltScreen {
-				if vt {
+				if modernVT {
 					out.WriteString(seqAltScreenOn)
+				} else if vt {
+					// A direct FreeBSD console has no alternate screen.  Clear it
+					// with the plain ANSI operations its emulator implements.
+					out.WriteString("\x1b[2J\x1b[H")
 				}
 				inAltScreen = true
 			}
 			setAltScreenOS(true)
-			if vt {
+			if modernVT {
 				out.WriteString(seqAutoWrapOff) // Disable auto-wrap for exact rendering
 				if DefaultBidiMode != BidiOff {
 					out.WriteString(seqBidiExplicitLTR)
@@ -186,7 +213,7 @@ func resumeLocked(withAltScreen bool) error {
 		}
 
 		// 2. Enable advanced input protocols AFTER entering AltScreen.
-		r, err := vtinput.Enable()
+		r, err := enableTerminalInput()
 		if err != nil && !vt {
 			// On Windows without VT input support (Windows 7/8/8.1), ReadConsoleInput
 			// works in standard console mode without ENABLE_VIRTUAL_TERMINAL_INPUT.
@@ -195,7 +222,7 @@ func resumeLocked(withAltScreen bool) error {
 		if err != nil {
 			// Rollback AltScreen if input setup failed
 			if withAltScreen {
-				if vt {
+				if modernVT {
 					out.WriteString(seqAltScreenOff)
 				}
 				inAltScreen = false
@@ -205,7 +232,7 @@ func resumeLocked(withAltScreen bool) error {
 		}
 		inputRestore = r
 
-		if vt && ManageCursorStyle {
+		if modernVT && ManageCursorStyle {
 			out.WriteString(seqBlinkingUnderline)
 		}
 		out.Sync()
@@ -235,9 +262,12 @@ func SetAltScreen(enable bool) {
 		inAltScreen = enable
 		out := getTermOut()
 		vt := consoleUsesVT()
+		modernVT := vt && !IsFreeBSDConsole
 		if enable {
-			if vt {
+			if modernVT {
 				out.WriteString(seqAltScreenOn)
+			} else if vt {
+				out.WriteString("\x1b[2J\x1b[H")
 			}
 			setAltScreenOS(true)
 			// When returning to alt screen, it's usually empty, so force a redraw
@@ -246,7 +276,7 @@ func SetAltScreen(enable bool) {
 				FrameManager.Redraw()
 			}
 		} else {
-			if vt {
+			if modernVT {
 				out.WriteString(seqAltScreenOff)
 			}
 			setAltScreenOS(false)

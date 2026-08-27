@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"bytes"
+	"github.com/unxed/vtinput"
 	"os"
 	"strings"
 	"testing"
@@ -297,5 +298,60 @@ func TestTerminalEnv_NoVTWhenWin32ConsoleOwnsScreen(t *testing.T) {
 	SetAltScreen(false)
 	if mock.builder.Len() == 0 {
 		t.Error("SetAltScreen(false) wrote nothing even though consoleUsesVT() is true")
+	}
+}
+
+func TestTerminalEnv_FreeBSDConsoleUsesOnlyRawInput(t *testing.T) {
+	oldFreeBSDConsole := IsFreeBSDConsole
+	defer func() { IsFreeBSDConsole = oldFreeBSDConsole }()
+
+	IsFreeBSDConsole = true
+	if got := terminalInputProtocols(); got != 0 {
+		t.Fatalf("FreeBSD console protocols = %#x, want raw input only", got)
+	}
+
+	IsFreeBSDConsole = false
+	if got := terminalInputProtocols(); got != vtinput.DefaultProtocols {
+		t.Fatalf("regular terminal protocols = %#x, want %#x", got, vtinput.DefaultProtocols)
+	}
+}
+
+func TestTerminalEnv_FreeBSDConsoleAvoidsUnsupportedSequences(t *testing.T) {
+	mock := &mockTermOut{}
+	oldGetTermOut := getTermOut
+	oldEnableInput := enableTerminalInput
+	oldFreeBSDConsole := IsFreeBSDConsole
+	getTermOut = func() interface {
+		WriteString(string) (int, error)
+		Sync() error
+	} {
+		return mock
+	}
+	enableTerminalInput = func() (func(), error) { return func() {}, nil }
+	IsFreeBSDConsole = true
+	defer func() {
+		getTermOut = oldGetTermOut
+		enableTerminalInput = oldEnableInput
+		IsFreeBSDConsole = oldFreeBSDConsole
+		isPrepared = false
+		inAltScreen = false
+		inputRestore = nil
+	}()
+
+	isPrepared = false
+	inAltScreen = false
+	inputRestore = nil
+	if err := Resume(); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	SetAltScreen(false)
+	SetAltScreen(true)
+	Suspend()
+
+	output := mock.builder.String()
+	for _, unsupported := range []string{"\x1b[?", "\x1b[>", "\x1b[<", "\x1b]"} {
+		if strings.Contains(output, unsupported) {
+			t.Errorf("FreeBSD console output contains unsupported sequence prefix %q: %q", unsupported, output)
+		}
 	}
 }

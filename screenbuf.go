@@ -797,6 +797,12 @@ type AnsiRenderer struct {
 }
 
 func (r *AnsiRenderer) SetPalette(pal *[256]uint32) {
+	if IsFreeBSDConsole {
+		// The FreeBSD system consoles have a fixed palette and do not parse
+		// OSC 4.  syscons would print the payload after the unknown ESC ]
+		// introducer, turning one palette update into a screenful of garbage.
+		return
+	}
 	if r.parent.quantCache == nil {
 		r.parent.quantCache = make(map[uint32]uint8)
 	}
@@ -880,7 +886,9 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 		return
 	}
 
-	r.frameOut.WriteString("\x1b[?2026h\x1b[?25l") // Atomic update + hide cursor during draw
+	if !IsFreeBSDConsole {
+		r.frameOut.WriteString("\x1b[?2026h\x1b[?25l") // Atomic update + hide cursor during draw
+	}
 
 	r.termCursorInvalid = true
 	lastX, lastY := -1, -1
@@ -1026,6 +1034,9 @@ func (r *AnsiRenderer) writeRelCursor(n int, dir byte) {
 }
 
 func (r *AnsiRenderer) SetWindowTitle(title string) {
+	if IsFreeBSDConsole {
+		return
+	}
 	// Titles are not part of a frame: write under writeMu so an update can
 	// neither resend the pending frame nor race the render loop.
 	r.parent.writeMu.Lock()
@@ -1048,7 +1059,13 @@ func (r *AnsiRenderer) Flush() {
 func (r *AnsiRenderer) PrepareFlush() func() {
 	if !r.firstInit || r.termCursorInvalid || r.cursorX != r.lastSentCursorX || r.cursorY != r.lastSentCursorY || r.cursorVis != r.lastSentCursorVis || r.cursorShape != r.lastSentCursorShape {
 		r.writeCursorPos(r.cursorY+1, r.cursorX+1)
-		if r.cursorVis {
+		if IsFreeBSDConsole {
+			if r.cursorVis {
+				r.frameOut.WriteString("\x1b[=0S")
+			} else {
+				r.frameOut.WriteString("\x1b[=1S")
+			}
+		} else if r.cursorVis {
 			r.frameOut.WriteString("\x1b[?25h")
 			if ManageCursorStyle {
 				if os.Getenv("TERM") == "linux" {
@@ -1079,7 +1096,7 @@ func (r *AnsiRenderer) PrepareFlush() func() {
 		r.firstInit = true
 	}
 
-	if r.frameOut.Len() > 0 {
+	if r.frameOut.Len() > 0 && !IsFreeBSDConsole {
 		r.frameOut.WriteString("\x1b[?2026l")
 	}
 
