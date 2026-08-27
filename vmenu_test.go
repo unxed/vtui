@@ -27,16 +27,186 @@ func TestVMenu_BoundaryNavigation(t *testing.T) {
 		t.Error("Up at index 0 should return false when Wrap=false")
 	}
 
-	// 3. Test PgUp/PgDn jumps
+	// 3. PgDn on a menu shorter than a page still lands on the last item
+	m.SetPosition(0, 0, 20, 4) // ViewHeight 3 > 2 items
 	m.SetSelectPos(0)
 	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT})
 	if m.SelectPos != 1 {
-		t.Error("PgDn failed to jump to end")
+		t.Error("PgDn failed to reach the last item")
 	}
 
 	// 3. Left/Right in standalone menu should return false (boundary exit)
 	if m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT}) {
 		t.Error("Left in standalone menu should return false")
+	}
+}
+
+func TestVMenu_PageNavigation(t *testing.T) {
+	key := func(vk uint16) *vtinput.InputEvent {
+		return &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vk}
+	}
+
+	m := NewVMenu("Page")
+	for i := 0; i < 12; i++ {
+		m.AddItem(MenuItem{Text: "Item"})
+	}
+	// 7 rows minus top/bottom margins -> ViewHeight = 5
+	m.SetPosition(0, 0, 20, 6)
+	if m.ViewHeight != 5 {
+		t.Fatalf("test setup: expected ViewHeight 5, got %d", m.ViewHeight)
+	}
+
+	m.SetSelectPos(2)
+
+	// PgDn advances selection and view by one page, keeping the cursor row
+	if !m.ProcessKey(key(vtinput.VK_NEXT)) {
+		t.Fatal("PgDn should be handled")
+	}
+	if m.SelectPos != 7 || m.TopPos != 5 {
+		t.Fatalf("after PgDn expected SelectPos=7 TopPos=5, got %d/%d", m.SelectPos, m.TopPos)
+	}
+
+	// Second PgDn clamps at the last item; TopPos clamps at ItemCount-ViewHeight
+	m.ProcessKey(key(vtinput.VK_NEXT))
+	if m.SelectPos != 11 || m.TopPos != 7 {
+		t.Fatalf("after 2nd PgDn expected SelectPos=11 TopPos=7, got %d/%d", m.SelectPos, m.TopPos)
+	}
+
+	// PgDn at the end must stay put, not wrap to the top (Wrap is on by default)
+	m.ProcessKey(key(vtinput.VK_NEXT))
+	if m.SelectPos != 11 || m.TopPos != 7 {
+		t.Fatalf("PgDn at end must clamp, got SelectPos=%d TopPos=%d", m.SelectPos, m.TopPos)
+	}
+
+	// PgUp mirrors the paging back...
+	m.ProcessKey(key(vtinput.VK_PRIOR))
+	if m.SelectPos != 6 || m.TopPos != 2 {
+		t.Fatalf("after PgUp expected SelectPos=6 TopPos=2, got %d/%d", m.SelectPos, m.TopPos)
+	}
+	m.ProcessKey(key(vtinput.VK_PRIOR))
+	if m.SelectPos != 1 || m.TopPos != 0 {
+		t.Fatalf("after 2nd PgUp expected SelectPos=1 TopPos=0, got %d/%d", m.SelectPos, m.TopPos)
+	}
+
+	// ...and clamps at item 0 without wrapping to the end
+	m.ProcessKey(key(vtinput.VK_PRIOR))
+	if m.SelectPos != 0 || m.TopPos != 0 {
+		t.Fatalf("PgUp at start must clamp, got SelectPos=%d TopPos=%d", m.SelectPos, m.TopPos)
+	}
+
+	// Virtual list: ItemCount set directly with no Items populated (f4-style
+	// Find All frame). Paging must not touch len(m.Items).
+	v := NewVMenu("Virtual")
+	v.ItemCount = 40
+	v.SetPosition(0, 0, 20, 6)
+	v.SetSelectPos(0)
+	v.ProcessKey(key(vtinput.VK_NEXT))
+	if v.SelectPos != 5 || v.TopPos != 5 {
+		t.Fatalf("virtual PgDn expected SelectPos=5 TopPos=5, got %d/%d", v.SelectPos, v.TopPos)
+	}
+	v.ProcessKey(key(vtinput.VK_PRIOR))
+	if v.SelectPos != 0 || v.TopPos != 0 {
+		t.Fatalf("virtual PgUp expected SelectPos=0 TopPos=0, got %d/%d", v.SelectPos, v.TopPos)
+	}
+}
+
+func TestVMenu_PageSkipsSeparator(t *testing.T) {
+	m := NewVMenu("Sep")
+	for i := 0; i < 5; i++ {
+		m.AddItem(MenuItem{Text: "Item"})
+	}
+	m.AddSeparator() // index 5
+	for i := 0; i < 6; i++ {
+		m.AddItem(MenuItem{Text: "Item"})
+	}
+	m.SetPosition(0, 0, 20, 6) // ViewHeight 5
+	m.SetSelectPos(0)
+
+	// PgDn lands on the separator at index 5 and must step past it
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT})
+	if m.SelectPos != 6 {
+		t.Fatalf("PgDn must skip the separator, expected SelectPos=6, got %d", m.SelectPos)
+	}
+
+	// PgUp from 6 lands on index 1; on the way back the separator is not hit,
+	// but paging up from 6+... exercise the reverse nudge too: from index 10,
+	// PgUp lands on 5 (separator) and must continue upward to 4.
+	m.SetSelectPos(10)
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_PRIOR})
+	if m.SelectPos != 4 {
+		t.Fatalf("PgUp must skip the separator, expected SelectPos=4, got %d", m.SelectPos)
+	}
+}
+
+func TestVMenu_WheelAtEdgeClampsInsteadOfWrapping(t *testing.T) {
+	m := NewVMenu("Wheel")
+	for i := 0; i < 12; i++ {
+		m.AddItem(MenuItem{Text: "Item"})
+	}
+	m.SetPosition(0, 0, 20, 6) // ViewHeight 5
+	m.SetSelectPos(11)         // bottom: TopPos 7
+
+	handled := m.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: -1})
+	if !handled {
+		t.Fatal("wheel scroll should be handled")
+	}
+	if m.SelectPos != 11 || m.TopPos != 7 {
+		t.Fatalf("wheel down at bottom must clamp, not wrap to top: SelectPos=%d TopPos=%d", m.SelectPos, m.TopPos)
+	}
+
+	m.SetSelectPos(0)
+	m.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: 1})
+	if m.SelectPos != 0 || m.TopPos != 0 {
+		t.Fatalf("wheel up at top must clamp, not wrap to bottom: SelectPos=%d TopPos=%d", m.SelectPos, m.TopPos)
+	}
+}
+
+func TestVMenu_VirtualListEnterAndHoverDoNotPanic(t *testing.T) {
+	m := NewVMenu("Virtual")
+	m.ItemCount = 40 // no Items populated
+	m.SetPosition(0, 0, 20, 6)
+	m.SetSelectPos(3)
+
+	confirmed := -1
+	m.OnAction = func(i int) { confirmed = i }
+
+	// Enter on a virtual row: no item command to fire, but the selection is
+	// confirmed and the menu closes with it.
+	m.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+	if confirmed != 3 {
+		t.Fatalf("Enter on a virtual row should confirm via OnAction, got %d", confirmed)
+	}
+	if !m.IsDone() || m.exitCode != 3 {
+		t.Fatalf("Enter on a virtual row should close with its index, done=%v exit=%d", m.IsDone(), m.exitCode)
+	}
+
+	// Hover over a virtual row selects it
+	m.ClearDone()
+	handled := m.ProcessMouse(&vtinput.InputEvent{
+		Type:            vtinput.MouseEventType,
+		MouseX:          5,
+		MouseY:          2, // row 1 of content -> index TopPos+1
+		MouseEventFlags: vtinput.MouseMoved,
+	})
+	if !handled {
+		t.Fatal("hover over a virtual row should be handled")
+	}
+	if m.SelectPos != m.TopPos+1 {
+		t.Fatalf("hover should select the virtual row, expected %d, got %d", m.TopPos+1, m.SelectPos)
+	}
+
+	// Click on a virtual row confirms it
+	confirmed = -1
+	clickIdx := m.TopPos + 2
+	m.ProcessMouse(&vtinput.InputEvent{
+		Type:        vtinput.MouseEventType,
+		MouseX:      5,
+		MouseY:      3,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		KeyDown:     true,
+	})
+	if confirmed != clickIdx {
+		t.Fatalf("click on a virtual row should confirm via OnAction, expected %d, got %d", clickIdx, confirmed)
 	}
 }
 

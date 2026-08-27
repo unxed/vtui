@@ -139,30 +139,31 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 			return false
 		}
 		return m.HandleKey(e)
-	case vtinput.VK_PRIOR: // PgUp
-		m.SetSelectPos(0)
-		return true
-	case vtinput.VK_NEXT: // PgDn
-		m.SetSelectPos(m.ItemCount - 1)
-		return true
+	// PgUp/PgDn fall through to HandleKey like Home/End do: HandleNavKey
+	// pages via PageBy, which clamps at the list ends even though Wrap is on.
 	case vtinput.VK_ESCAPE, vtinput.VK_F10:
 		m.SetExitCode(-1)
 		return FrameManager.GetTopFrame() == Frame(m)
 	case vtinput.VK_RETURN:
 		if m.SelectPos >= 0 && m.SelectPos < m.ItemCount {
-			item := m.Items[m.SelectPos]
-			if item.Separator {
-				return true
-			}
-			if FrameManager.DisabledCommands.IsDisabled(item.Command) {
-				return true
-			}
+			// Virtual consumers size the menu via ItemCount without backing
+			// Items; such rows carry no command to fire, but the selection is
+			// still confirmed through OnAction and the exit code.
+			if m.SelectPos < len(m.Items) {
+				item := m.Items[m.SelectPos]
+				if item.Separator {
+					return true
+				}
+				if FrameManager.DisabledCommands.IsDisabled(item.Command) {
+					return true
+				}
 
-			// 1. Fire the actual action (bubbles through owner)
-			oldCmd := m.Command
-			m.Command = item.Command
-			m.FireAction(item.OnClick, item.UserData)
-			m.Command = oldCmd
+				// 1. Fire the actual action (bubbles through owner)
+				oldCmd := m.Command
+				m.Command = item.Command
+				m.FireAction(item.OnClick, item.UserData)
+				m.Command = oldCmd
+			}
 
 			// 2. Notify listener (may close the menu)
 			if m.OnAction != nil {
@@ -268,7 +269,9 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 		if hoverIdx == -1 {
 			return false
 		}
-		if !m.Items[hoverIdx].Separator {
+		// Rows past len(Items) belong to virtual consumers that only set
+		// ItemCount; they are plain selectable rows, not separators.
+		if hoverIdx >= len(m.Items) || !m.Items[hoverIdx].Separator {
 			m.SetSelectPos(hoverIdx)
 		}
 		return true
@@ -276,18 +279,22 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 
 	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
 		clickIdx := m.GetClickIndex(int(e.MouseY))
-		if clickIdx != -1 && !m.Items[clickIdx].Separator {
+		if clickIdx != -1 && (clickIdx >= len(m.Items) || !m.Items[clickIdx].Separator) {
 			m.SetSelectPos(clickIdx)
-			item := m.Items[clickIdx]
-			if FrameManager.DisabledCommands.IsDisabled(item.Command) {
-				return true
-			}
+			// Virtual rows (ItemCount beyond len(Items)) have no command to
+			// fire; the click still selects and confirms them.
+			if clickIdx < len(m.Items) {
+				item := m.Items[clickIdx]
+				if FrameManager.DisabledCommands.IsDisabled(item.Command) {
+					return true
+				}
 
-			// Fire Action BEFORE calling OnAction/SetExitCode
-			oldCmd := m.Command
-			m.Command = item.Command
-			m.FireAction(item.OnClick, item.UserData)
-			m.Command = oldCmd
+				// Fire Action BEFORE calling OnAction/SetExitCode
+				oldCmd := m.Command
+				m.Command = item.Command
+				m.FireAction(item.OnClick, item.UserData)
+				m.Command = oldCmd
+			}
 
 			if m.OnAction != nil {
 				m.OnAction(clickIdx)
