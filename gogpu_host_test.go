@@ -68,6 +68,80 @@ func TestGogpuHost_SendEvent_NonBlocking(t *testing.T) {
 		t.Fatal("sendEvent blocked on full queue during MouseMoved event")
 	}
 }
+
+func TestGogpuModifierStateHealing(t *testing.T) {
+	oldCmdIsCtrl := gogpuCmdIsCtrl
+	defer func() { gogpuCmdIsCtrl = oldCmdIsCtrl }()
+	gogpuCmdIsCtrl = false
+
+	host := &GogpuHost{}
+	mods := host.syncMods(gpucontext.KeyA, gpucontext.ModShift|gpucontext.ModControl|gpucontext.ModAlt, true)
+	want := vtinput.ShiftPressed | vtinput.LeftCtrlPressed | vtinput.LeftAltPressed
+	if mods != want || !host.lShift || !host.lCtrl || !host.lAlt {
+		t.Fatalf("active aggregate modifiers = mods:%d sides shift:%v ctrl:%v alt:%v, want %d and healed sides",
+			mods, host.lShift, host.lCtrl, host.lAlt, want)
+	}
+
+	host.lCtrl, host.rCtrl = true, true
+	host.lAlt, host.rAlt = true, true
+	host.lShift, host.rShift = true, true
+	mods = host.syncMods(gpucontext.KeyA, 0, true)
+	if mods != 0 || host.lCtrl || host.rCtrl || host.lAlt || host.rAlt || host.lShift || host.rShift {
+		t.Fatalf("inactive aggregate modifiers = mods:%d sides ctrl:%v/%v alt:%v/%v shift:%v/%v, want cleared state",
+			mods, host.lCtrl, host.rCtrl, host.lAlt, host.rAlt, host.lShift, host.rShift)
+	}
+
+	// A modifier release can carry the pre-release aggregate mask. The
+	// already-applied key transition must not be recreated by the healer.
+	host.syncMods(gpucontext.KeyLeftControl, gpucontext.ModControl, false)
+	if host.lCtrl || host.rCtrl {
+		t.Fatalf("modifier release recreated a Ctrl side: %v/%v", host.lCtrl, host.rCtrl)
+	}
+}
+
+func TestGogpuFocusLossClearsKeyboardState(t *testing.T) {
+	pr, pw := io.Pipe()
+	reader := vtinput.NewReader(pr, true)
+	t.Cleanup(func() {
+		reader.Close()
+		_ = pw.Close()
+	})
+
+	host := &GogpuHost{
+		reader:            reader,
+		pendingKeyEvent:   &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true},
+		pendingKeyTimer:   time.NewTimer(time.Hour),
+		lastVK:            vtinput.VK_A,
+		suppressTextInput: true,
+		currentMods:       vtinput.LeftCtrlPressed | vtinput.RightAltPressed | vtinput.ShiftPressed,
+		lCtrl:             true,
+		rCtrl:             true,
+		lAlt:              true,
+		rAlt:              true,
+		lShift:            true,
+		rShift:            true,
+		superDown:         true,
+	}
+
+	host.handleFocus(false)
+	host.mu.Lock()
+	if host.pendingKeyEvent != nil || host.pendingKeyTimer != nil || host.lastVK != 0 || host.suppressTextInput || host.currentMods != 0 ||
+		host.lCtrl || host.rCtrl || host.lAlt || host.rAlt || host.lShift || host.rShift || host.superDown {
+		host.mu.Unlock()
+		t.Fatal("focus loss did not clear GoGPU keyboard state")
+	}
+	host.mu.Unlock()
+
+	select {
+	case event := <-reader.EventChan:
+		if event.Type != vtinput.FocusEventType || event.SetFocus {
+			t.Fatalf("focus loss event = %+v, want FocusEvent(false)", event)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for GoGPU focus loss event")
+	}
+}
+
 func TestGogpuHost_GetTerminalSize(t *testing.T) {
 	host := &GogpuHost{
 		cellW: 8,

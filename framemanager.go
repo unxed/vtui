@@ -2914,7 +2914,14 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	}
 
 	// Track Ctrl state for Switcher logic
-	if ev.Type == vtinput.KeyEventType {
+	if ev.Type == vtinput.FocusEventType && !ev.SetFocus {
+		// A GUI backend may lose the modifier key release together with
+		// keyboard focus. Clear the manager-side state as well as the backend
+		// tracker, otherwise the transient workspace UI can remain visible
+		// until an unrelated key event arrives.
+		fm.ctrlPressed = false
+		fm.workspaceTabPreview = false
+	} else if ev.Type == vtinput.KeyEventType {
 		wasCtrlPressed := fm.ctrlPressed
 		ctrl := (ev.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed)) != 0
 		if ev.VirtualKeyCode == vtinput.VK_CONTROL || ev.VirtualKeyCode == vtinput.VK_LCONTROL || ev.VirtualKeyCode == vtinput.VK_RCONTROL {

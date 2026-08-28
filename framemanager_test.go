@@ -3233,6 +3233,8 @@ func TestFrameManager_FocusLossResetsModifiers(t *testing.T) {
 	if !fm.KeyBar.shiftState || !fm.KeyBar.ctrlState {
 		t.Fatal("Modifiers were not set by Key event")
 	}
+	fm.ctrlPressed = true
+	fm.workspaceTabPreview = true
 
 	// 2. Dispatch FocusOut event
 	fm.dispatchEvent(&vtinput.InputEvent{
@@ -3242,6 +3244,9 @@ func TestFrameManager_FocusLossResetsModifiers(t *testing.T) {
 
 	if fm.KeyBar.shiftState || fm.KeyBar.ctrlState || fm.KeyBar.altState {
 		t.Error("FocusOut event did not reset KeyBar modifiers")
+	}
+	if fm.ctrlPressed || fm.workspaceTabPreview {
+		t.Error("FocusOut event did not reset FrameManager Ctrl state")
 	}
 }
 func TestFrameManager_ModifierKeyPressState(t *testing.T) {
