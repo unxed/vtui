@@ -432,7 +432,7 @@ func (h *WaylandHost) Motion(w *window.Widget, input *window.Input, time uint32,
 			MouseY:          int16(mouseY),
 			MouseEventFlags: vtinput.MouseMoved,
 			ButtonState:     mouseBtn,
-			ControlKeyState: h.getMods(input),
+			ControlKeyState: h.modsForPointer(input),
 		}
 	}
 	return window.CursorLeftPtr
@@ -471,7 +471,7 @@ func (h *WaylandHost) Button(w *window.Widget, input *window.Input, time uint32,
 			MouseX:          int16(mouseX),
 			MouseY:          int16(mouseY),
 			ButtonState:     bs,
-			ControlKeyState: h.getMods(input),
+			ControlKeyState: h.modsForPointer(input),
 		}
 	}
 }
@@ -567,6 +567,7 @@ func (h *WaylandHost) Key(win *window.Window, input *window.Input, timeMs uint32
 	} else {
 		mods &^= vtinput.NumLockOn
 	}
+	h.syncModifierStateLocked(mods, vk, isDown)
 	h.currentMods = mods
 	h.mu.Unlock()
 
@@ -650,8 +651,78 @@ func (h *WaylandHost) getMods(input *window.Input) vtinput.ControlKeyState {
 	return mods
 }
 
+func isWaylandModifierVK(vk uint16) bool {
+	switch vk {
+	case vtinput.VK_SHIFT, vtinput.VK_LSHIFT, vtinput.VK_RSHIFT,
+		vtinput.VK_CONTROL, vtinput.VK_LCONTROL, vtinput.VK_RCONTROL,
+		vtinput.VK_MENU, vtinput.VK_LMENU, vtinput.VK_RMENU,
+		vtinput.VK_LWIN, vtinput.VK_RWIN, vtinput.VK_APPS,
+		vtinput.VK_CAPITAL, vtinput.VK_NUMLOCK, vtinput.VK_SCROLL:
+		return true
+	default:
+		return false
+	}
+}
+
+// syncModifierStateLocked repairs the side-tracking flags from Wayland's
+// aggregate modifier mask. The window package can lose a modifier key release
+// when keyboard focus changes, and it can also report the aggregate mask
+// before the corresponding key event updates it. Keep the modifier key's own
+// transition authoritative, while using ordinary events to recover a missing
+// side and inactive masks to clear stale sides.
+func (h *WaylandHost) syncModifierStateLocked(mods vtinput.ControlKeyState, vk uint16, isDown bool) {
+	assumeActive := !isWaylandModifierVK(vk)
+	keepShift := isDown && (vk == vtinput.VK_SHIFT || vk == vtinput.VK_LSHIFT || vk == vtinput.VK_RSHIFT)
+	keepCtrl := isDown && (vk == vtinput.VK_CONTROL || vk == vtinput.VK_LCONTROL || vk == vtinput.VK_RCONTROL)
+	keepAlt := isDown && (vk == vtinput.VK_MENU || vk == vtinput.VK_LMENU || vk == vtinput.VK_RMENU)
+
+	if mods&vtinput.ShiftPressed == 0 && !keepShift {
+		h.lShift, h.rShift = false, false
+	} else if mods&vtinput.ShiftPressed != 0 && assumeActive && !h.lShift && !h.rShift {
+		h.lShift = true
+	}
+	if mods&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed) == 0 && !keepCtrl {
+		h.lCtrl, h.rCtrl = false, false
+	} else if mods&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed) != 0 && assumeActive && !h.lCtrl && !h.rCtrl {
+		h.lCtrl = true
+	}
+	if mods&(vtinput.LeftAltPressed|vtinput.RightAltPressed) == 0 && !keepAlt {
+		h.lAlt, h.rAlt = false, false
+	} else if mods&(vtinput.LeftAltPressed|vtinput.RightAltPressed) != 0 && assumeActive && !h.lAlt && !h.rAlt {
+		h.lAlt = true
+	}
+}
+
+func (h *WaylandHost) modsForPointer(input *window.Input) vtinput.ControlKeyState {
+	mods := h.getMods(input)
+	if input == nil {
+		// A nil callback input carries no modifier snapshot; do not treat it as
+		// an assertion that all currently tracked modifiers are released.
+		return mods
+	}
+	h.mu.Lock()
+	h.syncModifierStateLocked(mods, 0, false)
+	h.mu.Unlock()
+	return mods
+}
+
+func (h *WaylandHost) sendFocusEvent(focused bool) {
+	h.mu.Lock()
+	reader := h.reader
+	h.mu.Unlock()
+	if reader == nil || reader.EventChan == nil {
+		return
+	}
+	defer func() {
+		// The reader may close concurrently with the display loop during exit.
+		recover()
+	}()
+	reader.EventChan <- &vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: focused}
+}
+
 func (h *WaylandHost) Focus(w *window.Window, device *window.Input) {
 	if device != nil {
+		h.sendFocusEvent(true)
 		return
 	}
 
@@ -667,6 +738,7 @@ func (h *WaylandHost) Focus(w *window.Window, device *window.Input) {
 	h.lAlt, h.rAlt = false, false
 	h.lShift, h.rShift = false, false
 	h.mu.Unlock()
+	h.sendFocusEvent(false)
 }
 
 // waylandNumLockFromKeysym recovers the XKB NumLock state from a keypad
@@ -761,7 +833,7 @@ func (h *WaylandHost) PointerFrame(w *window.Widget, input *window.Input) {
 		direction = 1
 		steps = -steps
 	}
-	mods := h.getMods(input)
+	mods := h.modsForPointer(input)
 	for range steps {
 		reader.EventChan <- &vtinput.InputEvent{
 			Type:            vtinput.MouseEventType,

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jezek/xgb/xproto"
 	"github.com/unxed/vtinput"
 )
 
@@ -162,6 +163,80 @@ func TestX11Host_SendEvent_ClosedChannelSafety(t *testing.T) {
 	// Тест отправки при закрытии канала завершения хоста
 	close(h.closeChan)
 	h.sendEvent(&vtinput.InputEvent{Type: vtinput.ResizeEventType})
+}
+
+func TestX11HostFocusLossClearsKeyboardState(t *testing.T) {
+	pr, pw := io.Pipe()
+	reader := vtinput.NewReader(pr, true)
+	t.Cleanup(func() {
+		reader.Close()
+		_ = pw.Close()
+	})
+
+	h := &X11Host{
+		reader:      reader,
+		closeChan:   make(chan struct{}),
+		currentMods: vtinput.LeftCtrlPressed | vtinput.RightAltPressed | vtinput.ShiftPressed,
+		lCtrl:       true,
+		rCtrl:       true,
+		lAlt:        true,
+		rAlt:        true,
+		lShift:      true,
+		rShift:      true,
+	}
+
+	h.handleFocusEvent(false)
+	h.mu.Lock()
+	if h.currentMods != 0 || h.lCtrl || h.rCtrl || h.lAlt || h.rAlt || h.lShift || h.rShift {
+		h.mu.Unlock()
+		t.Fatal("focus loss did not clear X11 keyboard state")
+	}
+	h.mu.Unlock()
+
+	select {
+	case event := <-reader.EventChan:
+		if event.Type != vtinput.FocusEventType || event.SetFocus {
+			t.Fatalf("focus loss event = %+v, want FocusEvent(false)", event)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for X11 focus loss event")
+	}
+
+	h.handleFocusEvent(true)
+	select {
+	case event := <-reader.EventChan:
+		if event.Type != vtinput.FocusEventType || !event.SetFocus {
+			t.Fatalf("focus gain event = %+v, want FocusEvent(true)", event)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for X11 focus gain event")
+	}
+}
+
+func TestX11ModifierStateHealing(t *testing.T) {
+	h := &X11Host{}
+
+	mods := h.syncModifierStateLocked(xproto.ModMaskControl, vtinput.VK_A, true)
+	if mods != vtinput.LeftCtrlPressed || !h.lCtrl || h.rCtrl {
+		t.Fatalf("active aggregate Ctrl = mods:%d sides:%v/%v, want left Ctrl", mods, h.lCtrl, h.rCtrl)
+	}
+
+	h.lCtrl, h.rCtrl = true, true
+	mods = h.syncModifierStateLocked(0, vtinput.VK_A, true)
+	if mods != 0 || h.lCtrl || h.rCtrl {
+		t.Fatalf("inactive aggregate Ctrl = mods:%d sides:%v/%v, want cleared state", mods, h.lCtrl, h.rCtrl)
+	}
+
+	// X11 reports a modifier key release with the state from before the
+	// release. The already-applied key transition must not be healed back in.
+	h.lCtrl = false
+	mods = h.syncModifierStateLocked(xproto.ModMaskControl, vtinput.VK_LCONTROL, false)
+	if h.lCtrl {
+		t.Fatal("modifier release recreated left Ctrl side")
+	}
+	if mods != vtinput.LeftCtrlPressed {
+		t.Fatalf("modifier release result = %d, want aggregate Ctrl", mods)
+	}
 }
 
 func TestX11Renderer_GlyphCacheUniqueness(t *testing.T) {

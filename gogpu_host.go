@@ -248,7 +248,8 @@ func isSpecialOrModifiedKey(vk uint16, mods vtinput.ControlKeyState) bool {
 }
 
 func (h *GogpuHost) syncMods(key gpucontext.Key, mods gpucontext.Modifiers, isDown bool) vtinput.ControlKeyState {
-	switch gogpuKeyToVK(key, 0) {
+	vk := gogpuKeyToVK(key, 0)
+	switch vk {
 	case vtinput.VK_LCONTROL:
 		h.lCtrl = isDown
 	case vtinput.VK_RCONTROL:
@@ -264,6 +265,7 @@ func (h *GogpuHost) syncMods(key gpucontext.Key, mods gpucontext.Modifiers, isDo
 	}
 
 	h.superDown = mods.HasSuper()
+	h.syncModifierStateLocked(vk, mods, isDown)
 
 	var sysMods vtinput.ControlKeyState
 	if mods.HasShift() {
@@ -307,6 +309,93 @@ func (h *GogpuHost) syncMods(key gpucontext.Key, mods gpucontext.Modifiers, isDo
 
 	h.currentMods = sysMods
 	return sysMods
+}
+
+func isGogpuModifierVK(vk uint16) bool {
+	switch vk {
+	case vtinput.VK_SHIFT, vtinput.VK_LSHIFT, vtinput.VK_RSHIFT,
+		vtinput.VK_CONTROL, vtinput.VK_LCONTROL, vtinput.VK_RCONTROL,
+		vtinput.VK_MENU, vtinput.VK_LMENU, vtinput.VK_RMENU,
+		vtinput.VK_LWIN, vtinput.VK_RWIN, vtinput.VK_APPS,
+		vtinput.VK_CAPITAL, vtinput.VK_NUMLOCK, vtinput.VK_SCROLL:
+		return true
+	default:
+		return false
+	}
+}
+
+// syncModifierStateLocked repairs the side-tracking flags from gogpu's
+// aggregate modifier mask. A modifier release can be lost during a focus
+// transition, while an ordinary key event still gives us a reliable snapshot
+// of which modifier groups are active. Modifier key presses remain
+// authoritative when the platform reports its mask one event late.
+func (h *GogpuHost) syncModifierStateLocked(vk uint16, mods gpucontext.Modifiers, isDown bool) {
+	assumeActive := !isGogpuModifierVK(vk)
+	keepShift := isDown && (vk == vtinput.VK_SHIFT || vk == vtinput.VK_LSHIFT || vk == vtinput.VK_RSHIFT)
+	keepAlt := isDown && (vk == vtinput.VK_MENU || vk == vtinput.VK_LMENU || vk == vtinput.VK_RMENU)
+
+	if !mods.HasShift() && !keepShift {
+		h.lShift, h.rShift = false, false
+	} else if mods.HasShift() && assumeActive && !h.lShift && !h.rShift {
+		h.lShift = true
+	}
+	if !mods.HasAlt() && !keepAlt {
+		h.lAlt, h.rAlt = false, false
+	} else if mods.HasAlt() && assumeActive && !h.lAlt && !h.rAlt {
+		h.lAlt = true
+	}
+
+	keepCtrl := isDown && (vk == vtinput.VK_CONTROL || vk == vtinput.VK_LCONTROL || vk == vtinput.VK_RCONTROL)
+	if gogpuCmdIsCtrl {
+		// macOS has two Ctrl channels: Command is left Ctrl and physical Ctrl
+		// is right Ctrl. Keep their tracking independent when the aggregate
+		// platform flags change one channel at a time.
+		keepCommand := isDown && (vk == vtinput.VK_LCONTROL || vk == vtinput.VK_CONTROL)
+		keepPhysical := isDown && (vk == vtinput.VK_RCONTROL || vk == vtinput.VK_CONTROL)
+		if !mods.HasSuper() && !keepCommand {
+			h.lCtrl = false
+		} else if mods.HasSuper() && assumeActive && !h.lCtrl {
+			h.lCtrl = true
+		}
+		if !mods.HasControl() && !keepPhysical {
+			h.rCtrl = false
+		} else if mods.HasControl() && assumeActive && !h.rCtrl {
+			h.rCtrl = true
+		}
+	} else if !mods.HasControl() && !keepCtrl {
+		h.lCtrl, h.rCtrl = false, false
+	} else if mods.HasControl() && assumeActive && !h.lCtrl && !h.rCtrl {
+		h.lCtrl = true
+	}
+}
+
+func (h *GogpuHost) resetKeyboardStateLocked() {
+	if h.pendingKeyTimer != nil {
+		h.pendingKeyTimer.Stop()
+		h.pendingKeyTimer = nil
+	}
+	h.pendingKeyEvent = nil
+	h.lastVK = 0
+	h.suppressTextInput = false
+	h.currentMods = 0
+	h.lCtrl, h.rCtrl = false, false
+	h.lAlt, h.rAlt = false, false
+	h.lShift, h.rShift = false, false
+	h.superDown = false
+}
+
+func (h *GogpuHost) handleFocus(focused bool) {
+	h.mu.Lock()
+	if !focused {
+		h.resetKeyboardStateLocked()
+	}
+	h.mu.Unlock()
+	defer func() {
+		// App shutdown can close the reader while the backend is dispatching
+		// its final focus notification.
+		recover()
+	}()
+	h.sendEvent(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: focused})
 }
 
 func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp func()) error {
@@ -371,6 +460,7 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 	app.OnClose(func() {
 		DebugLog("GOGPU_HOST: app is shutting down, renderer teardown follows")
 	})
+	app.EventSource().OnFocus(host.handleFocus)
 	// Files dropped on the window by other applications arrive here; the
 	// drag and drop core takes them from the backend to whatever the
 	// application registered as its target.

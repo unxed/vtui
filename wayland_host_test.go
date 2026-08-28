@@ -65,7 +65,15 @@ func TestWaylandNumLockFromKeysym(t *testing.T) {
 }
 
 func TestWaylandFocusLossClearsKeyboardState(t *testing.T) {
+	pr, pw := io.Pipe()
+	reader := vtinput.NewReader(pr, true)
+	t.Cleanup(func() {
+		reader.Close()
+		_ = pw.Close()
+	})
+
 	host := &WaylandHost{
+		reader:       reader,
 		isRepeating:  true,
 		repeatVK:     vtinput.VK_LMENU,
 		repeatChar:   'x',
@@ -88,6 +96,14 @@ func TestWaylandFocusLossClearsKeyboardState(t *testing.T) {
 	if !host.isRepeating || !host.lAlt {
 		t.Fatal("focus gain unexpectedly cleared keyboard state")
 	}
+	select {
+	case event := <-reader.EventChan:
+		if event.Type != vtinput.FocusEventType || !event.SetFocus {
+			t.Fatalf("focus gain event = %+v, want FocusEvent(true)", event)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for Wayland focus gain event")
+	}
 
 	host.Focus(nil, nil)
 
@@ -100,6 +116,37 @@ func TestWaylandFocusLossClearsKeyboardState(t *testing.T) {
 	if host.currentMods != 0 || host.numLockOn || host.numLockKnown || host.lCtrl || host.rCtrl || host.lAlt || host.rAlt || host.lShift || host.rShift {
 		t.Fatalf("modifier state not cleared: mods=%d numlock=%v/%v ctrl=%v/%v alt=%v/%v shift=%v/%v",
 			host.currentMods, host.numLockOn, host.numLockKnown, host.lCtrl, host.rCtrl, host.lAlt, host.rAlt, host.lShift, host.rShift)
+	}
+
+	select {
+	case event := <-reader.EventChan:
+		if event.Type != vtinput.FocusEventType || event.SetFocus {
+			t.Fatalf("focus loss event = %+v, want FocusEvent(false)", event)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for Wayland focus loss event")
+	}
+}
+
+func TestWaylandModifierStateHealing(t *testing.T) {
+	host := &WaylandHost{}
+
+	host.syncModifierStateLocked(vtinput.LeftCtrlPressed, vtinput.VK_A, true)
+	if !host.lCtrl || host.rCtrl {
+		t.Fatalf("active aggregate Ctrl sides = %v/%v, want left Ctrl", host.lCtrl, host.rCtrl)
+	}
+
+	host.lCtrl, host.rCtrl = true, true
+	host.syncModifierStateLocked(0, vtinput.VK_A, true)
+	if host.lCtrl || host.rCtrl {
+		t.Fatalf("inactive aggregate Ctrl sides = %v/%v, want cleared state", host.lCtrl, host.rCtrl)
+	}
+
+	// The key transition is applied before the aggregate mask is read. A
+	// release must not recreate the side from a still-active pre-release mask.
+	host.syncModifierStateLocked(vtinput.LeftCtrlPressed, vtinput.VK_LCONTROL, false)
+	if host.lCtrl || host.rCtrl {
+		t.Fatalf("modifier release recreated a Ctrl side: %v/%v", host.lCtrl, host.rCtrl)
 	}
 }
 
