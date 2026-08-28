@@ -166,16 +166,11 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 			xproto.AtomAtom, 32, 1, data)
 	}
 
-	stateAtom, _ := xproto.InternAtom(conn, false, 13, "_NET_WM_STATE").Reply()
-	maxVertAtom, _ := xproto.InternAtom(conn, false, 28, "_NET_WM_STATE_MAXIMIZED_VERT").Reply()
-	maxHorzAtom, _ := xproto.InternAtom(conn, false, 28, "_NET_WM_STATE_MAXIMIZED_HORZ").Reply()
-	if stateAtom != nil && maxVertAtom != nil && maxHorzAtom != nil {
-		data := make([]byte, 8)
-		xgb.Put32(data, uint32(maxVertAtom.Atom))
-		xgb.Put32(data[4:], uint32(maxHorzAtom.Atom))
-		xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, stateAtom.Atom, xproto.AtomAtom, 32, 2, data)
-	}
-
+	// Map the window at the geometry requested by the caller. In particular,
+	// do not seed _NET_WM_STATE with the maximized flags here: that state makes
+	// the window manager replace the requested dimensions before the first
+	// configure event. Native maximize/restore transitions are handled by the
+	// renderer when the window is resized.
 	xproto.MapWindow(conn, host.wid)
 	_, _ = xproto.GetInputFocus(conn).Reply()
 	host.dnd = newX11Dnd(host)
