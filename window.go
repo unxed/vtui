@@ -79,6 +79,7 @@ func (w *Window) resizeModalViewport(screenW, screenH int) {
 	w.MoveRelative((screenW-viewW)/2-w.X1, (screenH-viewH)/2-w.Y1)
 	w.setViewportSize(viewW, viewH)
 	w.updateScrollBounds()
+	w.ensureFocusedItemVisible()
 }
 
 func (w *Window) updateScrollBounds() {

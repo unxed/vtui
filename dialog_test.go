@@ -53,6 +53,28 @@ func TestCenteredDialogScrollsWithMouseWheelInAShortViewport(t *testing.T) {
 	}
 }
 
+func TestCenteredDialogKeepsFocusedControlVisibleAfterResize(t *testing.T) {
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(40, 8)
+	FrameManager.Init(scr)
+
+	dialog := NewCenteredDialog(30, 14, "Panel settings")
+	first := NewButton(dialog.X1+2, dialog.Y1+2, "First")
+	last := NewButton(dialog.X1+2, dialog.Y1+11, "Last")
+	last.IsDefault = true
+	dialog.AddItem(first)
+	dialog.AddItem(last)
+	dialog.Show(scr)
+
+	dialog.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_NEXT})
+	dialog.ResizeConsole(40, 6)
+
+	_, y1, _, y2 := last.GetPosition()
+	if y1 < dialog.Y1+1 || y2 > dialog.Y2-1 {
+		t.Fatalf("focused control is outside resized viewport: (%d,%d), viewport (%d,%d)", y1, y2, dialog.Y1+1, dialog.Y2-1)
+	}
+}
+
 func TestDialog_HotkeyCaseInsensitivity(t *testing.T) {
 	d := NewDialog(0, 0, 40, 10, "Case Test")
 	btn := NewButton(1, 1, "&File")
