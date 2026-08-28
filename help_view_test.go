@@ -8,6 +8,42 @@ import (
 	"github.com/unxed/vtinput"
 )
 
+func TestHelpView_F1DoesNotNestAnotherHelpView(t *testing.T) {
+	oldFM := FrameManager
+	oldEngine := GlobalHelpEngine
+	fm := NewFrameManager()
+	FrameManager = fm
+	t.Cleanup(func() {
+		fm.Shutdown()
+		FrameManager = oldFM
+		GlobalHelpEngine = oldEngine
+	})
+
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 25)
+	fm.Init(scr)
+
+	engine := NewHelpEngine(&mockHelpVFS{})
+	engine.AddTopic(&HelpTopic{Name: "Root", Lines: []string{"Root help"}})
+	engine.AddTopic(&HelpTopic{Name: "Contents", Lines: []string{"Contents help"}})
+	GlobalHelpEngine = engine
+
+	hv := NewHelpView(engine, "Root")
+	fm.Push(hv)
+	fm.dispatchEvent(&vtinput.InputEvent{
+		Type:           vtinput.KeyEventType,
+		KeyDown:        true,
+		VirtualKeyCode: vtinput.VK_F1,
+	}, false)
+
+	if len(fm.frames) != 1 {
+		t.Fatalf("F1 on HelpView created %d frames, want 1", len(fm.frames))
+	}
+	if fm.GetTopFrame() != hv {
+		t.Fatal("F1 on HelpView replaced the active help frame")
+	}
+}
+
 func TestHelpView_Navigation(t *testing.T) {
 	tmpDir := t.TempDir()
 	helpPath := filepath.Join(tmpDir, "test.hlf")

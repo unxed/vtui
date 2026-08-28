@@ -300,6 +300,10 @@ func (hv *HelpView) ProcessKey(e *vtinput.InputEvent) bool {
 
 	// 1. Handle Help-specific navigation BEFORE BaseWindow focus cycling
 	switch e.VirtualKeyCode {
+	case vtinput.VK_F1:
+		// Help is already active; do not let BaseWindow.ShowHelp nest another view.
+		return true
+
 	case vtinput.VK_TAB:
 		if len(hv.current.Links) == 0 {
 			return hv.BaseWindow.ProcessKey(e)
