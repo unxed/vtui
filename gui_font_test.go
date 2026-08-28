@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -106,8 +107,14 @@ func TestFontconfigMonospacePath(t *testing.T) {
 }
 
 func TestParseFontconfigPaths(t *testing.T) {
-	got := parseFontconfigPaths("/fonts/Emoji.ttf\n/fonts/Emoji.ttf\nrelative.ttf\n /fonts/Symbola.ttf \n")
-	want := []string{"/fonts/Emoji.ttf", "/fonts/Symbola.ttf"}
+	base := "/fonts"
+	if runtime.GOOS == "windows" {
+		base = `C:\fonts`
+	}
+	emojiPath := filepath.Join(base, "Emoji.ttf")
+	symbolPath := filepath.Join(base, "Symbola.ttf")
+	got := parseFontconfigPaths(emojiPath + "\n" + emojiPath + "\nrelative.ttf\n " + symbolPath + " \n")
+	want := []string{emojiPath, symbolPath}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("parseFontconfigPaths() = %#v, want %#v", got, want)
 	}
