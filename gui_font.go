@@ -45,8 +45,10 @@ var fallbackFontPaths = []string{
 	"/usr/share/fonts/truetype/arphic/uming.ttc",
 	"/usr/share/fonts/truetype/arphic/ukai.ttc",
 	// Linux — emoji and general symbol coverage
-	"/usr/share/fonts/noto/NotoColorEmoji.ttf",
-	"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+	"/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
+	"/usr/share/fonts/noto/NotoEmoji-Regular.ttf",
+	"/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
+	"/usr/share/fonts/gdouros-symbola/Symbola.ttf",
 	"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 	"/usr/share/fonts/TTF/DejaVuSans.ttf",
 	"/usr/share/fonts/truetype/unifont/unifont.ttf",
@@ -83,6 +85,42 @@ var fallbackFontPaths = []string{
 var runFontconfigMonospace = func() (string, error) {
 	out, err := exec.Command("fc-match", "-f", "%{file}", "monospace").Output()
 	return strings.TrimSpace(string(out)), err
+}
+
+const maxFontconfigEmojiPaths = 4
+
+// runFontconfigEmoji asks fontconfig for the small set of fonts it would use
+// for an emoji code point. The static fallback list covers common locations,
+// but package layouts vary too much for it to find every distro's emoji font.
+// Keeping this a variable makes the lookup deterministic in tests without
+// making fontconfig a build-time dependency.
+var runFontconfigEmoji = func() ([]string, error) {
+	out, err := exec.Command("fc-match", "-s", "-f", "%{file}\n", "emoji:charset=1f600:color=false").Output()
+	if err != nil {
+		return nil, err
+	}
+	paths := parseFontconfigPaths(string(out))
+	if len(paths) > maxFontconfigEmojiPaths {
+		paths = paths[:maxFontconfigEmojiPaths]
+	}
+	return paths, nil
+}
+
+func parseFontconfigPaths(output string) []string {
+	var paths []string
+	seen := make(map[string]struct{})
+	for _, line := range strings.Split(output, "\n") {
+		path := strings.TrimSpace(line)
+		if path == "" || !filepath.IsAbs(path) {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	return paths
 }
 
 // runeCoverage is a bitmap of the runes a font has glyphs for, over all of
@@ -486,6 +524,34 @@ func fontconfigMonospacePath() string {
 	return path
 }
 
+// fallbackPathsForGUI adds fontconfig's runtime emoji matches to the portable
+// static list. The returned order keeps the curated paths first and only
+// appends paths that are not already present, so existing font priorities stay
+// stable while distro-specific fonts become discoverable.
+func fallbackPathsForGUI() []string {
+	paths := append([]string(nil), fallbackFontPaths...)
+	if runtime.GOOS != "linux" {
+		return paths
+	}
+
+	dynamic, err := runFontconfigEmoji()
+	if err != nil {
+		return paths
+	}
+	seen := make(map[string]struct{}, len(paths)+len(dynamic))
+	for _, path := range paths {
+		seen[path] = struct{}{}
+	}
+	for _, path := range dynamic {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
 // loadBestFont attempts to find a suitable monospace TTF font on the system.
 // If none is found, it falls back to a built-in bitmap font.
 func loadBestFont(fontName string, size float64, dpi float64) (font.Face, int, int) {
@@ -528,7 +594,7 @@ func loadBestFont(fontName string, size float64, dpi float64) (font.Face, int, i
 	// fallback font here, which held hundreds of megabytes for glyphs most
 	// sessions never draw.
 	var chain *fontFallbackChain
-	for _, path := range fallbackFontPaths {
+	for _, path := range fallbackPathsForGUI() {
 		if _, err := os.Stat(path); err != nil {
 			continue
 		}

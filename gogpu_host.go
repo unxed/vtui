@@ -789,7 +789,7 @@ func loadGogpuFont(fontName string, size float64) (text.Face, *fontFallbackChain
 	if noFallback {
 		DebugLog("GOGPU_DIAG_FONT: fallback chain disabled by VTUI_GOGPU_NO_FALLBACK")
 	} else {
-		for _, p := range fallbackFontPaths {
+		for _, p := range fallbackPathsForGUI() {
 			if _, err := os.Stat(p); err != nil {
 				continue
 			}
