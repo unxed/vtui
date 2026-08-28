@@ -393,7 +393,7 @@ func (h *GogpuHost) handleFocus(focused bool) {
 	defer func() {
 		// App shutdown can close the reader while the backend is dispatching
 		// its final focus notification.
-		recover()
+		_ = recover()
 	}()
 	h.sendEvent(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: focused})
 }

@@ -715,7 +715,7 @@ func (h *WaylandHost) sendFocusEvent(focused bool) {
 	}
 	defer func() {
 		// The reader may close concurrently with the display loop during exit.
-		recover()
+		_ = recover()
 	}()
 	reader.EventChan <- &vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: focused}
 }
