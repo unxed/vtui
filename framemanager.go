@@ -2290,6 +2290,21 @@ func (fm *frameManager) Stop() {
 	}
 }
 
+// postQuitCommand schedules a native-window close on the UI event-loop
+// goroutine. Native window callbacks run on a backend-owned goroutine or
+// thread, while EmitCommand walks and mutates the frame stack. Keeping that
+// traversal on the same goroutine as keyboard and terminal input prevents a
+// close request from racing session/settings updates.
+func postQuitCommand() {
+	fm := FrameManager
+	if fm == nil || fm.IsShutdown() {
+		return
+	}
+	fm.PostTask(func() {
+		fm.EmitCommand(CmQuit, nil)
+	})
+}
+
 // Run starts the main application event loop.
 // softwareBlinkRenderer is implemented by renderers that draw their own
 // cursor in pixels (rather than relying on a native console/terminal

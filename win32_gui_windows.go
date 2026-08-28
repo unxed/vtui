@@ -840,7 +840,7 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 			procDestroyWindow.Call(uintptr(hwnd))
 			return 0
 		}
-		FrameManager.EmitCommand(CmQuit, nil)
+		postQuitCommand()
 		return 0
 
 	case wmDestroy:

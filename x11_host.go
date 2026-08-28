@@ -326,7 +326,7 @@ func (h *X11Host) RunEventLoop() {
 				continue
 			}
 			if e.Data.Data32[0] == uint32(h.atomDelete) {
-				FrameManager.EmitCommand(CmQuit, nil)
+				postQuitCommand()
 			}
 
 		case xproto.SelectionNotifyEvent:
