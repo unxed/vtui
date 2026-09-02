@@ -18,10 +18,10 @@ func TestSysconsNeverEmitsBlinkingAttributes(t *testing.T) {
 	var pal [256]uint32
 	copy(pal[:], ThemePalette[:])
 	cases := []struct {
-		name    string
-		attr    uint64
-		banned  []string
-		wanted  string
+		name   string
+		attr   uint64
+		banned []string
+		wanted string
 	}{
 		{
 			name:   "bright background",
@@ -36,8 +36,8 @@ func TestSysconsNeverEmitsBlinkingAttributes(t *testing.T) {
 			wanted: "40",
 		},
 		{
-			name:   "reverse over a bright foreground",
-			attr:   SetIndexBack(SetIndexFore(0, 14), 1) | CommonLvbReverse,
+			name: "reverse over a bright foreground",
+			attr: SetIndexBack(SetIndexFore(0, 14), 1) | CommonLvbReverse,
 			// The swap moves blue to the foreground and the bright cyan to
 			// the background, where it is clamped to the dark half.
 			banned: []string{";7;", "[7;", "100", "101", "102", "103", "104", "105", "106", "107"},
@@ -73,5 +73,3 @@ func TestSysconsNeverEmitsBlinkingAttributes(t *testing.T) {
 		})
 	}
 }
-
-
