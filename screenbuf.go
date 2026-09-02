@@ -58,12 +58,18 @@ func detectColorProfile(goos string) ColorProfile {
 
 var IsFreeBSDConsole bool
 
+// IsFreeBSDSyscons narrows IsFreeBSDConsole to the syscons driver, the only
+// one that aliases a bright background onto the VGA blink bit. See
+// console_freebsd.go for the driver sources this is based on.
+var IsFreeBSDSyscons bool
+
 func init() {
 	IsFreeBSDConsole = (runtime.GOOS == "freebsd" &&
 		os.Getenv("DISPLAY") == "" &&
 		os.Getenv("SSH_CLIENT") == "" &&
 		os.Getenv("TMUX") == "" &&
 		os.Getenv("WAYLAND_DISPLAY") == "")
+	IsFreeBSDSyscons = detectFreeBSDSyscons()
 }
 
 // ScreenBuf implements double buffering to minimize terminal write operations.

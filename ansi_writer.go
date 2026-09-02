@@ -67,7 +67,10 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
 		resetTriggered = true
 	}
 
-	if attr&ForegroundIntensity != 0 && lastAttr&ForegroundIntensity == 0 {
+	// SGR 1 is not emitted on syscons: scteken_te_to_sc_attr() XORs bit 3 of
+	// the foreground for TF_BOLD, so bold over an already bright colour comes
+	// out dark. The 90..97 codes carry brightness there on their own.
+	if attr&ForegroundIntensity != 0 && lastAttr&ForegroundIntensity == 0 && !IsFreeBSDSyscons {
 		writeSep()
 		buf[n] = '1'
 		n++
@@ -82,7 +85,11 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
 		buf[n] = '4'
 		n++
 	}
-	if attr&CommonLvbReverse != 0 && lastAttr&CommonLvbReverse == 0 {
+	// SGR 7 is not emitted on syscons: teken swaps fg and bg before syscons
+	// maps them, so reverse over a bright foreground lands in bit 7 of the
+	// attribute byte, which the text renderer blinks. The swap is done in
+	// writeColorANSI instead, which costs nothing anywhere else.
+	if attr&CommonLvbReverse != 0 && lastAttr&CommonLvbReverse == 0 && !IsFreeBSDSyscons {
 		writeSep()
 		buf[n] = '7'
 		n++
@@ -93,14 +100,16 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
 		n++
 	}
 
+	revFlipped := IsFreeBSDSyscons && (attr^lastAttr)&CommonLvbReverse != 0
+
 	fgMask := IsFgRGB | (0xFF << 16)
-	if resetTriggered || attr&fgMask != lastAttr&fgMask || (attr&IsFgRGB != 0 && GetRGBFore(attr) != GetRGBFore(lastAttr)) {
+	if resetTriggered || revFlipped || attr&fgMask != lastAttr&fgMask || (attr&IsFgRGB != 0 && GetRGBFore(attr) != GetRGBFore(lastAttr)) {
 		writeSep()
 		n += writeColorANSI(buf[n:], false, attr, activePal, profile, quantCache)
 	}
 
 	bgMask := IsBgRGB | (0xFF << 40)
-	if resetTriggered || attr&bgMask != lastAttr&bgMask || (attr&IsBgRGB != 0 && GetRGBBack(attr) != GetRGBBack(lastAttr)) {
+	if resetTriggered || revFlipped || attr&bgMask != lastAttr&bgMask || (attr&IsBgRGB != 0 && GetRGBBack(attr) != GetRGBBack(lastAttr)) {
 		writeSep()
 		n += writeColorANSI(buf[n:], true, attr, activePal, profile, quantCache)
 	}
@@ -117,9 +126,15 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
 // "P;5;N" (palette), P being 38 for fg and 48 for bg — without a CSI prefix
 // or trailing 'm'; returns the byte count.
 func writeColorANSI(dst []byte, isBg bool, attr uint64, activePal *[256]uint32, profile ColorProfile, quantCache map[uint32]uint8) int {
+	// On syscons SGR 7 is suppressed above, so the swap happens here.
+	src := isBg
+	if IsFreeBSDSyscons && attr&CommonLvbReverse != 0 {
+		src = !src
+	}
+
 	var rgbVal uint32
 	var idxVal uint8
-	if isBg {
+	if src {
 		rgbVal = GetRGBBack(attr)
 		idxVal = GetIndexBack(attr)
 	} else {
@@ -128,7 +143,7 @@ func writeColorANSI(dst []byte, isBg bool, attr uint64, activePal *[256]uint32, 
 	}
 
 	flag := IsFgRGB
-	if isBg {
+	if src {
 		flag = IsBgRGB
 	}
 	if attr&flag != 0 {
@@ -145,6 +160,7 @@ func writeColorANSI(dst []byte, isBg bool, attr uint64, activePal *[256]uint32, 
 				idxVal = findNearestColor(rgbVal, activePal, maxColors)
 				quantCache[rgbVal] = idxVal
 			}
+			idxVal = clampSysconsBg(isBg, idxVal)
 			if profile == ColorProfile16 {
 				return copy(dst, idxTo16ColorANSI(isBg, idxVal))
 			}
@@ -154,10 +170,21 @@ func writeColorANSI(dst []byte, isBg bool, attr uint64, activePal *[256]uint32, 
 		return appendColorRGB(dst, isBg, r, g, b)
 	}
 
+	idxVal = clampSysconsBg(isBg, idxVal)
 	if profile == ColorProfile16 {
 		return copy(dst, idxTo16ColorANSI(isBg, idxVal))
 	}
 	return appendColor256(dst, isBg, idxVal)
+}
+
+// clampSysconsBg drops a background out of the bright half of the first 16
+// palette entries. Anything syscons maps to a bg index of 8..15 sets bit 7 of
+// the VGA attribute byte, and its text renderer blinks that bit.
+func clampSysconsBg(isBg bool, idx uint8) uint8 {
+	if IsFreeBSDSyscons && isBg && idx < 16 {
+		return idx & 7
+	}
+	return idx
 }
 
 // appendColor256 appends "P;5;N" to dst and returns the byte count.
@@ -208,6 +235,11 @@ var idx16BG = [...]string{
 func idxTo16ColorANSI(isBg bool, idx uint8) string {
 	idx = idx & 15
 	if isBg {
+		if IsFreeBSDSyscons {
+			// 100..107 set bit 7 of the VGA attribute byte, which syscons
+			// blinks in text mode. Drop to the dark half of the palette.
+			idx &= 7
+		}
 		return idx16BG[idx]
 	}
 	return idx16FG[idx]
