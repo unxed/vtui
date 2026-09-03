@@ -58,6 +58,16 @@ var (
 	conhostAltTried bool
 )
 
+// ConsoleAltScreenDisabled turns the console-owned alternate screen off. f4
+// sets it before PrepareTerminal in the modes where it runs a pseudoconsole
+// of its own and draws the UI into the real console buffer through that
+// (ConsoleMode "own"): there the alternate screen is a VT concept on the
+// child pty, not a second real screen buffer, and switching the active
+// console buffer out from under that path fights it for the screen. Left
+// false, a classic console window gets its own buffer, which is the fix for
+// #397.
+var ConsoleAltScreenDisabled bool
+
 func init() {
 	consoleOwnsAltScreen = func() bool {
 		conhostAltMu.Lock()
@@ -96,7 +106,7 @@ func setupConhostAltScreen() {
 	}
 	conhostAltTried = true
 
-	if isWineOS() || win32ConsoleActive() || !classicConsoleWindow() {
+	if ConsoleAltScreenDisabled || isWineOS() || win32ConsoleActive() || !classicConsoleWindow() {
 		return
 	}
 	orig, err := syscall.GetStdHandle(syscall.STD_OUTPUT_HANDLE)
@@ -162,8 +172,20 @@ func viewportSize(info consoleScreenBufferInfo) (int, int) {
 }
 
 // fit makes f4's buffer exactly w by h cells with the viewport at the
-// origin. Order matters to conhost: a buffer may never be smaller than its
-// viewport, so grow first, place the viewport, and only then shrink.
+// origin.
+//
+// Two things about conhost shape the order. A buffer may never be smaller
+// than its window, so on the way to a smaller size the window has to shrink
+// before the buffer does. And -- this is the crash in f4 #397, not a
+// cosmetic detail -- on Windows 10 conhost faults when the buffer is set
+// smaller than where the cursor or the window still sit
+// (microsoft/terminal#2366, #8453): the render thread walks a row that no
+// longer exists and the host dies, taking f4's window with it and leaving
+// nothing to catch. It is not the alternate screen that does this; it is the
+// buffer resize, and it happens on the plain buffer this file uses too. Far
+// survives the same shortcut only because it moves the cursor and the window
+// inside the target first, every time, and points at #2366 in its source for
+// why. So does this now.
 func (c *conhostAltScreen) fit(w, h int) {
 	if w <= 0 || h <= 0 || w > 0x7fff || h > 0x7fff {
 		return
@@ -172,18 +194,65 @@ func (c *conhostAltScreen) fit(w, h int) {
 	if ok, _, _ := procGetConsoleScreenBufferInfo.Call(uintptr(c.own), uintptr(unsafe.Pointer(&info))); ok == 0 {
 		return
 	}
+	plan := planFit(info, w, h)
+	for _, step := range plan {
+		switch step.op {
+		case fitGrowBuffer, fitSizeBuffer:
+			procSetConsoleScreenBufferSize.Call(uintptr(c.own), coordArg(step.coord))
+		case fitMoveCursor:
+			procSetConsoleCursorPosition.Call(uintptr(c.own), coordArg(step.coord))
+		case fitWindow:
+			rect := SmallRect{Right: step.coord.X, Bottom: step.coord.Y}
+			procSetConsoleWindowInfo.Call(uintptr(c.own), uintptr(1), uintptr(unsafe.Pointer(&rect)))
+		}
+	}
+}
+
+type fitOp int
+
+const (
+	fitGrowBuffer fitOp = iota // buffer up to max(old, target) so nothing is outside it
+	fitMoveCursor              // cursor inside the target (the #2366 guard)
+	fitWindow                  // window to the target at the origin
+	fitSizeBuffer              // buffer down to exactly the target
+)
+
+type fitStep struct {
+	op    fitOp
+	coord Coord // for fitWindow, the inclusive bottom-right (Right,Bottom)
+}
+
+// planFit lists the console calls that resize f4's buffer to w by h without
+// tripping the Windows 10 conhost crash. The order is the whole point and is
+// covered by a test, so it lives apart from the syscalls: grow the buffer so
+// the coming window fits, pull the cursor inside the target before the buffer
+// can shrink under it (microsoft/terminal#2366), move the window to the
+// target at the origin, then bring the buffer down to size. Steps that would
+// change nothing are left out. An empty plan means the buffer is already
+// right.
+func planFit(info consoleScreenBufferInfo, w, h int) []fitStep {
+	if w <= 0 || h <= 0 || w > 0x7fff || h > 0x7fff {
+		return nil
+	}
 	cw, ch := viewportSize(info)
 	if int(info.dwSize.X) == w && int(info.dwSize.Y) == h && cw == w && ch == h &&
 		info.srWindow.Left == 0 && info.srWindow.Top == 0 {
-		return
+		return nil
 	}
+	var plan []fitStep
 	grown := Coord{X: max(info.dwSize.X, int16(w)), Y: max(info.dwSize.Y, int16(h))}
 	if grown != info.dwSize {
-		procSetConsoleScreenBufferSize.Call(uintptr(c.own), coordArg(grown))
+		plan = append(plan, fitStep{fitGrowBuffer, grown})
 	}
-	rect := SmallRect{Left: 0, Top: 0, Right: int16(w) - 1, Bottom: int16(h) - 1}
-	procSetConsoleWindowInfo.Call(uintptr(c.own), uintptr(1), uintptr(unsafe.Pointer(&rect)))
-	procSetConsoleScreenBufferSize.Call(uintptr(c.own), coordArg(Coord{X: int16(w), Y: int16(h)}))
+	if int(info.dwCursorPosition.X) >= w || int(info.dwCursorPosition.Y) >= h {
+		plan = append(plan, fitStep{fitMoveCursor, Coord{
+			X: min(info.dwCursorPosition.X, int16(w)-1),
+			Y: min(info.dwCursorPosition.Y, int16(h)-1),
+		}})
+	}
+	plan = append(plan, fitStep{fitWindow, Coord{X: int16(w) - 1, Y: int16(h) - 1}})
+	plan = append(plan, fitStep{fitSizeBuffer, Coord{X: int16(w), Y: int16(h)}})
+	return plan
 }
 
 // coordArg packs a COORD the way the console API takes it by value.
