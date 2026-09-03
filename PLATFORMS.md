@@ -42,14 +42,39 @@ everyone who does not. The trade is not worth it.
 
 ### plan9
 
-Excluded from the gogpu constraint, which used to admit `plan9/amd64` and
-select a backend goffi cannot serve there.
+Does not build yet, but the target is reachable and CI for it is not the
+obstacle: GitHub has no Plan 9 runners, but nothing here needs one. A Plan 9
+row would cross-compile on `ubuntu-latest` exactly as the illumos, solaris and
+dragonfly rows already do, so it would be build-and-vet coverage with no test
+execution -- the same deal those targets get.
 
-That was necessary but is not sufficient for a working Plan 9 build: the next
-blocker is `github.com/unxed/vtinput`, whose `reader_unix.go` reaches for
-`golang.org/x/sys/unix` (`unix.Poll`, `unix.PollFd`, `unix.POLLIN`), none of
-which exists on Plan 9. Plan 9 needs a reader implementation there before it
-can build at all.
+Two blockers are gone. `plan9/amd64` used to match the gogpu constraint and
+select a backend goffi cannot serve; it is excluded now. And `vtinput` grew a
+Plan 9 reader: its Unix one is built on poll(2) plus a self-pipe, neither of
+which Plan 9 has, so reads there run in a pump goroutine that reports over a
+channel instead.
+
+What is left is in vtui, and it is five files rather than one idea:
+
+| File | Missing on Plan 9 |
+| --- | --- |
+| `win32_gui_renderer.go` | `glyphKey`, `drawBoxGlyph` |
+| `crash_report_pid_unix.go` | `syscall.Kill` |
+| `sys_unix.go` | `unix.Dup2` |
+| `terminal_env_unix.go` | `syscall.SIGWINCH` |
+| `gui_api_fallback.go` | `runInX11Window` |
+
+The first row is worth a look on its own account: the Win32 renderer should not
+be compiled anywhere but Windows, and its appearing in a Plan 9 build says its
+constraint is too wide regardless of what Plan 9 does. The others are the usual
+Unix-isms that need a Plan 9 variant or a constraint that excludes it.
+
+`gui_api_fallback.go` is the one that is not merely mechanical. Plan 9 has no
+GUI backend at all -- rio is not X11, and vtui has no rio renderer -- so there
+is nothing for the fallback to fall back *to*. The realistic goal on Plan 9 is
+the terminal path with no GUI, which makes the question "is the ANSI path
+self-sufficient here" rather than "which backend do we pick". That is a design
+decision, not a build tag.
 
 ## Fixed
 
