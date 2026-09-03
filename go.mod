@@ -14,7 +14,7 @@ require (
 	github.com/rivo/uniseg v0.2.0
 	github.com/soniakeys/quant v1.0.0
 	github.com/unxed/goclip v0.1.1
-	github.com/unxed/keytrans v0.1.32
+	github.com/unxed/keytrans v0.1.33
 	github.com/unxed/kiwi-go v0.1.0
 	github.com/unxed/vtinput v0.1.6
 	golang.org/x/image v0.45.0
