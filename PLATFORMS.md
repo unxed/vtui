@@ -20,29 +20,45 @@ cannot load anything through it.
 
 ## Known gaps
 
-### NetBSD
+### NetBSD, and why the shim is not optional
 
-`ffi` builds and works on `netbsd/amd64` and `netbsd/arm64`, but only with the
-same `fakecgo` `-gcflags` shim FreeBSD needs. f4's CI passes that shim for
-FreeBSD cells only, so enabling the FFI-backed backends for NetBSD means adding
-the shim there first. Until then NetBSD deliberately stays on the non-FFI path;
-turning the build tags on without the CI change would break the NetBSD build.
+NetBSD needs the same `fakecgo` `-gcflags` shim FreeBSD does, and this cannot
+be fixed in goffi or pureffi. fakecgo supplies `environ`, `__progname` and
+`__ps_strings` in place of the crt0 a cgo-free build does not link, and those
+symbols have to reach the *dynamic* symbol table for rtld to resolve libc's
+undefined references at startup. `//go:cgo_export_dynamic` is the only
+mechanism for that, and the compiler accepts it only in a package built as
+`std` -- hence the flag. FreeBSD has lived with it for the same reason.
 
-### android/arm64
+Both CIs now pass it for NetBSD as well as FreeBSD, so `ffibridge` enables its
+FFI path there.
 
-Does not build, and not because of FFI. Ebitengine's own `internal/ui` package
-fails to compile for Android without the gomobile/cgo build path
-(`dipToNativePixels` and `graphicsDriverCreatorImpl` come out undefined). This
-is upstream of vtui and cannot be fixed by build tags here.
+`keytrans` deliberately does **not**. It supports building against vanilla
+`ebitengine/purego`, not only the pureffi fork, and vanilla purego has no
+NetBSD support (`syscall15Args` and `isAllSameFloat` come out undefined).
+Turning NetBSD on in its constraints would gain the xkbcommon and XIM backends
+for consumers that replace purego with pureffi, at the cost of breaking
+everyone who does not. The trade is not worth it.
 
 ### plan9
 
-Does not build. goffi has no Plan 9 implementation, and the constraint the
-gogpu backend uses admits `plan9/amd64`, so the backend is selected on a target
-its dependency cannot serve. Fixing it means excluding `plan9` from the gogpu
-constraint the way the BSDs and illumos/solaris already are.
+Excluded from the gogpu constraint, which used to admit `plan9/amd64` and
+select a backend goffi cannot serve there.
 
-## Notes
+That was necessary but is not sufficient for a working Plan 9 build: the next
+blocker is `github.com/unxed/vtinput`, whose `reader_unix.go` reaches for
+`golang.org/x/sys/unix` (`unix.Poll`, `unix.PollFd`, `unix.POLLIN`), none of
+which exists on Plan 9. Plan 9 needs a reader implementation there before it
+can build at all.
+
+## Fixed
+
+`android/arm64` builds. Ebitengine is now excluded there: `GOOS=android` also
+satisfies the `linux` build tag, so the Ebitengine backend was being selected
+on Android, where its own `internal/ui` package does not compile without the
+gomobile/cgo path (`dipToNativePixels` and `graphicsDriverCreatorImpl` come out
+undefined). That is an Ebitengine limitation, reported upstream; vtui simply
+does not select the backend there. The gogpu backend still is.
 
 `windows/386` used to fail with `undefined: isSpecialOrModifiedKey`: the helper
 lived in `gogpu_host.go`, which is limited to `amd64`/`arm64`, while its caller
