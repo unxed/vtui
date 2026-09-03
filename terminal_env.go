@@ -75,6 +75,69 @@ var consoleUsesVT = func() bool {
 	return !win32ConsoleActive()
 }
 
+// termOut is what getTermOut returns: the VT stream f4 draws into.
+type termOut = interface {
+	WriteString(string) (int, error)
+	Sync() error
+}
+
+// consoleOwnsAltScreen reports whether the alternate screen is a second
+// console screen buffer of f4's own, switched by setAltScreenOS, rather than
+// the terminal's alternate screen requested with DECSET 1049. It is true on
+// a classic Windows console window (conhost with a window of its own, see
+// conhost_altscreen_windows.go) and false everywhere else.
+//
+// When it is true, DECSET 1049 is never written: on a classic console with
+// "Wrap text output on resize" turned off, a window resize while the host's
+// own VT alternate buffer is up crashes conhost (microsoft/terminal#4308,
+// f4 #397). The switch itself is what shows and hides f4's screen; the VT
+// stream only gets a clear on the way in -- and since getTermOut() follows
+// the switch, that clear has to be written after setAltScreenOS(true), into
+// the buffer that is now on screen, not before it into the one that was.
+var consoleOwnsAltScreen = func() bool { return false }
+
+// switchAltScreenOS is setAltScreenOS behind a variable, so that a test can
+// stand in for the platform's buffer switch without a console to switch.
+var switchAltScreenOS = setAltScreenOS
+
+// enterAltScreen shows f4's screen and returns the stream that now reaches
+// it, which is not always the one the caller had: on a console that owns
+// the alternate screen the switch moves os.Stdout to the other buffer.
+func enterAltScreen(out termOut, vt, modernVT bool) termOut {
+	if consoleOwnsAltScreen() {
+		switchAltScreenOS(true)
+		out = getTermOut()
+		if vt {
+			out.WriteString("\x1b[2J\x1b[H")
+		}
+		return out
+	}
+	if modernVT {
+		out.WriteString(seqAltScreenOn)
+	} else if vt {
+		// A direct FreeBSD console has no alternate screen.  Clear it
+		// with the plain ANSI operations its emulator implements.
+		out.WriteString("\x1b[2J\x1b[H")
+	}
+	switchAltScreenOS(true)
+	return out
+}
+
+// leaveAltScreen hides f4's screen and returns the stream that now reaches
+// the one the user sees. What is written afterwards (cursor shape, palette
+// reset) belongs there.
+func leaveAltScreen(out termOut, modernVT bool) termOut {
+	if consoleOwnsAltScreen() {
+		switchAltScreenOS(false)
+		return getTermOut()
+	}
+	if modernVT {
+		out.WriteString(seqAltScreenOff)
+	}
+	switchAltScreenOS(false)
+	return out
+}
+
 // PrepareTerminal puts the terminal into raw mode, enables advanced input,
 // and switches to the alternate screen buffer. Returns a restore function.
 func PrepareTerminal() (func(), error) {
@@ -113,12 +176,11 @@ func Suspend() {
 			out.WriteString(seqAutoWrapOn) // Restore auto-wrap
 		}
 		if inAltScreen {
-			if modernVT {
-				out.WriteString(seqAltScreenOff)
-			}
+			out = leaveAltScreen(out, modernVT)
 			inAltScreen = false
+		} else {
+			setAltScreenOS(false)
 		}
-		setAltScreenOS(false)
 		if modernVT {
 			if ManageCursorStyle {
 				out.WriteString(seqDefaultCursor)
@@ -193,16 +255,11 @@ func resumeLocked(withAltScreen bool) error {
 			// 1. Enter AltScreen FIRST. Many terminals (like Kitty) reset
 			// their keyboard protocol state when switching screen buffers.
 			if !inAltScreen {
-				if modernVT {
-					out.WriteString(seqAltScreenOn)
-				} else if vt {
-					// A direct FreeBSD console has no alternate screen.  Clear it
-					// with the plain ANSI operations its emulator implements.
-					out.WriteString("\x1b[2J\x1b[H")
-				}
+				out = enterAltScreen(out, vt, modernVT)
 				inAltScreen = true
+			} else {
+				setAltScreenOS(true)
 			}
-			setAltScreenOS(true)
 			if modernVT {
 				out.WriteString(seqAutoWrapOff) // Disable auto-wrap for exact rendering
 				if DefaultBidiMode != BidiOff {
@@ -222,9 +279,7 @@ func resumeLocked(withAltScreen bool) error {
 		if err != nil {
 			// Rollback AltScreen if input setup failed
 			if withAltScreen {
-				if modernVT {
-					out.WriteString(seqAltScreenOff)
-				}
+				out = leaveAltScreen(out, modernVT)
 				inAltScreen = false
 				out.Sync()
 			}
@@ -264,22 +319,14 @@ func SetAltScreen(enable bool) {
 		vt := consoleUsesVT()
 		modernVT := vt && !IsFreeBSDConsole
 		if enable {
-			if modernVT {
-				out.WriteString(seqAltScreenOn)
-			} else if vt {
-				out.WriteString("\x1b[2J\x1b[H")
-			}
-			setAltScreenOS(true)
+			out = enterAltScreen(out, vt, modernVT)
 			// When returning to alt screen, it's usually empty, so force a redraw
 			if FrameManager != nil && FrameManager.scr != nil {
 				FrameManager.scr.HardReset()
 				FrameManager.Redraw()
 			}
 		} else {
-			if modernVT {
-				out.WriteString(seqAltScreenOff)
-			}
-			setAltScreenOS(false)
+			out = leaveAltScreen(out, modernVT)
 		}
 		out.Sync()
 	}

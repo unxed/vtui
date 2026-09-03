@@ -74,10 +74,14 @@ func initTerminalOS() {
 			windows.SetConsoleMode(hIn, mode)
 		}
 	}
+
+	// After the output mode is set, so the buffer inherits VT processing.
+	setupConhostAltScreen()
 }
 
 func setAltScreenOS(enable bool) {
 	setAltScreenWin32(enable)
+	setConhostAltScreen(enable)
 }
 
 type consoleCursorInfo struct {
