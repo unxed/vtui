@@ -175,12 +175,12 @@ jobs:
             goos: netbsd
             goarch: amd64
             tags: ''
-            gcflags: ''
+            gcflags: -gcflags=github.com/go-webgpu/goffi/internal/fakecgo=-std
           - label: netbsd/arm64
             goos: netbsd
             goarch: arm64
             tags: ''
-            gcflags: ''
+            gcflags: -gcflags=github.com/go-webgpu/goffi/internal/fakecgo=-std
           - label: illumos/amd64
             goos: illumos
             goarch: amd64
@@ -335,7 +335,7 @@ jobs:
             goos: netbsd
             goarch: amd64
             tags: ''
-            gcflags: ''
+            gcflags: -gcflags=github.com/go-webgpu/goffi/internal/fakecgo=-std
             vetflags: ''
           - label: dragonfly/amd64
             goos: dragonfly
