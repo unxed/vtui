@@ -223,30 +223,6 @@ func (h *GogpuHost) handleTextInput(text string) {
 	}
 }
 
-func isSpecialOrModifiedKey(vk uint16, mods vtinput.ControlKeyState) bool {
-	if (mods & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0 {
-		return true
-	}
-	switch vk {
-	case vtinput.VK_ESCAPE, vtinput.VK_RETURN, vtinput.VK_TAB, vtinput.VK_BACK, vtinput.VK_DELETE, vtinput.VK_INSERT,
-		vtinput.VK_UP, vtinput.VK_DOWN, vtinput.VK_LEFT, vtinput.VK_RIGHT,
-		vtinput.VK_HOME, vtinput.VK_END, vtinput.VK_PRIOR, vtinput.VK_NEXT,
-		// Keypad 5 with NumLock off. It produces no character, so waiting for
-		// text that never comes would only delay it by the pairing timeout.
-		vtinput.VK_CLEAR,
-		vtinput.VK_CONTROL, vtinput.VK_LCONTROL, vtinput.VK_RCONTROL,
-		vtinput.VK_SHIFT, vtinput.VK_LSHIFT, vtinput.VK_RSHIFT,
-		vtinput.VK_MENU, vtinput.VK_LMENU, vtinput.VK_RMENU,
-		vtinput.VK_LWIN, vtinput.VK_RWIN, vtinput.VK_APPS,
-		vtinput.VK_CAPITAL, vtinput.VK_NUMLOCK, vtinput.VK_SCROLL:
-		return true
-	}
-	if vk >= vtinput.VK_F1 && vk <= vtinput.VK_F24 {
-		return true
-	}
-	return false
-}
-
 func (h *GogpuHost) syncMods(key gpucontext.Key, mods gpucontext.Modifiers, isDown bool) vtinput.ControlKeyState {
 	vk := gogpuKeyToVK(key, 0)
 	switch vk {
