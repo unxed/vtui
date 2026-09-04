@@ -200,7 +200,7 @@ func runInWaylandWindow(cols, rows int, fontName string, fontSize float64, setup
 	// in the crash log to say why the window vanished. Say so here, on
 	// stderr, where the crash log is.
 	if !host.exiting.Load() {
-		msg := "wayland: the compositor closed the connection (a protocol error on our side, or the compositor went away); the read error, if any, is printed on stdout just above. Run with WAYLAND_DEBUG=1 to see the last requests."
+		msg := "wayland: the compositor closed the connection (a protocol error on our side, or the compositor went away); the read error, if any, is printed on stdout just above."
 		fmt.Fprintln(os.Stderr, msg)
 		DebugLog("WAYLAND: %s", msg)
 	}
