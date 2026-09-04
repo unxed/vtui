@@ -37,8 +37,8 @@ github.com/soniakeys/quant v1.0.0 h1:N1um9ktjbkZVcywBVAAYpZYSHxEfJGzshHCxx/DaI0Y
 github.com/soniakeys/quant v1.0.0/go.mod h1:HI1k023QuVbD4H8i9YdfZP2munIHU4QpjsImz6Y6zds=
 github.com/spaolacci/murmur3 v1.1.0 h1:7c1g84S4BPRrfL5Xrdp6fOJ206sU9y293DDHaoy0bLI=
 github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
-github.com/unxed/goclip v0.1.1 h1:w0yn8H2vnc7WqEvwnGhSFUYITC36AnLqKX+f+YmWCBw=
-github.com/unxed/goclip v0.1.1/go.mod h1:YXy03ByNfbeu4lRrUL09VyJX9U4WD6h/0JiqMuu8vUE=
+github.com/unxed/goclip v0.1.2 h1:1O9K+iCxa8P43yxpjrk4HyakcFqcbHSi4qJD9IzLuZU=
+github.com/unxed/goclip v0.1.2/go.mod h1:YXy03ByNfbeu4lRrUL09VyJX9U4WD6h/0JiqMuu8vUE=
 github.com/unxed/goffi v0.1.8 h1:7gOqj8p88uanqtIWfAl72Mf/JF4i6n5Ke0M4RgiHJLA=
 github.com/unxed/goffi v0.1.8/go.mod h1:5yfNuseCh+0XTe9cbg8lGtZtOA12DU+Nm9Vfp6IDnFo=
 github.com/unxed/keytrans v0.1.33 h1:tW+nWhd6GKLc0xEKDhtqb2Cehu/RA2JPZ+6EkBb/fvA=
