@@ -34,7 +34,33 @@ var (
 	isPrepared        bool
 	inAltScreen       bool
 	ManageCursorStyle bool = true
+
+	// consoleCursorTypeStale is set whenever something other than vtui may
+	// have changed the console's cursor *type* (Legacy, Underscore,
+	// VerticalBar...): at start, and after every Resume, since a shell or
+	// child that ran meanwhile may have sent DECSCUSR. Only the classic
+	// Windows console path reads it; see SetCursorStyleOS in
+	// terminal_env_windows.go.
+	consoleCursorTypeStale = true
 )
+
+// cursorStyleViaConsoleAPI reports whether the cursor shape must be set
+// through the Win32 console API alone, with no DECSCUSR (CSI Ps SP q) on the
+// VT stream. That is the case on a classic conhost window (cmd.exe's, not a
+// pseudoconsole): conhost does understand DECSCUSR, but what it draws for
+// the "underline" styles 3/4 is CursorType::Underscore -- a single pixel row
+// at the bottom of the cell, whatever the font size (renderer/gdi/paint.cpp)
+// -- while its default CursorType::Legacy is the classic cursor whose height
+// is the dwSize percentage from SetConsoleCursorInfo, the one Far and cmd.exe
+// show. SetConsoleCursorInfo itself only puts the type back to Legacy when
+// the size actually changes (microsoft/terminal#4124), so any DECSCUSR that
+// reaches conhost after the API call wins and leaves the hairline cursor
+// behind (f4 #219). Everywhere else -- pseudoconsoles like Windows Terminal,
+// Wine, every Unix terminal -- DECSCUSR is the right request and this is
+// false. A test can override it.
+var cursorStyleViaConsoleAPI = func() bool {
+	return cursorStyleViaConsoleAPIOS()
+}
 
 func terminalInputProtocols() vtinput.Protocol {
 	// FreeBSD's direct console is not an xterm-compatible byte sink.  In
@@ -183,7 +209,11 @@ func Suspend() {
 		}
 		if modernVT {
 			if ManageCursorStyle {
-				out.WriteString(seqDefaultCursor)
+				if cursorStyleViaConsoleAPI() {
+					restoreConsoleCursorOS()
+				} else {
+					out.WriteString(seqDefaultCursor)
+				}
 			}
 			out.WriteString(seqResetPalette + seqResetAttributes)
 		} else if vt {
@@ -287,7 +317,10 @@ func resumeLocked(withAltScreen bool) error {
 		}
 		inputRestore = r
 
-		if modernVT && ManageCursorStyle {
+		// Whatever ran while f4 was suspended may have restyled the
+		// console cursor; the next SetCursorStyleOS has to assume so.
+		consoleCursorTypeStale = true
+		if modernVT && ManageCursorStyle && !cursorStyleViaConsoleAPI() {
 			out.WriteString(seqBlinkingUnderline)
 		}
 		out.Sync()

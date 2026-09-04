@@ -1073,7 +1073,10 @@ func (r *AnsiRenderer) PrepareFlush() func() {
 			}
 		} else if r.cursorVis {
 			r.frameOut.WriteString("\x1b[?25h")
-			if ManageCursorStyle {
+			// On a classic Windows console the shape goes through
+			// SetConsoleCursorInfo below and DECSCUSR must stay off the
+			// stream: see cursorStyleViaConsoleAPI.
+			if ManageCursorStyle && !cursorStyleViaConsoleAPI() {
 				if os.Getenv("TERM") == "linux" {
 					if r.cursorShape == CursorShapeBlock {
 						r.frameOut.WriteString("\x1b[?6c")

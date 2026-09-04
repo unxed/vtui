@@ -4,6 +4,7 @@ package vtui
 
 import (
 	"os"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -105,6 +106,30 @@ var (
 	initialCursorSize uint32
 )
 
+// classicConsoleCursor is cursorStyleViaConsoleAPIOS's answer, decided
+// once: a process does not move between a console window and a
+// pseudoconsole. Wine's console frontends are not conhost and are left on
+// the DECSCUSR path, as before.
+var (
+	classicConsoleCursorOnce sync.Once
+	classicConsoleCursor     bool
+)
+
+func cursorStyleViaConsoleAPIOS() bool {
+	classicConsoleCursorOnce.Do(func() {
+		classicConsoleCursor = !isWineOS() && classicConsoleWindow()
+	})
+	return classicConsoleCursor
+}
+
+// restoreConsoleCursorOS is the console-API counterpart of seqDefaultCursor:
+// on the way out (and before a child runs) put back the size the console
+// had before f4 touched it, so a block cursor left by an overwrite-mode
+// editor does not follow the user into the shell.
+func restoreConsoleCursorOS() {
+	SetCursorStyleOS(true, CursorShapeUnderline)
+}
+
 func SetCursorStyleOS(visible bool, shape CursorShape) {
 	hOut, err := syscall.GetStdHandle(syscall.STD_OUTPUT_HANDLE)
 	if err != nil || hOut == syscall.InvalidHandle || hOut == 0 {
@@ -116,6 +141,7 @@ func SetCursorStyleOS(visible bool, shape CursorShape) {
 	if r1 == 0 {
 		return
 	}
+	current := info.size
 
 	if initialCursorSize == 0 {
 		if info.size >= 1 && info.size <= 100 {
@@ -140,5 +166,24 @@ func SetCursorStyleOS(visible bool, shape CursorShape) {
 		info.size = initialCursorSize
 	}
 
-	procSetConsoleCursorInfo.Call(uintptr(hOut), uintptr(unsafe.Pointer(&info)))
+	// conhost keeps a cursor *type* next to the size, and dwSize only
+	// matters for CursorType::Legacy. SetConsoleCursorInfo switches the
+	// type back to Legacy solely when the size it is given differs from the
+	// current one (microsoft/terminal#4124): asked for the size the buffer
+	// already has, it changes nothing, and a DECSCUSR the shell or a child
+	// sent earlier -- Underscore, the one-pixel line of f4 #219, or
+	// PSReadLine's bar -- stays in force. So when the type may be stale and
+	// the size would not move, go through a neighbouring size first.
+	if cursorStyleViaConsoleAPIOS() && consoleCursorTypeStale && info.size == current {
+		nudge := info
+		if nudge.size > 1 {
+			nudge.size--
+		} else {
+			nudge.size++
+		}
+		procSetConsoleCursorInfo.Call(uintptr(hOut), uintptr(unsafe.Pointer(&nudge)))
+	}
+	if r, _, _ := procSetConsoleCursorInfo.Call(uintptr(hOut), uintptr(unsafe.Pointer(&info))); r != 0 {
+		consoleCursorTypeStale = false
+	}
 }

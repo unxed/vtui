@@ -355,3 +355,79 @@ func TestTerminalEnv_FreeBSDConsoleAvoidsUnsupportedSequences(t *testing.T) {
 		}
 	}
 }
+
+// On a classic Windows console window the cursor shape is set with
+// SetConsoleCursorInfo only: conhost draws DECSCUSR's underline styles as
+// a one-pixel hairline (f4 #219), so the sequence must not reach it.
+func TestAnsiRendererCursorStyle_ClassicConsoleSkipsDECSCUSR(t *testing.T) {
+	oldTerm := os.Getenv("TERM")
+	defer os.Setenv("TERM", oldTerm)
+	os.Setenv("TERM", "xterm-256color")
+
+	oldVia := cursorStyleViaConsoleAPI
+	cursorStyleViaConsoleAPI = func() bool { return true }
+	defer func() { cursorStyleViaConsoleAPI = oldVia }()
+
+	for _, shape := range []CursorShape{CursorShapeUnderline, CursorShapeBlock} {
+		scr := NewScreenBuf()
+		var buf bytes.Buffer
+		scr.Writer = &buf
+
+		scr.AllocBuf(10, 10)
+		scr.SetCursorPos(1, 1)
+		scr.SetCursorVisible(true)
+		scr.SetCursorShape(shape)
+		scr.Flush()
+
+		out := buf.String()
+		if !strings.Contains(out, "\x1b[?25h") {
+			t.Errorf("shape %d: cursor visibility (DECTCEM) not sent: %q", shape, out)
+		}
+		for _, seq := range []string{"\x1b[1 q", "\x1b[3 q", "\x1b]1337;CursorShape="} {
+			if strings.Contains(out, seq) {
+				t.Errorf("shape %d: %q sent to a classic console: %q", shape, seq, out)
+			}
+		}
+	}
+}
+
+func TestTerminalEnv_ClassicConsoleSkipsDECSCUSR(t *testing.T) {
+	mock := &mockTermOut{}
+	oldGetTermOut := getTermOut
+	getTermOut = func() interface {
+		WriteString(string) (int, error)
+		Sync() error
+	} {
+		return mock
+	}
+	defer func() { getTermOut = oldGetTermOut }()
+
+	oldVia := cursorStyleViaConsoleAPI
+	cursorStyleViaConsoleAPI = func() bool { return true }
+	defer func() { cursorStyleViaConsoleAPI = oldVia }()
+
+	oldEnable := enableTerminalInput
+	enableTerminalInput = func() (func(), error) { return func() {}, nil }
+	defer func() { enableTerminalInput = oldEnable }()
+
+	ManageCursorStyle = true
+	isPrepared = false
+	inAltScreen = false
+	inputRestore = func() {}
+	consoleCursorTypeStale = false
+
+	Resume()
+	if strings.Contains(mock.builder.String(), seqBlinkingUnderline) {
+		t.Error("seqBlinkingUnderline sent to a classic console")
+	}
+	if !consoleCursorTypeStale {
+		t.Error("Resume did not mark the console cursor type as stale")
+	}
+
+	mock.builder.Reset()
+	isPrepared = true
+	Suspend()
+	if strings.Contains(mock.builder.String(), seqDefaultCursor) {
+		t.Error("seqDefaultCursor sent to a classic console")
+	}
+}
