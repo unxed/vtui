@@ -1,4 +1,4 @@
-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris
+//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris) && !android
 
 package vtui
 
