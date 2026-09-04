@@ -3,10 +3,13 @@
 package vtui
 
 import (
+	"fmt"
 	"image"
 	"io"
 	"math"
+	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/neurlang/wayland/window"
@@ -71,6 +74,11 @@ type WaylandHost struct {
 	display *window.Display
 	win     *window.Window
 	widget  *window.Widget
+
+	// exiting is set just before the host asks the display loop to stop.
+	// If DisplayRun returns without it, the loop stopped on its own --
+	// the compositor closed the connection -- and that is reported.
+	exiting atomic.Bool
 	reader  *vtinput.Reader
 	present waylandPresentWake
 
@@ -178,11 +186,24 @@ func runInWaylandWindow(cols, rows int, fontName string, fontSize float64, setup
 		FrameManager.Run(reader)
 		host.Close()
 		// On exit, close Wayland display
+		host.exiting.Store(true)
 		host.display.Exit()
 	}()
 
 	// Blocks until application exit
 	window.DisplayRun(d)
+
+	// DisplayRun also returns when the compositor closes the connection,
+	// which is what a Wayland protocol error looks like from the client
+	// side: the library prints the read error with fmt.Println (stdout)
+	// and returns, and the application then exits normally, with nothing
+	// in the crash log to say why the window vanished. Say so here, on
+	// stderr, where the crash log is.
+	if !host.exiting.Load() {
+		msg := "wayland: the compositor closed the connection (a protocol error on our side, or the compositor went away); the read error, if any, is printed on stdout just above. Run with WAYLAND_DEBUG=1 to see the last requests."
+		fmt.Fprintln(os.Stderr, msg)
+		DebugLog("WAYLAND: %s", msg)
+	}
 
 	host.widget.Destroy()
 	host.win.Destroy()
