@@ -436,7 +436,7 @@ func (h *WaylandHost) Motion(w *window.Widget, input *window.Input, time uint32,
 	mouseX, mouseY := h.mouseCellLocked()
 	mouseBtn := h.mouseBtn
 	moved := !h.mouseCellKnown || mouseX != h.lastMouseCellX || mouseY != h.lastMouseCellY
-	if mouseBtn != 0 && moved {
+	if moved {
 		h.lastMouseCellX, h.lastMouseCellY = mouseX, mouseY
 		h.mouseCellKnown = true
 	}
@@ -444,17 +444,32 @@ func (h *WaylandHost) Motion(w *window.Widget, input *window.Input, time uint32,
 
 	// VTUI consumes mouse coordinates in cells. Sending every pixel-level
 	// Wayland motion can fill the input queue faster than a drag can be drawn,
-	// so only report a held-button move after the pointer enters another cell.
-	if h.reader != nil && mouseBtn != 0 && moved {
-		h.reader.EventChan <- &vtinput.InputEvent{
-			Type:            vtinput.MouseEventType,
-			KeyDown:         true,
-			MouseX:          int16(mouseX),
-			MouseY:          int16(mouseY),
-			MouseEventFlags: vtinput.MouseMoved,
-			ButtonState:     mouseBtn,
-			ControlKeyState: h.modsForPointer(input),
-		}
+	// so a move is reported only after the pointer enters another cell.
+	if h.reader == nil || !moved {
+		return window.CursorLeftPtr
+	}
+	ev := &vtinput.InputEvent{
+		Type:            vtinput.MouseEventType,
+		KeyDown:         mouseBtn != 0,
+		MouseX:          int16(mouseX),
+		MouseY:          int16(mouseY),
+		MouseEventFlags: vtinput.MouseMoved,
+		ButtonState:     mouseBtn,
+		ControlKeyState: h.modsForPointer(input),
+	}
+	if mouseBtn != 0 {
+		// A drag must not lose its last position.
+		h.reader.EventChan <- ev
+		return window.CursorLeftPtr
+	}
+	// Hover motion (no button held) is what lets text views underline the
+	// URL under the pointer (f4 #459), the way the tty backend gets it from
+	// any-event tracking (?1003). It is best effort: a hover dropped while
+	// the queue is full is superseded by the next cell change, and blocking
+	// here would stall the compositor event loop behind a busy UI thread.
+	select {
+	case h.reader.EventChan <- ev:
+	default:
 	}
 	return window.CursorLeftPtr
 }

@@ -83,6 +83,15 @@ type GogpuHost struct {
 	// dragOut is the gesture waiting for the main loop to hand it to
 	// gogpu, or nil. One pointer, so one gesture at a time.
 	dragOut *gogpuDragRequest
+
+	// lastMouseCellX/Y is the cell the last reported pointer motion landed
+	// in. gogpu reports motion per pixel; the UI works in cells, so a move
+	// is forwarded only when the pointer enters another cell. Hover motion
+	// (no button held) goes through here as well: text views underline the
+	// URL under the pointer and need to see the pointer arrive on it.
+	lastMouseCellX int
+	lastMouseCellY int
+	mouseCellKnown bool
 }
 
 func (h *GogpuHost) sendEvent(ev *vtinput.InputEvent) {
@@ -642,18 +651,29 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		btn := host.mouseBtn
 		cW := host.cellW
 		cH := host.cellH
+		mods := host.currentMods
+		cellX, cellY := int(x/float64(cW)), int(y/float64(cH))
+		moved := !host.mouseCellKnown || cellX != host.lastMouseCellX || cellY != host.lastMouseCellY
+		host.lastMouseCellX, host.lastMouseCellY = cellX, cellY
+		host.mouseCellKnown = true
 		host.mu.Unlock()
 
-		if btn != 0 {
-			host.sendEvent(&vtinput.InputEvent{
-				Type:            vtinput.MouseEventType,
-				MouseX:          int16(x / float64(cW)),
-				MouseY:          int16(y / float64(cH)),
-				MouseEventFlags: vtinput.MouseMoved,
-				ButtonState:     btn,
-				ControlKeyState: host.currentMods,
-			})
+		// Motion is reported per cell, whether or not a button is held:
+		// the terminal, the viewer and the editor underline the URL under
+		// the pointer (f4 #459) and need hover motion for that, exactly as
+		// the tty backend delivers it through any-event tracking (?1003).
+		// Coalescing by cell keeps a fast sweep from flooding the queue.
+		if !moved {
+			return
 		}
+		host.sendEvent(&vtinput.InputEvent{
+			Type:            vtinput.MouseEventType,
+			MouseX:          int16(cellX),
+			MouseY:          int16(cellY),
+			MouseEventFlags: vtinput.MouseMoved,
+			ButtonState:     btn,
+			ControlKeyState: mods,
+		})
 	})
 
 	app.EventSource().OnScroll(func(dx float64, dy float64) {

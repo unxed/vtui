@@ -72,6 +72,34 @@ func TestWin32GuiRenderer_CursorDirty(t *testing.T) {
 	}
 }
 
+// The GDI backend paints the CommonLvbUnderscore decoration itself, like the
+// other pixel backends: it is how a hovered URL is underlined (f4 #459).
+func TestWin32GuiRenderer_UnderlineAttribute(t *testing.T) {
+	r := NewWin32GuiRenderer(nil, nil, 8, 16)
+	buf, shadow := mkGrid(4, 2, ' ', 0)
+	attr := uint64(0x07) | CommonLvbUnderscore
+	buf[1] = CharInfo{Char: 'a', Attributes: attr}
+	buf[2] = CharInfo{Char: ' ', Attributes: attr}
+
+	r.Render(buf, shadow, 4, 2, true)
+
+	fg := ThemePalette[GetIndexFore(attr)]
+	want := [3]uint8{uint8(fg >> 16), uint8(fg >> 8), uint8(fg)}
+	for x := 8; x < 24; x++ {
+		p := r.imgBuf.RGBAAt(x, 15)
+		if [3]uint8{p.R, p.G, p.B} != want {
+			t.Fatalf("pixel (%d,15) = %v, want underline colour %v", x, p, want)
+		}
+	}
+	bg := ThemePalette[GetIndexBack(attr)]
+	if p := r.imgBuf.RGBAAt(20, 14); [3]uint8{p.R, p.G, p.B} != [3]uint8{uint8(bg >> 16), uint8(bg >> 8), uint8(bg)} {
+		t.Fatalf("pixel (20,14) = %v, want background above the underline", p)
+	}
+	if p := r.imgBuf.RGBAAt(4, 15); [3]uint8{p.R, p.G, p.B} == want && ThemePalette[0] != fg {
+		t.Fatalf("pixel (4,15) = %v: underline leaked into a cell without the attribute", p)
+	}
+}
+
 func TestWin32GuiRenderer_ImplementsInterfaces(t *testing.T) {
 	var _ SurfaceRenderer = (*Win32GuiRenderer)(nil)
 	var _ GraphicsRenderer = (*Win32GuiRenderer)(nil)

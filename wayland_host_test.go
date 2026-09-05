@@ -219,7 +219,52 @@ func TestWaylandButtonReleaseClearsMotionState(t *testing.T) {
 	}
 
 	host.Motion(nil, nil, 0, 30, 40)
+	hover := nextWaylandMouseEvent(t, host)
+	if hover.KeyDown || hover.ButtonState != 0 || hover.MouseEventFlags&vtinput.MouseMoved == 0 {
+		t.Fatalf("hover after release = KeyDown:%v ButtonState:%d Flags:%d", hover.KeyDown, hover.ButtonState, hover.MouseEventFlags)
+	}
+}
+
+// Text views underline the URL under the pointer (f4 #459), which needs
+// motion without a button held -- reported once per cell, like a drag.
+func TestWaylandHoverMotionReportsCellChanges(t *testing.T) {
+	host := newWaylandPointerTestHost(t)
+
+	host.Motion(nil, nil, 0, 5, 5)
+	first := nextWaylandMouseEvent(t, host)
+	if first.KeyDown || first.ButtonState != 0 || first.MouseEventFlags&vtinput.MouseMoved == 0 {
+		t.Fatalf("hover = KeyDown:%v ButtonState:%d Flags:%d", first.KeyDown, first.ButtonState, first.MouseEventFlags)
+	}
+	if first.MouseX != 0 || first.MouseY != 0 {
+		t.Fatalf("hover cell = %d,%d, want 0,0", first.MouseX, first.MouseY)
+	}
+
+	host.Motion(nil, nil, 0, 9, 19)
 	assertNoWaylandMouseEvent(t, host)
+
+	host.Motion(nil, nil, 0, 30, 40)
+	second := nextWaylandMouseEvent(t, host)
+	if second.MouseX != 3 || second.MouseY != 2 {
+		t.Fatalf("hover cell = %d,%d, want 3,2", second.MouseX, second.MouseY)
+	}
+}
+
+func TestWaylandHoverMotionDoesNotBlockOnFullQueue(t *testing.T) {
+	host := newWaylandPointerTestHost(t)
+	for len(host.reader.EventChan) < cap(host.reader.EventChan) {
+		host.reader.EventChan <- &vtinput.InputEvent{Type: vtinput.KeyEventType}
+	}
+
+	done := make(chan struct{})
+	go func() {
+		host.Motion(nil, nil, 0, 30, 40)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("hover motion blocked on a full event queue")
+	}
 }
 
 func TestWaylandMotionReportsHeldButton(t *testing.T) {

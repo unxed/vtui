@@ -189,15 +189,19 @@ func (r *Win32GuiRenderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw 
 					rw = 1
 				}
 				fg, cbg := r.getCellColors(curr)
+				px, py := currX*r.cellW, y*r.cellH
 
 				if ch := CellBaseRune(curr.Char); ch != 0 && ch != ' ' {
-					px, py := currX*r.cellW, y*r.cellH
-					if isBoxDrawRune(ch) &&
-						drawBoxGlyph(img, ch, px, py, r.cellW*rw, r.cellH, r.scale, fg) {
-						sx += rw
-						continue
+					if !(isBoxDrawRune(ch) &&
+						drawBoxGlyph(img, ch, px, py, r.cellW*rw, r.cellH, r.scale, fg)) {
+						r.drawCachedGlyph(img, curr.Char, px, py, rw, fg, cbg)
 					}
-					r.drawCachedGlyph(img, curr.Char, px, py, rw, fg, cbg)
+				}
+				// GDI never sees the cell attributes, so the underline of a
+				// hovered URL (f4 #459) is painted here like in the other
+				// pixel backends.
+				if curr.Attributes&CommonLvbUnderscore != 0 {
+					drawUnderline(img, px, py, r.cellW*rw, r.cellH, r.scale, fg)
 				}
 
 				if cursorVisible && y == r.cursorY && r.cursorX >= currX && r.cursorX < currX+rw {
