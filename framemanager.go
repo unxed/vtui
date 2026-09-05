@@ -3055,7 +3055,14 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 		// 3.1. Active Mouse Capture (Dragging/Resizing)
 		if fm.capturedFrame != nil {
 			handled = fm.capturedFrame.ProcessMouse(ev)
-			if ev.ButtonState == 0 {
+			// A release is !KeyDown, not an empty ButtonState. The SGR mouse
+			// report names the button that was let go, so vtinput hands the
+			// release on with that button still in ButtonState; reading the
+			// release out of ButtonState alone therefore never sees one, and
+			// the capture is held forever. That is fatal where a tap is the
+			// only input there is: the first tap captures, and nothing but a
+			// wheel event -- which carries no button at all -- lets go again.
+			if ev.ButtonState == 0 || !ev.KeyDown {
 				fm.capturedFrame = nil // Release capture
 			}
 		} else {
