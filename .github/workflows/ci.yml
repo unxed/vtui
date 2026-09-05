@@ -1,7 +1,13 @@
 name: CI
 
 on:
+  # Branches only. A release tag points at a commit the branch push has
+  # already built, so an unfiltered `push` fans that one commit out into two
+  # independent runs of the whole matrix, and concurrency cannot fold them
+  # together because the group keys on the ref. '**' matches every branch,
+  # slashes included, and no tag at all.
   push:
+    branches: ['**']
   pull_request:
 
 # A push fans out into more than forty checks, and only the latest queued run
