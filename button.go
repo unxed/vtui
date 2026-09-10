@@ -80,7 +80,7 @@ func (b *Button) ProcessMouse(e *vtinput.InputEvent) bool {
 
 	if b.mouseArmed {
 		inside := b.HitTest(int(e.MouseX), int(e.MouseY))
-		if e.ButtonState&vtinput.FromLeft1stButtonPressed != 0 {
+		if e.ButtonState&vtinput.FromLeft1stButtonPressed != 0 && !IsMouseRelease(e) {
 			b.mousePressed = inside
 			return true
 		}

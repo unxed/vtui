@@ -302,6 +302,7 @@ type frameManager struct {
 	lastMouseClickCount    int
 	lastMouseEventX        int
 	lastMouseEventY        int
+	lastMouseEventButtons  uint32
 	mousePositionKnown     bool
 	Reader                 *vtinput.Reader
 	currentToast           *Toast
@@ -2769,6 +2770,17 @@ func (fm *frameManager) renderPhase() {
 // the pointer's cell position. Windows consoles can emit many such records
 // while the pointer is stationary; treating the first one after a menu opens as
 // hover would unexpectedly move the menu selection.
+func (fm *frameManager) captureMousePress(frame Frame) {
+	if menu, ok := fm.GetTopFrame().(*VMenu); ok && menu != frame && menu.mouseSelecting {
+		if owner, ok := frame.(interface{ ReleaseMouseCapture() }); ok {
+			owner.ReleaseMouseCapture()
+		}
+		fm.capturedFrame = nil
+		return
+	}
+	fm.capturedFrame = frame
+}
+
 func (fm *frameManager) isDuplicateMouseMove(ev *vtinput.InputEvent) bool {
 	if ev.Type != vtinput.MouseEventType {
 		return false
@@ -2776,9 +2788,10 @@ func (fm *frameManager) isDuplicateMouseMove(ev *vtinput.InputEvent) bool {
 
 	x, y := int(ev.MouseX), int(ev.MouseY)
 	isMove := ev.MouseEventFlags&vtinput.MouseMoved != 0
-	duplicate := isMove && fm.mousePositionKnown && x == fm.lastMouseEventX && y == fm.lastMouseEventY
+	duplicate := isMove && fm.mousePositionKnown && x == fm.lastMouseEventX && y == fm.lastMouseEventY && uint32(ev.ButtonState) == fm.lastMouseEventButtons
 	fm.lastMouseEventX = x
 	fm.lastMouseEventY = y
+	fm.lastMouseEventButtons = uint32(ev.ButtonState)
 	fm.mousePositionKnown = true
 	return duplicate
 }
@@ -3068,11 +3081,40 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 		if fm.processWorkspaceTabDrag(ev, mx) {
 			return true
 		}
-
-		if mx < -1 || my < -1 {
+		// Menus opened on mouse-down own the rest of that gesture, even
+		// outside their bounds. A menu-bar drag can cross top-level items.
+		if activeMenu != nil && activeMenu.mouseSelecting {
+			if IsMouseRelease(ev) {
+				activeMenu.mouseSelecting = false
+			}
+			if activeMenu.HitTest(mx, my) && !IsMouseRelease(ev) {
+				activeMenu.ProcessMouse(ev)
+				if menu, ok := fm.GetTopFrame().(*VMenu); ok {
+					menu.BeginMouseSelection()
+				}
+				return true
+			}
+			if menu, ok := fm.GetTopFrame().(*VMenu); ok {
+				menu.BeginMouseSelection()
+				menu.ProcessMouse(ev)
+				if menu.IsDone() {
+					fm.RemoveFrame(menu)
+				}
+			}
 			return true
 		}
-		if fm.scr != nil && fm.scr.width > 0 && fm.scr.height > 0 {
+		if menu, ok := fm.GetTopFrame().(*VMenu); ok && menu.mouseSelecting {
+			menu.ProcessMouse(ev)
+			if menu.IsDone() {
+				fm.RemoveFrame(menu)
+			}
+			return true
+		}
+
+		if fm.capturedFrame == nil && (mx < -1 || my < -1) {
+			return true
+		}
+		if fm.capturedFrame == nil && fm.scr != nil && fm.scr.width > 0 && fm.scr.height > 0 {
 			if mx > fm.scr.width || my > fm.scr.height {
 				return true
 			}
@@ -3088,7 +3130,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 			// the capture is held forever. That is fatal where a tap is the
 			// only input there is: the first tap captures, and nothing but a
 			// wheel event -- which carries no button at all -- lets go again.
-			if ev.ButtonState == 0 || !ev.KeyDown {
+			if IsMouseRelease(ev) {
 				fm.capturedFrame = nil // Release capture
 			}
 		} else {
@@ -3144,8 +3186,8 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 				// Desktop always gets mouse if nothing above it handled it
 				if f.GetType() == TypeDesktop {
 					handled = f.ProcessMouse(ev)
-					if handled && ev.ButtonState != 0 {
-						fm.capturedFrame = f
+					if handled && IsMousePress(ev) {
+						fm.captureMousePress(f)
 					}
 					break
 				}
@@ -3166,8 +3208,8 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 					}
 
 					// If a frame handled a click, it captures the mouse until release
-					if handled && ev.ButtonState != 0 {
-						fm.capturedFrame = f
+					if handled && IsMousePress(ev) {
+						fm.captureMousePress(f)
 					}
 
 					// If the frame is modal, it eats the click even if it didn't handle it
@@ -3188,7 +3230,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 					//        cursor (typically the first item, e.g.
 					//        "Other panel" for f4's drive menu — the
 					//        exact symptom reported in unxed/f4#396).
-					if ev.KeyDown && ev.ButtonState != 0 {
+					if IsMousePress(ev) {
 						if ev.ButtonState == vtinput.FromLeft1stButtonPressed {
 							f.ProcessKey(&vtinput.InputEvent{
 								Type:           vtinput.KeyEventType,

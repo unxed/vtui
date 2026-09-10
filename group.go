@@ -286,11 +286,22 @@ func (g *Group) ProcessKey(e *vtinput.InputEvent) bool {
 	return false
 }
 
+// IsMouseCaptured lets clipping containers route a drag before hit-testing.
+func (g *Group) IsMouseCaptured() bool { return g.mouseCapture != nil }
+
+// ReleaseMouseCapture transfers a gesture to a popup opened by a child.
+func (g *Group) ReleaseMouseCapture() {
+	if child, ok := g.mouseCapture.(interface{ ReleaseMouseCapture() }); ok {
+		child.ReleaseMouseCapture()
+	}
+	g.mouseCapture = nil
+}
+
 // ProcessMouse handles mouse events by hit-testing child elements.
 func (g *Group) ProcessMouse(e *vtinput.InputEvent) bool {
 	if g.mouseCapture != nil {
 		g.mouseCapture.ProcessMouse(e)
-		if e.ButtonState == 0 {
+		if IsMouseRelease(e) {
 			g.mouseCapture = nil
 		}
 		return true
@@ -300,13 +311,13 @@ func (g *Group) ProcessMouse(e *vtinput.InputEvent) bool {
 	for i := len(g.items) - 1; i >= 0; i-- {
 		item := g.items[i]
 		if item.HitTest(mx, my) {
-			if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+			if e.ButtonState == vtinput.FromLeft1stButtonPressed && IsMousePress(e) {
 				if item.CanFocus() && !item.IsDisabled() && g.focusIdx != i {
 					g.setFocus(i)
 				}
 			}
 			if item.ProcessMouse(e) {
-				if e.KeyDown && e.ButtonState != 0 && e.MouseEventFlags&vtinput.MouseMoved == 0 {
+				if IsMousePress(e) {
 					g.mouseCapture = item
 				}
 				return true

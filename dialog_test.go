@@ -113,10 +113,11 @@ func TestDialog_DraggingLogic(t *testing.T) {
 	// 2. Move mouse to (5,5)
 	// Emulate move event (in vtinput usually KeyDown: false with button pressed)
 	d.ProcessMouse(&vtinput.InputEvent{
-		Type:        vtinput.MouseEventType,
-		KeyDown:     false,
-		ButtonState: vtinput.FromLeft1stButtonPressed,
-		MouseX:      5, MouseY: 5,
+		MouseEventFlags: vtinput.MouseMoved,
+		Type:            vtinput.MouseEventType,
+		KeyDown:         false,
+		ButtonState:     vtinput.FromLeft1stButtonPressed,
+		MouseX:          5, MouseY: 5,
 	})
 
 	// Dialog should shift by +5, +5
@@ -237,7 +238,8 @@ func TestDialog_DragRelativeConsistency(t *testing.T) {
 	// Series of small moves
 	for i := 1; i <= 10; i++ {
 		d.ProcessMouse(&vtinput.InputEvent{
-			Type: vtinput.MouseEventType, KeyDown: false,
+			MouseEventFlags: vtinput.MouseMoved,
+			Type:            vtinput.MouseEventType, KeyDown: false,
 			ButtonState: vtinput.FromLeft1stButtonPressed,
 			MouseX:      int16(i), MouseY: int16(i),
 		})
@@ -260,7 +262,8 @@ func TestDialog_DraggingOffscreen(t *testing.T) {
 
 	// Drag mouse into "negative"
 	d.ProcessMouse(&vtinput.InputEvent{
-		Type: vtinput.MouseEventType, KeyDown: false,
+		MouseEventFlags: vtinput.MouseMoved,
+		Type:            vtinput.MouseEventType, KeyDown: false,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
 		MouseX:      0, MouseY: 0,
 	})
@@ -282,7 +285,8 @@ func TestDialog_DraggingNegative(t *testing.T) {
 
 	// Drag mouse into negative coordinates
 	d.ProcessMouse(&vtinput.InputEvent{
-		Type: vtinput.MouseEventType, KeyDown: false,
+		MouseEventFlags: vtinput.MouseMoved,
+		Type:            vtinput.MouseEventType, KeyDown: false,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
 		MouseX:      -5, MouseY: -5,
 	})
@@ -313,7 +317,8 @@ func TestDialog_ResizingLogic(t *testing.T) {
 
 	// 2. Drag to (14, 14) -> size should become 15x15
 	d.ProcessMouse(&vtinput.InputEvent{
-		Type: vtinput.MouseEventType, KeyDown: false,
+		MouseEventFlags: vtinput.MouseMoved,
+		Type:            vtinput.MouseEventType, KeyDown: false,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
 		MouseX:      14, MouseY: 14,
 	})
@@ -324,7 +329,8 @@ func TestDialog_ResizingLogic(t *testing.T) {
 
 	// 3. Drag to (2, 2) -> size should hit minimum 5x5 (so X2=4, Y2=4)
 	d.ProcessMouse(&vtinput.InputEvent{
-		Type: vtinput.MouseEventType, KeyDown: false,
+		MouseEventFlags: vtinput.MouseMoved,
+		Type:            vtinput.MouseEventType, KeyDown: false,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
 		MouseX:      2, MouseY: 2,
 	})
@@ -358,7 +364,8 @@ func TestDialog_ResizingConstraints(t *testing.T) {
 
 	// Drag mouse far to the top-left (e.g., coordinate 0,0)
 	d.ProcessMouse(&vtinput.InputEvent{
-		Type: vtinput.MouseEventType, KeyDown: false,
+		MouseEventFlags: vtinput.MouseMoved,
+		Type:            vtinput.MouseEventType, KeyDown: false,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
 		MouseX:      0, MouseY: 0,
 	})
@@ -388,7 +395,8 @@ func TestDialog_ResizeGrowMode(t *testing.T) {
 
 	// Drag mouse to (19, 19) -> Dialog size becomes 20x20 (Delta +10, +10)
 	d.ProcessMouse(&vtinput.InputEvent{
-		Type: vtinput.MouseEventType, KeyDown: false,
+		MouseEventFlags: vtinput.MouseMoved,
+		Type:            vtinput.MouseEventType, KeyDown: false,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
 		MouseX:      19, MouseY: 19,
 	})

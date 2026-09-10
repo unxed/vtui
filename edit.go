@@ -1145,7 +1145,7 @@ func (e *Edit) ProcessMouse(ev *vtinput.InputEvent) bool {
 		return false
 	}
 	if e.mouseSelecting {
-		if ev.ButtonState == 0 {
+		if IsMouseRelease(ev) {
 			e.mouseSelecting = false
 			return true
 		}

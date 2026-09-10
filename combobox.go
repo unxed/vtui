@@ -171,7 +171,7 @@ func (cb *ComboBox) ProcessMouse(e *vtinput.InputEvent) bool {
 		if e.MouseEventFlags&vtinput.MouseMoved != 0 && e.ButtonState != 0 {
 			cb.editMouseMoved = true
 		}
-		if e.ButtonState == 0 {
+		if IsMouseRelease(e) {
 			openMenu := !cb.editMouseMoved
 			cb.editMouseCaptured = false
 			cb.editMouseMoved = false
@@ -188,6 +188,7 @@ func (cb *ComboBox) ProcessMouse(e *vtinput.InputEvent) bool {
 		// control, defer opening until release so a drag can still select text.
 		if mx == cb.X2 || cb.DropdownOnly {
 			cb.Open()
+			cb.Menu.BeginMouseSelection()
 			return true
 		}
 		if cb.Edit.HitTest(mx, int(e.MouseY)) {
