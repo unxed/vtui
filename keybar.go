@@ -35,17 +35,42 @@ func NewKeyBar() *KeyBar {
 	return kb
 }
 
-// SetModifiers updates the current active modifier state of the KeyBar.
-// We trust standard Key/Mouse events to convey the exact, current system state of modifiers:
-// if an event (like a letter) is received and a modifier is missing from its state, it is
-// considered released. Left and right variations of the same modifier (e.g. Left/Right Ctrl)
-// are treated as equivalent (we do not support or require independent left/right states).
+// LatchModifiers records the state reported by a modifier key's own press or
+// release event.
+//
+// Such an event is the only proof we ever get that a modifier is physically
+// held down: it arrives when Shift goes down and it arrives again when Shift
+// comes back up, so a row switched on here is guaranteed to be switched off
+// again. Left and right variations of the same modifier (e.g. Left/Right Ctrl)
+// are treated as equivalent (we do not support or require independent
+// left/right states).
+func (kb *KeyBar) LatchModifiers(shift, ctrl, alt bool) {
+	kb.shiftState = shift
+	kb.ctrlState = ctrl
+	kb.altState = alt
+}
+
+// SetModifiers folds the modifier flags carried by an ordinary event into the
+// bar. It can only clear a modifier, never light one up.
+//
+// A plain terminal has no key release reporting at all: Shift+F1 arrives as a
+// single F1 keypress with the Shift bit set, and nothing whatsoever follows
+// when the user lets Shift go. Lighting the Shift row from that bit left the
+// bar on a row that is mostly empty -- and empty slots are drawn as filled
+// blocks, so it reads as a band of greyed out keys. It stayed that way until
+// some unrelated keystroke happened along. When the chord itself had nothing
+// visible to show for it (a command that declines to run and opens no dialog),
+// that stuck row was the only thing that changed on screen, which looked
+// exactly like an invisible window opening over the panels: f4 issue #983.
+//
+// Clearing stays honoured, because the flags of an ordinary event are reliable
+// about what is *not* held. That is what lets go of a modifier whose release
+// was swallowed by a focus change, and what lets a key remapping rule retire
+// the row belonging to the chord it rewrote.
 func (kb *KeyBar) SetModifiers(shift, ctrl, alt bool) {
-	if kb.shiftState != shift || kb.ctrlState != ctrl || kb.altState != alt {
-		kb.shiftState = shift
-		kb.ctrlState = ctrl
-		kb.altState = alt
-	}
+	kb.shiftState = kb.shiftState && shift
+	kb.ctrlState = kb.ctrlState && ctrl
+	kb.altState = kb.altState && alt
 }
 
 func (kb *KeyBar) Show(scr *ScreenBuf) {

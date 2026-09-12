@@ -224,19 +224,23 @@ func TestKeyBar_Modifiers(t *testing.T) {
 	kb.SetPosition(0, 0, 39, 0)
 	SetDefaultPalette()
 
+	// This test is about picking the right row of labels, so it states the
+	// modifier state the way a modifier keypress does: only LatchModifiers
+	// lights a row up, SetModifiers merely puts one out.
+
 	// 1. Test Normal state
-	kb.SetModifiers(false, false, false)
+	kb.LatchModifiers(false, false, false)
 	kb.Show(scr)
 	// Cell 0 is number '1', Cell 1 start of text 'N'
 	checkCell(t, scr, 1, 0, 'N', Palette[ColKeyBarText])
 
 	// 2. Test Shift state
-	kb.SetModifiers(true, false, false)
+	kb.LatchModifiers(true, false, false)
 	kb.Show(scr)
 	checkCell(t, scr, 1, 0, 'S', Palette[ColKeyBarText])
 
 	// 3. Test Alt state
-	kb.SetModifiers(false, false, true)
+	kb.LatchModifiers(false, false, true)
 	kb.Show(scr)
 	checkCell(t, scr, 1, 0, 'A', Palette[ColKeyBarText])
 }

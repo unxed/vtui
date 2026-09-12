@@ -2921,29 +2921,37 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	// Update KeyBar modifiers automatically if present.
 	// Reset modifiers to a clean state on FocusEvents to prevent modifiers
 	// from getting stuck during focus transitions (such as system layout switching).
+	//
+	// Only a modifier key's own event may light a row up (LatchModifiers);
+	// every other event may only put one out (SetModifiers). A terminal
+	// without key release reporting delivers Shift+F1 as one F1 keypress
+	// carrying the Shift bit and says nothing at all when Shift is let go, so
+	// a row lit from that bit would never be put out again. See the
+	// SetModifiers comment and f4 issue #983.
 	if fm.KeyBar != nil {
 		if ev.Type == vtinput.FocusEventType {
-			fm.KeyBar.SetModifiers(false, false, false)
+			fm.KeyBar.LatchModifiers(false, false, false)
 		} else {
 			shift := (ev.ControlKeyState & vtinput.ShiftPressed) != 0
 			ctrl := (ev.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed)) != 0
 			alt := (ev.ControlKeyState & (vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0
 
 			// Workaround for X11/macOS where the event's modifier state reflects the
-			// logical state *prior* to the keypress/keyrelease of the modifier itself.
-			if ev.Type == vtinput.KeyEventType {
-				if ev.VirtualKeyCode == vtinput.VK_SHIFT || ev.VirtualKeyCode == vtinput.VK_LSHIFT || ev.VirtualKeyCode == vtinput.VK_RSHIFT {
-					shift = ev.KeyDown
-				}
-				if ev.VirtualKeyCode == vtinput.VK_CONTROL || ev.VirtualKeyCode == vtinput.VK_LCONTROL || ev.VirtualKeyCode == vtinput.VK_RCONTROL {
-					ctrl = ev.KeyDown
-				}
-				if ev.VirtualKeyCode == vtinput.VK_MENU || ev.VirtualKeyCode == vtinput.VK_LMENU || ev.VirtualKeyCode == vtinput.VK_RMENU {
-					alt = ev.KeyDown
-				}
+			// logical state *prior* to the keypress/keyrelease of the modifier itself:
+			// the modifier the event is about comes from KeyDown, its companions
+			// from the reported state.
+			switch {
+			case ev.Type != vtinput.KeyEventType:
+				fm.KeyBar.SetModifiers(shift, ctrl, alt)
+			case ev.VirtualKeyCode == vtinput.VK_SHIFT || ev.VirtualKeyCode == vtinput.VK_LSHIFT || ev.VirtualKeyCode == vtinput.VK_RSHIFT:
+				fm.KeyBar.LatchModifiers(ev.KeyDown, ctrl, alt)
+			case ev.VirtualKeyCode == vtinput.VK_CONTROL || ev.VirtualKeyCode == vtinput.VK_LCONTROL || ev.VirtualKeyCode == vtinput.VK_RCONTROL:
+				fm.KeyBar.LatchModifiers(shift, ev.KeyDown, alt)
+			case ev.VirtualKeyCode == vtinput.VK_MENU || ev.VirtualKeyCode == vtinput.VK_LMENU || ev.VirtualKeyCode == vtinput.VK_RMENU:
+				fm.KeyBar.LatchModifiers(shift, ctrl, ev.KeyDown)
+			default:
+				fm.KeyBar.SetModifiers(shift, ctrl, alt)
 			}
-
-			fm.KeyBar.SetModifiers(shift, ctrl, alt)
 		}
 	}
 
