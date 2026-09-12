@@ -13,6 +13,7 @@ type MenuBarItem struct {
 }
 
 type MenuBar struct {
+	mouseSelecting bool
 	Bar
 	Items         []MenuBarItem
 	SelectPos     int
@@ -45,6 +46,7 @@ func (mb *MenuBar) HandleCommand(cmd int, args any) bool {
 		mb.ActivateSubMenu(newIdx)
 		return true
 	case CmMenuClose:
+		mb.mouseSelecting = false
 		mb.activeSubMenu = nil
 		mb.Active = false
 		return true
@@ -169,7 +171,7 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 	}
 	m.SetPosition(x, menuY, x+maxWidth-1, menuBottom)
 
-	m.OnAction = func(idx int) { mb.Active = false }
+	m.OnAction = func(idx int) { mb.Active = false; mb.mouseSelecting = false }
 
 	FrameManager.Push(m)
 }
@@ -285,13 +287,17 @@ func (mb *MenuBar) ProcessMouse(e *vtinput.InputEvent) bool {
 		return true
 	}
 
-	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed && IsMousePress(e) {
+		mb.mouseSelecting = true
 		mb.Active = true
 		if itemAt == -1 && len(mb.Items) > 0 {
 			itemAt = 0
 		}
 		if itemAt != -1 {
 			mb.ActivateSubMenu(itemAt)
+			if menu, ok := mb.activeSubMenu.(*VMenu); ok {
+				menu.BeginMouseSelection()
+			}
 		}
 		return true
 	}

@@ -37,11 +37,12 @@ type VMenu struct {
 	// back: dialogs read SelectPos as the confirmed choice, and without the
 	// restore an Esc'd dropdown silently commits whatever row the user
 	// happened to stop on.
-	selectAtOpen int
-	OnAction     func(int)
-	OnKeyDown    func(*vtinput.InputEvent) bool
-	HideShadow   bool
-	BoxType      int
+	selectAtOpen   int
+	OnAction       func(int)
+	OnKeyDown      func(*vtinput.InputEvent) bool
+	HideShadow     bool
+	mouseSelecting bool
+	BoxType        int
 
 	// parentMenu and activeSub link a chain of nested menus. Only the
 	// deepest one is on top of the frame stack and sees input, so closing
@@ -404,6 +405,7 @@ func (m *VMenu) GetType() FrameType {
 }
 
 func (m *VMenu) SetExitCode(code int) {
+	m.mouseSelecting = false
 	m.CloseSubMenu()
 	m.closeAncestors()
 	m.done = true
@@ -428,15 +430,37 @@ func (m *VMenu) HasShadow() bool       { return !m.HideShadow }
 
 // ClearDone resets the menu state, allowing it to be shown again.
 func (m *VMenu) ClearDone() {
+	m.mouseSelecting = false
 	m.done = false
 	m.exitCode = -1
 	m.selectAtOpen = m.SelectPos
 }
 
+// BeginMouseSelection transfers the opening press to the popup.
+func (m *VMenu) BeginMouseSelection() { m.mouseSelecting = true }
+
 // ProcessMouse handles mouse wheel scrolling, menu item hover, and clicks.
 func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 	if m.IsDisabled() || e.Type != vtinput.MouseEventType {
 		return false
+	}
+	if m.mouseSelecting {
+		index := m.GetClickIndex(int(e.MouseY))
+		inside := int(e.MouseX) > m.X1 && int(e.MouseX) < m.X2 && index >= 0 && index < len(m.Items) && !m.Items[index].Separator
+		if inside {
+			m.SetSelectPos(index)
+		}
+		if IsMouseRelease(e) {
+			m.mouseSelecting = false
+			if inside {
+				click := *e
+				click.KeyDown = true
+				click.ButtonState = vtinput.FromLeft1stButtonPressed
+				click.MouseEventFlags = 0
+				return m.ProcessMouse(&click)
+			}
+		}
+		return true
 	}
 	if m.HandleMouseScroll(e) {
 		return true

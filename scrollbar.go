@@ -162,16 +162,12 @@ func (sb *ScrollBar) Show(scr *ScreenBuf) {
 	DrawScrollBar(scr, sb.X1, sb.Y1, h, sb.Value, sb.Max+h, attr)
 }
 
+func (sb *ScrollBar) IsMouseCaptured() bool { return sb.isDragging || sb.repeatTimer != nil }
+
 func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
-	if !sb.IsVisible() || sb.Max <= sb.Min {
-		return false
-	}
-
-	mx, my := int(e.MouseX), int(e.MouseY)
-	h := sb.Y2 - sb.Y1 + 1
-
 	// 1. Handle Release
-	if e.ButtonState == 0 {
+	if IsMouseRelease(e) {
+		captured := sb.IsMouseCaptured()
 		if sb.isDragging {
 			sb.isDragging = false
 		}
@@ -179,8 +175,13 @@ func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
 			sb.repeatTimer.Stop()
 			sb.repeatTimer = nil
 		}
+		return captured
+	}
+	if !sb.IsVisible() || sb.Max <= sb.Min {
 		return false
 	}
+	mx, my := int(e.MouseX), int(e.MouseY)
+	h := sb.Y2 - sb.Y1 + 1
 
 	// 2. Handle Active Dragging
 	if sb.isDragging {
@@ -205,7 +206,7 @@ func (sb *ScrollBar) ProcessMouse(e *vtinput.InputEvent) bool {
 		return false
 	}
 
-	if !e.KeyDown {
+	if !IsMousePress(e) || e.ButtonState != vtinput.FromLeft1stButtonPressed {
 		return false
 	}
 

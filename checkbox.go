@@ -48,6 +48,7 @@ func (cb *Checkbox) DisplayObject(scr *ScreenBuf) {
 
 	p := NewPainter(scr)
 	p.DrawString(cb.X1, cb.Y1, prefix, n)
+	p.DrawString(cb.X1, cb.Y1, string([]rune(prefix)[:3]), DialogIndicatorAttr(n, cb.IsFocused()))
 	p.DrawHighlightedText(cb.X1+StringWidth(prefix), cb.Y1, cb.cleanText, cb.hotkeyPos, n, h)
 }
 
@@ -70,7 +71,7 @@ func (cb *Checkbox) ProcessMouse(e *vtinput.InputEvent) bool {
 	if cb.IsDisabled() {
 		return false
 	}
-	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed && IsMousePress(e) && cb.HitTest(int(e.MouseX), int(e.MouseY)) {
 		cb.Toggle()
 		return true
 	}

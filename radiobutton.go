@@ -41,6 +41,7 @@ func (rb *RadioButton) DisplayObject(scr *ScreenBuf) {
 
 	p := NewPainter(scr)
 	p.DrawString(rb.X1, rb.Y1, prefix, n)
+	p.DrawString(rb.X1, rb.Y1, string([]rune(prefix)[:3]), DialogIndicatorAttr(n, rb.IsFocused()))
 	p.DrawHighlightedText(rb.X1+runewidth.StringWidth(prefix), rb.Y1, rb.cleanText, rb.hotkeyPos, n, h)
 }
 
@@ -59,7 +60,7 @@ func (rb *RadioButton) ProcessMouse(e *vtinput.InputEvent) bool {
 	if rb.IsDisabled() {
 		return false
 	}
-	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed && IsMousePress(e) {
 		rb.Select()
 		return true
 	}

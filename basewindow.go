@@ -115,6 +115,8 @@ func (bw *BaseWindow) GetPaletteIndex(baseIdx int) int {
 	return baseIdx
 }
 
+func (bw *BaseWindow) ReleaseMouseCapture() { bw.rootGroup.ReleaseMouseCapture() }
+
 func (bw *BaseWindow) SetFocus(f bool) {
 	bw.ScreenObject.SetFocus(f)
 	bw.rootGroup.SetFocus(f)
@@ -321,7 +323,7 @@ func (bw *BaseWindow) ToggleZoom() {
 
 func (bw *BaseWindow) ProcessMouse(e *vtinput.InputEvent) bool {
 	// 1. Во время драга дети не должны перехватывать события
-	if bw.isDragging {
+	if bw.isDragging || bw.isResizing {
 		return bw.handleWindowOperations(e)
 	}
 	// 2. Сначала пробуем обработать клик элементами внутри окна
@@ -336,7 +338,7 @@ func (bw *BaseWindow) handleWindowOperations(e *vtinput.InputEvent) bool {
 	mx, my := int(e.MouseX), int(e.MouseY)
 
 	if bw.isDragging {
-		if e.ButtonState == 0 {
+		if IsMouseRelease(e) {
 			bw.isDragging = false
 		} else {
 			bw.MoveRelative(mx-bw.dragOffX-bw.X1, my-bw.dragOffY-bw.Y1)
@@ -345,7 +347,7 @@ func (bw *BaseWindow) handleWindowOperations(e *vtinput.InputEvent) bool {
 	}
 
 	if bw.isResizing {
-		if e.ButtonState == 0 {
+		if IsMouseRelease(e) {
 			bw.isResizing = false
 		} else {
 			bw.ChangeSize(mx-bw.X1+1, my-bw.Y1+1)
@@ -353,7 +355,7 @@ func (bw *BaseWindow) handleWindowOperations(e *vtinput.InputEvent) bool {
 		return true
 	}
 
-	if e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+	if e.ButtonState == vtinput.FromLeft1stButtonPressed && IsMousePress(e) {
 		offset := bw.frame.getControlOffset()
 
 		// Border clicks

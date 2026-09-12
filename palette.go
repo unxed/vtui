@@ -77,6 +77,10 @@ const (
 	// of a table.
 	ColTreeLine
 
+	// Background only for checkbox/radio indicators. Zero inherits the
+	// normal control background, preserving themes that omit this slot.
+	ColDialogIndicatorBackground
+
 	// Helper for array size
 	LastPaletteColor
 )
@@ -89,6 +93,8 @@ func SetDefaultPalette() {
 	if len(Palette) < LastPaletteColor {
 		Palette = make([]uint64, LastPaletteColor)
 	}
+
+	Palette[ColDialogIndicatorBackground] = 0
 
 	// Standard Far colors translated to 24-bit RGB for vtinput
 	black := uint32(0x000000)

@@ -897,12 +897,15 @@ func (t *Table) ProcessMouse(e *vtinput.InputEvent) bool {
 	if t.IsDisabled() {
 		return false
 	}
+	if t.ScrollBar != nil && t.ScrollBar.IsMouseCaptured() {
+		return t.HandleMouseScroll(e)
+	}
 
 	// Pre-process for CellSelection before generic HandleMouse
 	originalCol := t.SelectCol
 	colChanged := false
 
-	if e.Type == vtinput.MouseEventType && e.ButtonState == vtinput.FromLeft1stButtonPressed && e.KeyDown {
+	if e.Type == vtinput.MouseEventType && e.ButtonState == vtinput.FromLeft1stButtonPressed && IsMousePress(e) {
 		// Click on a column header toggles sorting (only when Sortable).
 		// Clicks on separator cells are consumed but do not change the sort.
 		if t.Sortable && t.ShowHeader && int(e.MouseY) == t.Y1 &&

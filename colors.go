@@ -100,3 +100,16 @@ func DimColor(attr uint64) uint64 {
 	}
 	return SetIndexFore(attr, 8) // 8 is DarkGray in standard ANSI
 }
+
+// DialogIndicatorAttr changes only the background of the three-character mark.
+// Focus retains the normal selection palette; zero means legacy inheritance.
+func DialogIndicatorAttr(normal uint64, focused bool) uint64 {
+	background := Palette[ColDialogIndicatorBackground]
+	if focused || background == 0 {
+		return normal
+	}
+	if background&IsBgRGB != 0 {
+		return SetRGBBack(normal, GetRGBBack(background))
+	}
+	return SetIndexBack(normal, GetIndexBack(background))
+}

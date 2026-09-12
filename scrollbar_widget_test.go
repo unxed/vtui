@@ -95,7 +95,8 @@ func TestScrollBar_Dragging(t *testing.T) {
 	// 2. Move mouse to Y=5 (middle of the track)
 	sb.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: false, ButtonState: vtinput.FromLeft1stButtonPressed,
-		MouseY: 5, MouseX: 0,
+		MouseEventFlags: vtinput.MouseMoved,
+		MouseY:          5, MouseX: 0,
 	})
 
 	if scrolledVal <= 0 {
