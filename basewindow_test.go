@@ -291,3 +291,44 @@ func TestBaseWindow_GetPaletteIndex_WarningMapping(t *testing.T) {
 		}
 	}
 }
+
+// TestBaseWindow_ToggleZoomKeepsWorkspaceTabRow covers f4 issue #1144. A zoomed
+// window used to start at row 0, which drawWorkspaceTabs fills unconditionally
+// at the end of every Redraw: the window's top border and title vanished
+// whenever the workspace tab strip was visible.
+func TestBaseWindow_ToggleZoomKeepsWorkspaceTabRow(t *testing.T) {
+	oldScreens := FrameManager.Screens
+	oldMode := FrameManager.WorkspaceTabMode
+	t.Cleanup(func() {
+		FrameManager.Screens = oldScreens
+		FrameManager.WorkspaceTabMode = oldMode
+	})
+
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 25)
+	FrameManager.Init(scr)
+	FrameManager.WorkspaceTabMode = WorkspaceTabsAlways
+	if got := FrameManager.WorkspaceTopInset(); got != 1 {
+		t.Fatalf("workspace top inset = %d, want 1", got)
+	}
+
+	w := NewWindow(10, 5, 49, 18, " Zoom ")
+	w.ToggleZoom()
+	if x1, y1, x2, y2 := w.GetPosition(); x1 != 0 || y1 != 1 || x2 != 79 || y2 != 23 {
+		t.Fatalf("zoomed bounds = (%d,%d)-(%d,%d), want (0,1)-(79,23)", x1, y1, x2, y2)
+	}
+
+	w.ToggleZoom()
+	if x1, y1, x2, y2 := w.GetPosition(); x1 != 10 || y1 != 5 || x2 != 49 || y2 != 18 {
+		t.Fatalf("restored bounds = (%d,%d)-(%d,%d), want (10,5)-(49,18)", x1, y1, x2, y2)
+	}
+
+	FrameManager.WorkspaceTabMode = WorkspaceTabsNever
+	if got := FrameManager.WorkspaceTopInset(); got != 0 {
+		t.Fatalf("inset without a tab strip = %d, want 0", got)
+	}
+	w.ToggleZoom()
+	if x1, y1, x2, y2 := w.GetPosition(); x1 != 0 || y1 != 0 || x2 != 79 || y2 != 23 {
+		t.Fatalf("zoomed bounds without a tab strip = (%d,%d)-(%d,%d), want (0,0)-(79,23)", x1, y1, x2, y2)
+	}
+}
