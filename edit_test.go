@@ -796,3 +796,37 @@ func TestEdit_FullSelectionColorsOnlyTextPortion(t *testing.T) {
 		}
 	}
 }
+
+// A field that grew wider must show the text again from wherever it fits,
+// not keep the tail it scrolled to while it was narrow.
+func TestEdit_WidenedFieldRefillsView(t *testing.T) {
+	text := "D:\\YandexDisk\\Work\\Objects\\574_PMT_Magistral\\Stage02\\Docs"
+	e := NewEdit(0, 0, 20, text)
+	e.ClearSelection()
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(60, 1)
+
+	e.Show(scr)
+	if e.leftPos == 0 {
+		t.Fatalf("a 20-column field was expected to scroll, leftPos=%d", e.leftPos)
+	}
+
+	e.SetPosition(0, 0, 59, 0)
+	e.Show(scr)
+	if e.leftPos != 0 {
+		t.Fatalf("widened field kept the scrolled tail, leftPos=%d", e.leftPos)
+	}
+
+	// Narrow again: the view may scroll, but it has to settle on one
+	// offset instead of drifting on every repaint.
+	e.SetPosition(0, 0, 19, 0)
+	e.Show(scr)
+	settled := e.leftPos
+	e.Show(scr)
+	if e.leftPos != settled {
+		t.Fatalf("view drifted between repaints: %d then %d", settled, e.leftPos)
+	}
+	if settled == 0 {
+		t.Fatal("narrowed field did not scroll back to the caret")
+	}
+}

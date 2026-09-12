@@ -122,6 +122,34 @@ func NewPasswordEdit(x, y, width int, defaultText string) *Edit {
 	return e
 }
 
+// cellWidth reports how many terminal columns the rune at index i takes in
+// this field, honouring password masking.
+func (e *Edit) cellWidth(i int) int {
+	if e.PasswordMode {
+		return 1
+	}
+	return ClusterWidth(string(e.text[i]))
+}
+
+// fillView scrolls the view back towards the start of the text while the
+// remainder still fits. Scrolling only ever moved forward, so a field that
+// became wider -- a resized dialog, a relaid-out settings page -- kept
+// showing the tail it had scrolled to, with unused columns after it. widths
+// holds the column width of every position in display order.
+func (e *Edit) fillView(widths []int, visibleWidth int) {
+	tail := 0
+	for i := e.leftPos; i < len(widths); i++ {
+		tail += widths[i]
+	}
+	// Stop one column short: the caret sits after the last character, and
+	// filling the final column would scroll the view forward again on the
+	// next repaint.
+	for e.leftPos > 0 && tail+widths[e.leftPos-1] < visibleWidth {
+		e.leftPos--
+		tail += widths[e.leftPos]
+	}
+}
+
 func (e *Edit) Show(scr *ScreenBuf) {
 	e.ScreenObject.Show(scr)
 
@@ -158,27 +186,29 @@ func (e *Edit) Show(scr *ScreenBuf) {
 			})
 			e.leftPos++
 		}
+		if e.leftPos > 0 {
+			var widths []int
+			forEachTerminalCluster(vis, func(_ string, w, _, _ int) { widths = append(widths, w) })
+			e.fillView(widths, visibleWidth)
+		}
 	} else {
 		if e.curPos < e.leftPos {
 			e.leftPos = e.curPos
 		}
 		width := 0
 		for i := e.leftPos; i < e.curPos; i++ {
-			r := e.text[i]
-			if e.PasswordMode {
-				width += 1
-			} else {
-				width += ClusterWidth(string(r))
-			}
+			width += e.cellWidth(i)
 		}
 		for e.leftPos < e.curPos && width >= visibleWidth {
-			r := e.text[e.leftPos]
-			if e.PasswordMode {
-				width -= 1
-			} else {
-				width -= ClusterWidth(string(r))
-			}
+			width -= e.cellWidth(e.leftPos)
 			e.leftPos++
+		}
+		if e.leftPos > 0 {
+			widths := make([]int, len(e.text))
+			for i := range e.text {
+				widths[i] = e.cellWidth(i)
+			}
+			e.fillView(widths, visibleWidth)
 		}
 	}
 
