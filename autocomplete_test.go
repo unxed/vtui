@@ -694,3 +694,121 @@ func TestAutoComplete_MaxVisibleAndPerCategory(t *testing.T) {
 		t.Errorf("Per-category height: got %d, want 7", ay2-ay1+1)
 	}
 }
+
+// f4 #1155: a plain Del on a history entry the user picked clears the whole
+// list after a confirmation, like Del in every other history list. With no
+// pick the focus is still on the text and Del edits it.
+func TestAutoComplete_DeleteClearsHistoryOncePicked(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+	mock := &mockHistoryProvider{storage: map[string][]string{"dlg": {"rm -rf /", "rm test.txt"}}}
+	GlobalHistoryProvider = mock
+	defer func() { GlobalHistoryProvider = nil }()
+
+	edit := NewEdit(0, 0, 20, "rm")
+	edit.History = []string{"rm -rf /", "rm test.txt"}
+	edit.HistoryID = "dlg"
+	edit.curPos = 0
+	ac := NewAutoCompleteMenu(edit)
+	fm.Push(ac)
+
+	press := func(vk uint16) {
+		ac.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vk})
+	}
+
+	press(vtinput.VK_DELETE)
+	if edit.GetText() != "m" || len(edit.History) != 2 || fm.GetTopFrame() != Frame(ac) {
+		t.Fatalf("Del without a pick should edit the text: text %q, history %v", edit.GetText(), edit.History)
+	}
+
+	press(vtinput.VK_DOWN)
+	press(vtinput.VK_DELETE)
+	confirm := fm.GetTopFrame()
+	if confirm == Frame(ac) {
+		t.Fatal("Del on a picked entry should ask before clearing the history")
+	}
+	if len(edit.History) != 2 {
+		t.Fatalf("Del cleared the history before it was confirmed: %v", edit.History)
+	}
+	confirm.SetExitCode(1) // Cancel
+	if len(edit.History) != 2 || len(mock.storage["dlg"]) != 2 || ac.IsDone() {
+		t.Fatalf("a cancelled clear changed something: history %v, saved %v, menu done %v",
+			edit.History, mock.storage["dlg"], ac.IsDone())
+	}
+
+	press(vtinput.VK_DELETE)
+	confirm = fm.GetTopFrame()
+	if confirm == Frame(ac) {
+		t.Fatal("Del should ask before clearing the history")
+	}
+	confirm.SetExitCode(0) // Ok
+	if len(edit.History) != 0 || len(mock.storage["dlg"]) != 0 {
+		t.Fatalf("a confirmed clear left entries behind: history %v, saved %v", edit.History, mock.storage["dlg"])
+	}
+	if !ac.IsDone() {
+		t.Error("the menu should close once its history is cleared")
+	}
+}
+
+// The host may own the clearing (f4 keeps pinned entries): its hook replaces
+// the built-in dialog, and the menu catches up with what it leaves behind.
+func TestAutoComplete_DeleteUsesClearHistoryHook(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+
+	edit := NewEdit(0, 0, 20, "rm")
+	edit.History = []string{"rm pinned", "rm other"}
+	asked := 0
+	edit.ClearHistory = func(done func()) {
+		asked++
+		edit.History = []string{"rm pinned"}
+		done()
+	}
+	ac := NewAutoCompleteMenu(edit)
+	fm.Push(ac)
+
+	ac.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
+	ac.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DELETE})
+
+	if asked != 1 || fm.GetTopFrame() != Frame(ac) {
+		t.Fatalf("hook asked %d times, top frame is the menu: %v", asked, fm.GetTopFrame() == Frame(ac))
+	}
+	if len(ac.Matches) != 1 || ac.Matches[0] != "rm pinned" || ac.IsDone() {
+		t.Errorf("menu did not catch up with the kept entries: %v, done %v", ac.Matches, ac.IsDone())
+	}
+	if ac.SelectPos() != -1 {
+		t.Error("the pick should be forgotten after the list changed under it")
+	}
+}
+
+// f4 #1155: "*.d" is not a typo of "*.xls". A strict field lists only entries
+// that contain what was typed, where the default menu forgives one mistake.
+func TestAutoComplete_StrictListsOnlyContainingEntries(t *testing.T) {
+	SetDefaultPalette()
+	history := []string{"*.xls", "*.txt", "*.d"}
+
+	loose := NewEdit(0, 0, 20, "*.d")
+	loose.History = history
+	if n := len(NewAutoCompleteMenu(loose).Matches); n != 3 {
+		t.Fatalf("default menu should stay typo tolerant, got %d matches", n)
+	}
+
+	strict := NewEdit(0, 0, 20, "*.d")
+	strict.History = history
+	strict.StrictAutoComplete = true
+	if got := NewAutoCompleteMenu(strict).Matches; len(got) != 1 || got[0] != "*.d" {
+		t.Fatalf("strict menu should list only *.d, got %v", got)
+	}
+
+	strict.History = []string{"*.xls", "*.txt"}
+	if NewAutoCompleteMenu(strict).HasMatches() {
+		t.Error("strict menu should not open when nothing contains the typed text")
+	}
+
+	strict.SetText("*.T")
+	if got := NewAutoCompleteMenu(strict).Matches; len(got) != 1 || got[0] != "*.txt" {
+		t.Errorf("strict matching should still ignore case, got %v", got)
+	}
+}
