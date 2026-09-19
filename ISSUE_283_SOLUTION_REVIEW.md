@@ -55,3 +55,34 @@ pixels in the partial margins are cleared.
 - Launch f4 on this Linux ARM64 KDE Wayland machine through XWayland with
   `--gui=x11`, resize to non-cell-aligned dimensions, and inspect the partial
   right/bottom margins for stale pixels.
+
+## Follow-up: a second key bar one pixel under a row boundary (X11 and Wayland)
+
+### Symptom
+
+Resizing slowly, a pixel at a time, sometimes left a nearly whole extra row at
+the bottom, most visibly a second key bar that differed from the live one.
+It showed on X11 and on Wayland (f4 #283, last comment).
+
+### Cause
+
+The window is one pixel short of a row, so the bottom margin is one pixel short
+of a whole cell row. After the window shrinks, FrameManager can render once
+more for the previous, larger grid before it has handled the resize: X11 updates
+the window size on the ConfigureNotify, Wayland forces a repaint from `Resize`.
+That frame is clipped by the new backing image and paints the last row of the
+larger layout into the margin. The frames that follow draw whole cells only, so
+nothing ever painted over it. This is the race the ebiten and win32 backends
+already handled; the two software renderers had no equivalent.
+
+### Fix
+
+Both renderers clear the pixels outside the cell grid of the frame they render
+(`clearFrameMargins`) whenever the render is forced or the frame changes size,
+and X11 marks every line for upload so the cleared margin reaches the window.
+
+### Not covered
+
+How slowly Wayland repaints while a drag-resize is in flight (the carried-over
+frame stays visible until the repaint lands) is a separate matter of speed and
+was not changed here.
