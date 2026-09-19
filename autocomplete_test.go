@@ -547,6 +547,13 @@ func TestAutoComplete_FooterFitsShortHistory(t *testing.T) {
 	}
 }
 
+// f4 #1155: the hint lists both delete keys, the way f4's history dialogs do.
+func TestAutoComplete_FooterListsBothDeleteKeys(t *testing.T) {
+	if !strings.Contains(autoCompleteFooter, "Shift+Del Del") {
+		t.Errorf("key hint %q should list Shift+Del and Del", autoCompleteFooter)
+	}
+}
+
 func TestAutoComplete_DisplayAndColumns(t *testing.T) {
 	SetDefaultPalette()
 	scr := NewSilentScreenBuf()

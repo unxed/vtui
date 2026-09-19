@@ -50,7 +50,9 @@ var autoCompleteMaxVisible = 5
 // autoCompleteFooter is the key hint drawn into the bottom border. The menu
 // is never narrower than it needs to show the hint whole (f4 #1155): a history
 // of short commands used to leave a 24-cell menu that cut it off mid-word.
-const autoCompleteFooter = "Up/Down Enter Esc Tab Shift+Del"
+// Shift+Del drops the picked entry and Del clears the whole list, in that
+// order as in f4's own history lists (f4 #1155).
+const autoCompleteFooter = "Up/Down Enter Esc Tab Shift+Del Del"
 
 // autoCompletePerCategory selects how the visible height is computed:
 // false = the whole list shares one window of autoCompleteMaxVisible rows,
