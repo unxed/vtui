@@ -709,6 +709,7 @@ func TestAutoComplete_DeleteClearsHistoryOncePicked(t *testing.T) {
 	edit := NewEdit(0, 0, 20, "rm")
 	edit.History = []string{"rm -rf /", "rm test.txt"}
 	edit.HistoryID = "dlg"
+	edit.ClearSelection() // a fresh Edit has its text selected, and Del would eat all of it
 	edit.curPos = 0
 	ac := NewAutoCompleteMenu(edit)
 	fm.Push(ac)
