@@ -439,3 +439,41 @@ func TestCarryOverRGBA(t *testing.T) {
 	carryOverRGBA(nil, src, 10, 10)
 	carryOverRGBA(dst, nil, 10, 10)
 }
+
+// f4 #283: the same race as on X11. Resize replaces the backing image and
+// forces a repaint, which renders the previous, larger grid into the new image
+// before FrameManager has resized; the partial margins it fills must be blank
+// again once the frame for the new grid is rendered.
+func TestWaylandRendererClearsMarginsFilledByALargerFrame(t *testing.T) {
+	const (
+		windowWidth  = 14
+		windowHeight = 8
+		cellWidth    = 5
+		cellHeight   = 3
+	)
+	host := &WaylandHost{
+		imgBuf: image.NewRGBA(image.Rect(0, 0, windowWidth, windowHeight)),
+		cols:   2,
+		rows:   2,
+		cellW:  cellWidth,
+		cellH:  cellHeight,
+		scale:  1,
+	}
+	renderer := NewWaylandRenderer(host, nil)
+
+	large := redCells(3 * 3)
+	renderer.Render(large, make([]CharInfo, len(large)), 3, 3, true)
+	// (13,6) is in the bottom margin and the right margin of the 2x2 grid.
+	if got := host.imgBuf.Pix[6*host.imgBuf.Stride+13*4]; got != 0xff {
+		t.Fatalf("setup: the larger frame did not reach the margin: %#x", got)
+	}
+
+	small := redCells(2 * 2)
+	renderer.Render(small, make([]CharInfo, len(small)), 2, 2, true)
+	if x, y, stale := stalePixel(host.imgBuf, 2*cellWidth, 2*cellHeight); stale {
+		t.Fatalf("stale pixel at (%d,%d) outside the smaller grid", x, y)
+	}
+	if got := host.imgBuf.Pix[0]; got != 0xff {
+		t.Errorf("the smaller frame was not drawn: %#x", got)
+	}
+}

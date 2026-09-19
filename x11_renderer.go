@@ -32,6 +32,10 @@ type X11Renderer struct {
 
 	stats renderStats
 
+	// frameW and frameH are the cell size of the frame rendered last, so a
+	// frame of another size is known to need its margins cleared.
+	frameW, frameH int
+
 	gfxList  []ImagePlacement
 	gfxCache nativeGraphicsCache
 	gfxGen   uint64
@@ -275,6 +279,17 @@ func (r *X11Renderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bool)
 	r.w, r.h = w, h
 	img := r.host.imgBuf
 	cw, ch := r.host.cellW, r.host.cellH
+
+	// Whatever lies outside the grid of this frame is blank, whatever an
+	// earlier frame of another size left there (see clearFrameMargins).
+	if cw > 0 && ch > 0 && (forceRedraw || w != r.frameW || h != r.frameH) {
+		clearFrameMargins(img, w*cw, h*ch)
+		for i := range r.host.dirtyLines {
+			r.host.dirtyLines[i] = true
+		}
+		r.frameW, r.frameH = w, h
+		forceRedraw = true
+	}
 
 	for y := 0; y < h; y++ {
 		r.stats.totalRows++
