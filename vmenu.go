@@ -604,7 +604,11 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 		m.scrollFilteredBy(m.visibleRows(), lines)
 		return true
 	}
+	oldPos := m.SelectPos
 	if m.HandleMouseScroll(e) {
+		if m.SelectPos != oldPos && m.OnSelect != nil {
+			m.OnSelect(m.SelectPos)
+		}
 		return true
 	}
 

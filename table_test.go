@@ -1402,3 +1402,36 @@ func TestTable_ColSelectProviderPreferredOverRowSelectProvider(t *testing.T) {
 	checkCell(t, scr, 0, 1, 'X', Palette[ColDialogHighlightText])
 	checkCell(t, scr, 6, 1, 'X', Palette[ColTableText])
 }
+
+// The wheel moves the selection, so whoever follows the selection must be told
+// exactly as for the arrow keys: the categories of f4's settings kept showing
+// the page of the old one while the list moved on (f4 #1273).
+func TestTable_MouseWheelReportsTheNewSelection(t *testing.T) {
+	tbl := NewTable(0, 0, 10, 5, []TableColumn{{Title: "Col", Width: 10}})
+	var rows []TableRow
+	for i := 0; i < 20; i++ {
+		rows = append(rows, mockRow{"A", "B"})
+	}
+	tbl.SetRows(rows)
+	tbl.SetSelectPos(5)
+
+	var got []int
+	tbl.OnSelect = func(i int) { got = append(got, i) }
+
+	tbl.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: -1})
+	if len(got) != 1 || got[0] != tbl.SelectPos || tbl.SelectPos == 5 {
+		t.Fatalf("after a wheel notch OnSelect got %v, selection %d", got, tbl.SelectPos)
+	}
+	tbl.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: 1})
+	if len(got) != 2 || got[1] != tbl.SelectPos {
+		t.Fatalf("after a second notch OnSelect got %v, selection %d", got, tbl.SelectPos)
+	}
+
+	// At the end of the list nothing moves and nothing is reported.
+	tbl.SetSelectPos(19)
+	got = nil
+	tbl.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: -1})
+	if len(got) != 0 {
+		t.Fatalf("a wheel notch that moved nothing was reported: %v", got)
+	}
+}

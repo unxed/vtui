@@ -405,7 +405,14 @@ func (sv *ScrollView) HandleMouse(e *vtinput.InputEvent) bool {
 	if e.Type != vtinput.MouseEventType {
 		return false
 	}
+	// The wheel moves the selection along with the view, and whoever watches
+	// the selection (a list that shows the item chosen) has to hear of it as it
+	// does for the arrow keys (f4 #1273).
+	oldPos := sv.SelectPos
 	if sv.HandleMouseScroll(e) {
+		if sv.SelectPos != oldPos && sv.OnSelect != nil {
+			sv.OnSelect(sv.SelectPos)
+		}
 		return true
 	}
 
