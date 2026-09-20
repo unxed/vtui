@@ -152,6 +152,9 @@ func dialogWithButtons(t *testing.T, build func(w *BaseWindow) []*Button) (*Scre
 // Enter; that button has to look like the default one (f4 #320).
 func TestDialog_ButtonEnterFallsBackToIsDrawnAsDefault(t *testing.T) {
 	scr, buttons := dialogWithButtons(t, func(w *BaseWindow) []*Button {
+		// An input field takes the initial focus, so no button is drawn as the
+		// focused one.
+		w.AddItem(NewEdit(2, 1, 10, ""))
 		first := NewButton(2, 2, "First")
 		first.OnClick = func() {}
 		second := NewButton(2, 4, "Second")
@@ -218,6 +221,7 @@ func TestDialog_DrawnDefaultIsWhatEnterPresses(t *testing.T) {
 	scr := NewSilentScreenBuf()
 	scr.AllocBuf(40, 10)
 	w := NewBaseWindow(0, 0, 39, 9, "Dialog")
+	w.AddItem(NewEdit(2, 1, 10, "")) // holds the focus, so Enter is left for the dialog
 	pressed := ""
 	names := []string{"A", "B", "C"}
 	var buttons []*Button
