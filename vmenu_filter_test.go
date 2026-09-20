@@ -422,3 +422,57 @@ func TestEdit_HistoryMenu_TypingFilters(t *testing.T) {
 		t.Fatalf("Shift+Enter inserted %q, want %q", e.GetText(), "make test")
 	}
 }
+
+// A separator's heading is drawn by the menu on the separator's own row, so it
+// goes with the row when the filter hides items and is not left behind on a
+// row that holds something else (f4 #263).
+func TestVMenuFilter_SeparatorHeadingsFollowTheirRows(t *testing.T) {
+	SetDefaultPalette()
+	FrameManager.Init(NewSilentScreenBuf())
+	m := NewVMenu("Pick")
+	m.AddItem(MenuItem{Text: "apple"})
+	m.AddItem(MenuItem{Separator: true, Text: "Fruit"})
+	m.AddItem(MenuItem{Text: "banana"})
+	m.AddItem(MenuItem{Separator: true, Text: "Veg"})
+	m.AddItem(MenuItem{Text: "carrot"})
+	m.SetPosition(0, 0, 30, 9)
+	m.ClearDone()
+
+	rowWith := func(rows []string, s string) int {
+		for i, r := range rows {
+			if strings.Contains(r, s) {
+				return i
+			}
+		}
+		return -1
+	}
+
+	rows := menuRowTexts(t, m)
+	if apple, fruit, banana := rowWith(rows, "apple"), rowWith(rows, "Fruit"), rowWith(rows, "banana"); fruit != apple+1 || banana != fruit+1 {
+		t.Fatalf("unfiltered rows %q: the heading is not between apple and banana", rows)
+	}
+
+	m.ProcessKey(filterKey(vtinput.VK_F, ctrlAlt))
+	typeFilter(m, "n")
+	// banana and... only banana holds an "n": the headings divide nothing now.
+	rows = menuRowTexts(t, m)
+	if rowWith(rows, "banana") != 0 || rowWith(rows, "Fruit") != -1 || rowWith(rows, "Veg") != -1 {
+		t.Fatalf("filtered rows %q: headings were left on screen", rows)
+	}
+
+	m.ProcessKey(filterKey(vtinput.VK_BACK, 0))
+	typeFilter(m, "r")
+	// carrot, banana? "r" is in carrot only; and none between.
+	rows = menuRowTexts(t, m)
+	if rowWith(rows, "carrot") != 0 || rowWith(rows, "Fruit") != -1 || rowWith(rows, "Veg") != -1 {
+		t.Fatalf("filtered rows %q: headings were left on screen", rows)
+	}
+
+	m.ProcessKey(filterKey(vtinput.VK_BACK, 0))
+	typeFilter(m, "a")
+	// apple, banana, carrot all hold an "a": both headings are back, each on its own row.
+	rows = menuRowTexts(t, m)
+	if apple, fruit, banana, veg, carrot := rowWith(rows, "apple"), rowWith(rows, "Fruit"), rowWith(rows, "banana"), rowWith(rows, "Veg"), rowWith(rows, "carrot"); fruit != apple+1 || banana != fruit+1 || veg != banana+1 || carrot != veg+1 {
+		t.Fatalf("rows %q: headings are not on their separators", rows)
+	}
+}

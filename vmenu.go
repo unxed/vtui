@@ -742,6 +742,13 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 			} else {
 				p.DrawLine(m.X1, currY, m.X2, currY, boxSymbols[bsH], colBox, true, true)
 			}
+			// A separator may carry a heading. It is drawn here, on the row the
+			// separator really has, so that it follows scrolling and the filter;
+			// a caller painting headings over the menu by row number had them
+			// left on rows that hold other things (f4 #263).
+			if item.Text != "" {
+				p.DrawTitle(m.X1, currY, m.X2, " "+item.Text+" ", Palette[m.ColorTitleIdx])
+			}
 			continue
 		}
 
