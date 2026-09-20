@@ -11,9 +11,16 @@ import (
 
 type HelpView struct {
 	BaseWindow
-	engine      *HelpEngine
-	history     []helpHistoryEntry
+	engine  *HelpEngine
+	history []helpHistoryEntry
+	// current is the topic as it reads in the window now: source with the
+	// lines that are longer than the text area broken at spaces (f4 #378).
+	// rowSrc says which line of source each of its lines came from, and
+	// wrapWidth which width that was done for.
 	current     *HelpTopic
+	source      *HelpTopic
+	rowSrc      []int
+	wrapWidth   int
 	scrollTop   int
 	selectedIdx int // Index of selected link in current.Links
 	scrollBar   *ScrollBar
@@ -95,10 +102,10 @@ func (hv *HelpView) SwitchTopic(name string) {
 			scrollTop:   hv.scrollTop,
 		})
 	}
-	hv.current = topic
+	hv.applyTopic(topic)
 	hv.scrollTop = 0
 	hv.selectedIdx = -1
-	if len(topic.Links) > 0 {
+	if len(hv.current.Links) > 0 {
 		hv.selectedIdx = 0
 	}
 	hv.frame.SetTitle(" Help: " + name + " ")
@@ -111,19 +118,92 @@ func (hv *HelpView) PopTopic() {
 	}
 	entry := hv.history[len(hv.history)-1]
 	hv.history = hv.history[:len(hv.history)-1]
-	hv.current = hv.engine.GetTopic(entry.topic)
-	if hv.current == nil {
+	topic := hv.engine.GetTopic(entry.topic)
+	if topic == nil {
 		return
 	}
-	hv.scrollTop = entry.scrollTop
+	hv.applyTopic(topic)
+	hv.scrollTop = max(0, entry.scrollTop)
 	hv.selectedIdx = entry.selectedIdx
+	if hv.selectedIdx >= len(hv.current.Links) {
+		// The entry was made at another width, where the topic had other rows.
+		hv.selectedIdx = len(hv.current.Links) - 1
+	}
 	// The title names the topic on screen, and hosts resolve the current
 	// topic from it (f4's help search does). Leaving the nested topic's name
 	// there after going back made both wrong.
 	hv.frame.SetTitle(" Help: " + entry.topic + " ")
 }
 
+// textWidth is the width of the text area, the columns between the paddings.
+func (hv *HelpView) textWidth() int { return hv.X2 - hv.X1 - 3 }
+
+// applyTopic makes topic the one on show, broken to the width of the window.
+func (hv *HelpView) applyTopic(topic *HelpTopic) {
+	hv.source = topic
+	hv.wrapWidth = hv.textWidth()
+	hv.current, hv.rowSrc = wrapHelpTopic(topic, hv.wrapWidth)
+}
+
+// CurrentTopic is the topic as it is laid out in the window: its lines are what
+// is on screen, so a host that marks matches over the text (f4's help search)
+// has to read them from here and not from the topic the engine holds.
+func (hv *HelpView) CurrentTopic() *HelpTopic { return hv.current }
+
+// rewrapOnResize breaks the topic again when the window has become wider or
+// narrower (zoom, a resized terminal), and keeps the reader at the same place
+// in the text and on the same link.
+func (hv *HelpView) rewrapOnResize() {
+	if hv.source == nil || hv.current == nil || hv.textWidth() == hv.wrapWidth {
+		return
+	}
+	sticky := hv.current.StickyRows
+	topSrc := 0
+	if i := hv.scrollTop + sticky; i >= 0 && i < len(hv.rowSrc) {
+		topSrc = hv.rowSrc[i]
+	}
+	var sel *HelpLink
+	selSrc := 0
+	if hv.selectedIdx >= 0 && hv.selectedIdx < len(hv.current.Links) {
+		l := hv.current.Links[hv.selectedIdx]
+		sel = &l
+		if l.Line >= 0 && l.Line < len(hv.rowSrc) {
+			selSrc = hv.rowSrc[l.Line]
+		}
+	}
+
+	hv.applyTopic(hv.source)
+
+	hv.scrollTop = 0
+	for row, src := range hv.rowSrc {
+		if row >= sticky && src >= topSrc {
+			hv.scrollTop = row - sticky
+			break
+		}
+	}
+	if maxTop := len(hv.current.Lines) - sticky - hv.layout().contentHeight; hv.scrollTop > maxTop {
+		hv.scrollTop = max(0, maxTop)
+	}
+
+	hv.selectedIdx = -1
+	if sel != nil {
+		for i, l := range hv.current.Links {
+			if l.Target != sel.Target {
+				continue
+			}
+			if hv.selectedIdx < 0 {
+				hv.selectedIdx = i // the first with the same target is better than none
+			}
+			if l.Line < len(hv.rowSrc) && hv.rowSrc[l.Line] == selSrc {
+				hv.selectedIdx = i
+				break
+			}
+		}
+	}
+}
+
 func (hv *HelpView) Show(scr *ScreenBuf) {
+	hv.rewrapOnResize()
 	hv.BaseWindow.Show(scr)
 	if len(hv.history) > 0 {
 		scr.Write(hv.X1+2, hv.Y1, StringToCharInfo(helpBackButton, Palette[hv.ColorBoxIdx]))
