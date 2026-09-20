@@ -379,7 +379,7 @@ func TestHelpView_MultiLinkLineRendering(t *testing.T) {
 	checkCell(t, scr, 9, 1, 'L', Palette[ColHelpSelectedLink])
 }
 
-func TestHelpView_LayoutClipsLongLinesAndPositionsScrollBar(t *testing.T) {
+func TestHelpView_LayoutWrapsLongLinesAndPositionsScrollBar(t *testing.T) {
 	SetDefaultPalette()
 	engine := NewHelpEngine(&mockHelpVFS{})
 	lines := make([]string, 20)
@@ -410,8 +410,9 @@ func TestHelpView_LayoutClipsLongLinesAndPositionsScrollBar(t *testing.T) {
 	if got := rune(scr.GetCell(hv.X2-1, hv.Y1+1).Char); got != ' ' {
 		t.Fatalf("cell next to right border = %q, want padding", got)
 	}
-	// The scrollbar no longer takes a text column: the clipped line runs up
-	// to the padding.
+	// The scrollbar no longer takes a text column: the first row of the wrapped
+	// line runs up to the padding ("This line is deliberately" is exactly as
+	// wide as the text area).
 	if got := rune(scr.GetCell(hv.X2-2, hv.Y1+1).Char); got != 'y' {
 		t.Fatalf("last text column = %q, want 'y' of \"deliberately\"", got)
 	}
