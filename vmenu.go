@@ -137,7 +137,7 @@ func NewVMenu(title string) *VMenu {
 			m.scrollFilteredBy(m.visibleRows(), v-m.filterTop)
 			return
 		}
-		m.ScrollBy(v - m.TopPos)
+		m.ScrollBy(v - m.scrollBarTop())
 	}
 	return m
 }
@@ -706,6 +706,9 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	}
 	for i := 0; i < height; i++ {
 		itemIdx := i + top
+		if shown == nil {
+			itemIdx = m.ItemAtRow(i)
+		}
 		currY := m.Y1 + 1 + i
 		if currY >= m.Y2 {
 			break
