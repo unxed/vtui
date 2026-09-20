@@ -13,6 +13,13 @@ type ScrollView struct {
 	Wrap         bool
 	IsSelectable func(int) bool
 
+	// FrozenTop keeps the first FrozenTop items on the top rows of the view
+	// however far the list is scrolled; the rest scrolls beneath them. Zero,
+	// the default, is an ordinary list. It is ignored while the frozen items
+	// would take more than half of the view, since there would be too little
+	// left to scroll.
+	FrozenTop int
+
 	ShowScrollBar bool
 	ScrollBar     *ScrollBar
 
@@ -61,6 +68,32 @@ func (sv *ScrollView) GetRowProvider() RowProvider {
 	return sv.rowProvider
 }
 
+// frozenRows is how many top rows of the view hold frozen items right now.
+func (sv *ScrollView) frozenRows() int {
+	n := sv.FrozenTop
+	if n <= 0 || sv.ViewHeight <= 0 || n >= sv.ItemCount || n*2 > sv.ViewHeight {
+		return 0
+	}
+	return n
+}
+
+// ItemAtRow returns the item drawn on row `row` of the view, counted from the
+// first row below the top margin. Rows below the frozen ones show the items
+// from TopPos on.
+func (sv *ScrollView) ItemAtRow(row int) int {
+	f := sv.frozenRows()
+	if row < f {
+		return row
+	}
+	return max(sv.TopPos, f) + row - f
+}
+
+// scrollBarTop is the scroll bar's position: the number of scrolling items
+// above the first one shown.
+func (sv *ScrollView) scrollBarTop() int {
+	return max(sv.TopPos-sv.frozenRows(), 0)
+}
+
 // ScrollBy shifts the view and the selection by the same amount, keeping the cursor vertically stable.
 // If the view hits a boundary, the remaining scroll delta is applied to the cursor.
 // The selection clamps at the list ends even when Wrap is on: wrapping is an
@@ -72,13 +105,16 @@ func (sv *ScrollView) ScrollBy(delta int) {
 	}
 
 	if sv.ViewHeight > 0 {
-		targetTop := sv.TopPos + delta
-		maxTop := sv.ItemCount - sv.ViewHeight
-		if maxTop < 0 {
-			maxTop = 0
+		// The frozen rows are never scrolled away: the view cannot start above
+		// the item that follows them.
+		f := sv.frozenRows()
+		targetTop := max(sv.TopPos, f) + delta
+		maxTop := sv.ItemCount - (sv.ViewHeight - f)
+		if maxTop < f {
+			maxTop = f
 		}
-		if targetTop < 0 {
-			targetTop = 0
+		if targetTop < f {
+			targetTop = f
 		}
 		if targetTop > maxTop {
 			targetTop = maxTop
@@ -141,7 +177,7 @@ func (sv *ScrollView) PageBy(dir int) {
 	if dir == 0 {
 		return
 	}
-	page := sv.ViewHeight
+	page := sv.ViewHeight - sv.frozenRows()
 	if page < 1 {
 		page = 1
 	}
@@ -162,7 +198,7 @@ func (sv *ScrollView) InitScrollBar(owner CommandHandler) {
 	sv.ScrollBar = NewScrollBar(0, 0, 0)
 	sv.ScrollBar.SetOwner(owner)
 	sv.ScrollBar.OnScroll = func(v int) {
-		delta := v - sv.TopPos
+		delta := v - sv.scrollBarTop()
 		sv.ScrollBy(delta)
 	}
 }
@@ -189,7 +225,7 @@ func (sv *ScrollView) SetPosition(x1, y1, x2, y2 int) {
 
 func (sv *ScrollView) DrawScrollBar(scr *ScreenBuf) {
 	if sv.ShowScrollBar && sv.ScrollBar != nil && sv.ItemCount > sv.ViewHeight && sv.ViewHeight > 0 {
-		sv.ScrollBar.SetParams(sv.TopPos, 0, sv.ItemCount-sv.ViewHeight)
+		sv.ScrollBar.SetParams(sv.scrollBarTop(), 0, sv.ItemCount-sv.ViewHeight)
 		sv.ScrollBar.Show(scr)
 	}
 }
@@ -214,10 +250,20 @@ func (sv *ScrollView) EnsureVisible() {
 	if sv.ViewHeight <= 0 {
 		return
 	}
-	if sv.SelectPos < sv.TopPos {
-		sv.TopPos = sv.SelectPos
-	} else if sv.SelectPos >= sv.TopPos+sv.ViewHeight {
-		sv.TopPos = sv.SelectPos - sv.ViewHeight + 1
+	// A selection inside the frozen rows is always in view and leaves the
+	// scrolling part where it is; otherwise only the rows below the frozen
+	// ones count.
+	f := sv.frozenRows()
+	if sv.SelectPos >= f {
+		top := max(sv.TopPos, f)
+		if sv.SelectPos < top {
+			sv.TopPos = sv.SelectPos
+		} else if sv.SelectPos >= top+sv.ViewHeight-f {
+			sv.TopPos = sv.SelectPos - (sv.ViewHeight - f) + 1
+		}
+	}
+	if sv.TopPos < f {
+		sv.TopPos = f
 	}
 	if sv.TopPos < 0 {
 		sv.TopPos = 0
@@ -323,7 +369,7 @@ func (sv *ScrollView) HandleNavKey(vk uint16) bool {
 func (sv *ScrollView) GetClickIndex(my int) int {
 	relY := my - (sv.Y1 + sv.MarginTop)
 	if relY >= 0 && relY < sv.ViewHeight {
-		idx := sv.TopPos + relY
+		idx := sv.ItemAtRow(relY)
 		if idx >= 0 && idx < sv.ItemCount {
 			return idx
 		}
