@@ -184,6 +184,9 @@ func (bw *BaseWindow) Show(scr *ScreenBuf) {
 		scr.Write(bw.X1+2, bw.Y1, StringToCharInfo(numStr, Palette[bw.frame.ColorBoxIdx]))
 	}
 
+	// Enter's target is decided by TriggerDefaultAction; draw the same one.
+	bw.rootGroup.syncImplicitDefault()
+
 	// A short modal dialog can retain full-size contents and scroll them
 	// through its smaller visible viewport. Normal windows keep their existing
 	// drawing behaviour.

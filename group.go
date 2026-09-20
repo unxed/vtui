@@ -565,6 +565,61 @@ func (g *Group) GetData(record any) {
 	}
 }
 
+// defaultActionButton is the button TriggerDefaultAction presses, found
+// without pressing it: the first enabled default button, else the first enabled
+// button that has something to do, looking into nested groups the same way.
+func (g *Group) defaultActionButton() *Button {
+	var firstActionable *Button
+	for _, item := range g.items {
+		if btn, ok := item.(*Button); ok && !btn.IsDisabled() {
+			if btn.IsDefault {
+				return btn
+			}
+			if firstActionable == nil && (btn.OnClick != nil || btn.Command != 0) {
+				firstActionable = btn
+			}
+		}
+		if sub, ok := item.(interface{ defaultActionButton() *Button }); ok {
+			if btn := sub.defaultActionButton(); btn != nil {
+				return btn
+			}
+		}
+	}
+	return firstActionable
+}
+
+func (g *Group) forEachButton(visit func(*Button)) {
+	for _, item := range g.items {
+		switch it := item.(type) {
+		case *Button:
+			visit(it)
+		case *Group:
+			it.forEachButton(visit)
+		}
+	}
+}
+
+// syncImplicitDefault makes the button Enter falls back to look like the
+// default button. A dialog that flags its own default button is left alone; one
+// that flags none used to press its first button on Enter without saying so.
+// The flag the dialog set is never touched, so a dialog that moves IsDefault
+// between buttons (f4's multi-step prompts) keeps doing so.
+func (g *Group) syncImplicitDefault() {
+	flagged := false
+	g.forEachButton(func(b *Button) {
+		b.implicitDefault = false
+		if b.IsDefault && !b.IsDisabled() {
+			flagged = true
+		}
+	})
+	if flagged {
+		return
+	}
+	if btn := g.defaultActionButton(); btn != nil {
+		btn.implicitDefault = true
+	}
+}
+
 // TriggerDefaultAction recursively searches for a default action element and triggers it.
 func (g *Group) TriggerDefaultAction() bool {
 	var firstActionable UIElement

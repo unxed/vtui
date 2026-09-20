@@ -460,7 +460,7 @@ func (b *Button) SemanticNode(ctx *SemanticContext) map[string]any {
 		"disabled": b.IsDisabled(),
 		"text":     b.caption,
 		"hotkey":   stringOrEmpty(b.hotkey),
-		"default":  b.IsDefault,
+		"default":  b.IsEnterDefault(),
 	}
 }
 
