@@ -12,7 +12,7 @@ func drawClassicGlyph(img *image.RGBA, char rune, px, py, cw, ch, thick int, rgb
 	if !ok {
 		return false
 	}
-	r8, g8, b8 := uint8(rgb>>16), uint8(rgb>>8), uint8(rgb)
+	r8, g8, b8 := uint8((rgb>>16)&0xff), uint8((rgb>>8)&0xff), uint8(rgb&0xff)
 	for _, rect := range rects {
 		x0 := px + int(math.Floor(rect.x))
 		y0 := py + int(math.Floor(rect.y))
