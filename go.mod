@@ -46,8 +46,8 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 )
 
-replace github.com/ebitengine/purego => github.com/unxed/pureffi v0.1.19
+replace github.com/ebitengine/purego => github.com/unxed/pureffi v0.1.20-0.20260924064017-dda2b733e593
 
-replace github.com/go-webgpu/goffi => github.com/unxed/goffi v0.1.8
+replace github.com/go-webgpu/goffi => github.com/unxed/goffi v0.1.9-0.20260924065738-6dc0842bfac6
 
 replace github.com/ebitengine/hideconsole => ./internal/hideconsole

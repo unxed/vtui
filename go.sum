@@ -84,3 +84,8 @@ golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.41.0 h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=
 golang.org/x/text v0.41.0/go.mod h1:jvf1O8ajNzZqhSrQBPbutR/EB83Cc0CFrezNQIwbb5M=
 golang.org/x/tools v0.0.0-20190312151545-0bb0c0a6e846/go.mod h1:LCzVGOaR6xXOjkQ3onu1FJEFr0SW1gC7cKk1uF8kGRs=
+
+github.com/unxed/pureffi v0.1.20-0.20260924064017-dda2b733e593 h1:Nkh9Hs9zha2ospOw/nY4kI+WtmKMgyl9pk2fEFxVw3I=
+github.com/unxed/pureffi v0.1.20-0.20260924064017-dda2b733e593/go.mod h1:c0oscxMMVH2fP90dNoW5jl6g1GAhoKJJc0/EJ2cH2xE=
+github.com/unxed/goffi v0.1.9-0.20260924065738-6dc0842bfac6 h1:FN0DWz1nIfKQVBMcznI64NFI0yM4CEv8E0yZB8g5tcM=
+github.com/unxed/goffi v0.1.9-0.20260924065738-6dc0842bfac6/go.mod h1:5yfNuseCh+0XTe9cbg8lGtZtOA12DU+Nm9Vfp6IDnFo=
