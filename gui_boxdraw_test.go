@@ -119,6 +119,37 @@ func TestDrawBoxGlyph_ClassicMatchesLegacyRasterGeometry(t *testing.T) {
 	}
 }
 
+func TestGlyphStyleRoundedOnlyChangesSingleCorners(t *testing.T) {
+	previous := CurrentGlyphStyle()
+	t.Cleanup(func() { SetGlyphStyle(previous) })
+
+	classicCorner := newTestSurface(16, 16)
+	classicLine := newTestSurface(16, 16)
+	classicDouble := newTestSurface(16, 16)
+	SetGlyphStyle(GlyphStyleClassic)
+	drawBoxGlyph(classicCorner, '┌', 0, 0, 16, 16, 1, 0xffffff)
+	drawBoxGlyph(classicLine, '─', 0, 0, 16, 16, 1, 0xffffff)
+	drawBoxGlyph(classicDouble, '╔', 0, 0, 16, 16, 1, 0xffffff)
+
+	roundedCorner := newTestSurface(16, 16)
+	roundedLine := newTestSurface(16, 16)
+	roundedDouble := newTestSurface(16, 16)
+	SetGlyphStyle(GlyphStyleRounded)
+	drawBoxGlyph(roundedCorner, '┌', 0, 0, 16, 16, 1, 0xffffff)
+	drawBoxGlyph(roundedLine, '─', 0, 0, 16, 16, 1, 0xffffff)
+	drawBoxGlyph(roundedDouble, '╔', 0, 0, 16, 16, 1, 0xffffff)
+
+	if bytes.Equal(classicCorner.Pix, roundedCorner.Pix) {
+		t.Fatal("rounded style did not change a single-line corner")
+	}
+	if !bytes.Equal(classicLine.Pix, roundedLine.Pix) {
+		t.Fatal("rounded style changed a straight line")
+	}
+	if !bytes.Equal(classicDouble.Pix, roundedDouble.Pix) {
+		t.Fatal("rounded style changed a double-line corner")
+	}
+}
+
 func TestIsBoxDrawRune(t *testing.T) {
 	for _, r := range []rune{'─', '│', '┼', '═', '║', '╬', '█', '▄', '↑', '↕', '▲', '▼'} {
 		if !isBoxDrawRune(r) {
