@@ -9,6 +9,13 @@ import (
 // drawBoxGlyph rasterizes box-drawing, arrow, and block characters
 // geometrically to ensure seamless joins against the cell rectangle.
 func drawBoxGlyph(img *image.RGBA, char rune, px, py, cw, ch, thick int, rgb uint32) bool {
+	if drawClassicGlyph(img, char, px, py, cw, ch, thick, rgb) {
+		return true
+	}
+	return drawBoxGlyphLegacy(img, char, px, py, cw, ch, thick, rgb)
+}
+
+func drawBoxGlyphLegacy(img *image.RGBA, char rune, px, py, cw, ch, thick int, rgb uint32) bool {
 	mx, my := px+cw/2, py+ch/2
 	if thick < 1 {
 		thick = 1
