@@ -20,6 +20,10 @@ var (
 	stderrLogPath    string
 	stderrLogFile    *os.File
 	AppName          = "vtui_app"
+	// AppID is the stable desktop identifier used by GUI hosts to match a
+	// window with its .desktop entry. Applications should set it alongside
+	// AppName when they have a packaged desktop identity.
+	AppID            = "org.unxed.vtui"
 
 	crashMu     sync.Mutex
 	logRing     []string
