@@ -94,9 +94,11 @@ func TestDrawBoxGlyph_ScaleThickensLines(t *testing.T) {
 // classic table pixel-compatible with the raster geometry it replaced; this
 // also protects X11, Wayland, Win32 GUI and Ebiten from backend-specific drift.
 func TestDrawBoxGlyph_ClassicMatchesLegacyRasterGeometry(t *testing.T) {
+	// ╬ is intentionally omitted: the old raster switch did not handle it;
+	// classicGlyphRects coverage verifies the newly shared implementation.
 	runes := []rune{
 		'─', '│', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼',
-		'═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╩', '╦', '╟', '╢', '╬',
+		'═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╩', '╦', '╟', '╢',
 	}
 	for _, size := range []struct{ w, h int }{{8, 16}, {10, 20}, {16, 16}} {
 		for _, thick := range []int{1, 2, 3} {
