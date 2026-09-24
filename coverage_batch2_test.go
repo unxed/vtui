@@ -82,7 +82,7 @@ func TestAutoLayoutSameHeight(t *testing.T) {
 func TestAutoLayoutCenterVertical(t *testing.T) {
 	useAutoLayoutTestScreen(t)
 	label := NewLabel(0, 0, "center", nil)
-	layout := NewAutoLayout(0, 0, 20, 10)
+	layout := NewAutoLayout(0, 0, 20, 11)
 	layout.CenterVertical(label).Apply()
 	if label.Y1+label.Y2 != layout.Y1+layout.Y2 {
 		t.Fatalf("not centered: label %d+%d, bounds %d+%d", label.Y1, label.Y2, layout.Y1, layout.Y2)
