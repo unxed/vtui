@@ -129,3 +129,26 @@ func TestScrollBar_CustomColorIdx(t *testing.T) {
 	// Verify that the top arrow is drawn with our custom attribute
 	checkCell(t, scr, 0, 0, ScrollUpArrow, expectedAttr)
 }
+
+// Attr, when set, colours the whole bar in place of the palette entry, and
+// is asked again on every Show.
+func TestScrollBar_AttrOverridesPalette(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(5, 10)
+
+	sb := NewScrollBar(0, 0, 5)
+	sb.ColorIdx = ColMenuBox
+	attr := SetRGBBoth(0, 0x34e2e2, 0x101010)
+	sb.Attr = func() uint64 { return attr }
+	sb.SetParams(1, 0, 10)
+	sb.SetVisible(true)
+
+	sb.Show(scr)
+	checkCell(t, scr, 0, 0, ScrollUpArrow, attr)
+	checkCell(t, scr, 0, 4, ScrollDownArrow, attr)
+
+	attr = SetRGBBoth(0, 0x34e2e2, 0x202020)
+	sb.Show(scr)
+	checkCell(t, scr, 0, 0, ScrollUpArrow, attr)
+}

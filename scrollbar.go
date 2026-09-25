@@ -131,6 +131,11 @@ type ScrollBar struct {
 	repeatTimer  *time.Timer
 	repeatAction int // -1, 1, -2, 2
 	ColorIdx     int // Palette index for the scrollbar colors (defaults to ColScrollBar)
+	// Attr, when set, gives the colours to draw with in place of
+	// Palette[ColorIdx]. It is asked on every Show, so a bar whose owner
+	// draws over a background that is not a fixed palette entry (an
+	// editor on a syntax scheme's own background, say) can stay on it.
+	Attr func() uint64
 }
 
 func NewScrollBar(x, y, h int) *ScrollBar {
@@ -158,6 +163,9 @@ func (sb *ScrollBar) Show(scr *ScreenBuf) {
 		colorIdx = ColScrollBar
 	}
 	attr := Palette[colorIdx]
+	if sb.Attr != nil {
+		attr = sb.Attr()
+	}
 	// Using itemsCount calculation: maxTop = total - viewHeight => total = maxTop + viewHeight
 	DrawScrollBar(scr, sb.X1, sb.Y1, h, sb.Value, sb.Max+h, attr)
 }
