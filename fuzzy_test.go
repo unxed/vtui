@@ -171,6 +171,24 @@ func TestFuzzyMatcher_Threshold(t *testing.T) {
 	}
 }
 
+// f4 #1405: a 3-rune needle tolerates 1 error by default, so "tes" and "des"
+// cross-match each other — surprising for a panel auto-filter. Strict()
+// forces exact substring matching for callers that opt out of the typo
+// tolerance, same as Edit.StrictAutoComplete already does internally.
+func TestFuzzyMatcher_Strict(t *testing.T) {
+	fm := NewFuzzyMatcher("tes", true)
+	if _, _, _, ok := fm.Match("destroy"); !ok {
+		t.Fatal("fuzzy (default) matcher must accept 'tes' against 'destroy' (1 error)")
+	}
+	fm.Strict()
+	if _, _, _, ok := fm.Match("destroy"); ok {
+		t.Error("Strict() must reject 'tes' against 'destroy'")
+	}
+	if _, _, _, ok := fm.Match("test"); !ok {
+		t.Error("Strict() must still accept an exact substring")
+	}
+}
+
 func TestFuzzyMatcher_ExactPosition(t *testing.T) {
 	fm := NewFuzzyMatcher("needle", true)
 	score, pos, _, ok := fm.Match("find the needle here")

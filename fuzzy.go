@@ -93,6 +93,14 @@ func NewFuzzyMatcher(needle string, caseSensitive bool) *FuzzyMatcher {
 	return fm
 }
 
+// Strict disables the matcher's typo tolerance, requiring an exact substring
+// (edit distance 0). Callers that need the same fuzzy/strict choice already
+// available to Edit's completion menu (StrictAutoComplete) call this instead
+// of reaching into an unexported field.
+func (fm *FuzzyMatcher) Strict() {
+	fm.maxDistance = 0
+}
+
 // buildRuneTable populates the Unicode peq table. For ASCII needles it is
 // built lazily on the first non-ASCII haystack, so the common all-ASCII case
 // never pays for the map.
