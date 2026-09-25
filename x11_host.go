@@ -140,6 +140,11 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	title := AppName + " (X11)"
 	xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, xproto.AtomWmName,
 		xproto.AtomString, 8, uint32(len(title)), []byte(title))
+	if wmClass, err := xproto.InternAtom(conn, false, 8, "WM_CLASS").Reply(); err == nil && wmClass != nil {
+		data := x11WindowClassProperty()
+		xproto.ChangeProperty(conn, xproto.PropModeReplace, host.wid, wmClass.Atom,
+			xproto.AtomString, 8, uint32(len(data)), data)
+	}
 
 	host.gc, err = xproto.NewGcontextId(conn)
 	if err == nil {
@@ -202,6 +207,19 @@ func NewX11Host(cols, rows, cellW, cellH int) (*X11Host, error) {
 	}()
 
 	return host, nil
+}
+
+func x11WindowClassProperty() []byte {
+	instance := AppName
+	if instance == "" {
+		instance = "vtui"
+	}
+	className := AppID
+	if className == "" {
+		className = instance
+	}
+	data := append([]byte(instance), 0)
+	return append(data, append([]byte(className), 0)...)
 }
 
 func (h *X11Host) sendEvent(ev *vtinput.InputEvent) {

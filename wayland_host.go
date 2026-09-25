@@ -154,6 +154,7 @@ func runInWaylandWindow(cols, rows int, fontName string, fontSize float64, setup
 	host.win = window.Create(d)
 	host.widget = host.win.AddWidget(host)
 	host.win.SetTitle(AppName + " (Wayland)")
+	host.win.SetAppID(AppID)
 	host.win.SetBufferType(window.BufferTypeShm)
 
 	// Set handlers
