@@ -237,7 +237,26 @@ func TestEdit_HistoryMenu_Interactions(t *testing.T) {
 		t.Error("Shift+Enter should not inject execution events")
 	}
 
-	// 2. Проверка выбора мышкой (OnAction -> автовыполнение)
+	// 2. Plain Enter only puts the entry into the field too, as in far2l's
+	// dialog history: no Enter is queued for the dialog (f4 #1331).
+	e.SetText("")
+	fm.injectedEvents = nil
+	e.OpenHistory()
+	menuEnter := fm.GetTopFrame().(*VMenu)
+	menuEnter.SetSelectPos(1)
+	menuEnter.ProcessKey(&vtinput.InputEvent{
+		Type:           vtinput.KeyEventType,
+		KeyDown:        true,
+		VirtualKeyCode: vtinput.VK_RETURN,
+	})
+	if e.GetText() != "cmd2" {
+		t.Errorf("Enter failed to insert text, got %q", e.GetText())
+	}
+	if len(fm.injectedEvents) != 0 {
+		t.Error("Enter in history should not inject execution events")
+	}
+
+	// 3. A mouse pick (OnAction) likewise only inserts.
 	e.SetText("")
 	fm.injectedEvents = nil
 	e.OpenHistory()
@@ -250,8 +269,8 @@ func TestEdit_HistoryMenu_Interactions(t *testing.T) {
 	if e.GetText() != "cmd2" {
 		t.Errorf("Mouse selection failed to update text, got %q", e.GetText())
 	}
-	if len(fm.injectedEvents) == 0 || fm.injectedEvents[0].VirtualKeyCode != vtinput.VK_RETURN {
-		t.Error("Mouse selection in history should inject execution event")
+	if len(fm.injectedEvents) != 0 {
+		t.Error("Mouse selection in history should not inject execution events")
 	}
 }
 

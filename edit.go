@@ -1056,17 +1056,16 @@ func (e *Edit) OpenHistory() {
 	menu.SetPosition(e.X1, y, e.X1+w-1, y+h-1)
 
 	menu.SetOwner(e)
+	// Picking an entry only puts it into the field, as far2l's
+	// Dialog::SelectFromEditHistory does; confirming stays with the user
+	// (f4 #1331). The pick used to queue an Enter behind it, which the dialog
+	// took for its default button: F7 created the folder the moment a name
+	// was picked from its history.
 	menu.OnAction = func(idx int) {
 		e.SetText(e.History[idx])
 		e.SetFocus(true)
 		e.clearFlag = false
 		e.HistoryPos = -1
-		// Auto-execute on mouse selection (matches Far behavior)
-		if FrameManager != nil {
-			FrameManager.InjectEvents([]*vtinput.InputEvent{
-				{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN},
-			})
-		}
 	}
 
 	menu.OnKeyDown = func(ev *vtinput.InputEvent) bool {
@@ -1087,22 +1086,17 @@ func (e *Edit) OpenHistory() {
 			return true
 		}
 
-		// Handle Enter (Execute) vs Shift+Enter (Insert only)
+		// Enter, with or without Shift, puts the entry into the field and
+		// closes the list, nothing more: see OnAction above (f4 #1331).
 		if ev.VirtualKeyCode == vtinput.VK_RETURN {
 			if len(menu.Items) == 0 {
 				return true
 			}
-			shift := (ev.ControlKeyState & vtinput.ShiftPressed) != 0
 			idx := menu.SelectPos
 			e.SetText(e.History[idx])
 			e.SetFocus(true)
 			e.clearFlag = false
 			menu.Close()
-
-			if !shift {
-				// Inject a real Enter event so the parent frame handles execution
-				FrameManager.InjectEvents([]*vtinput.InputEvent{ev})
-			}
 			return true
 		}
 		return false
