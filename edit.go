@@ -37,7 +37,17 @@ type Edit struct {
 	// go-to-line prompt, where a drop-down over a few digits is only in the
 	// way.
 	NoAutoComplete bool
-	OnTextChange   func(string)
+	// StrictAutoComplete makes the completion menu list only history entries
+	// that contain the typed text. By default the menu forgives typos, which
+	// suits a shell command but not a file mask or a name: "*.d" has no
+	// business offering "*.xls" (f4 #1155).
+	StrictAutoComplete bool
+	// ClearHistory, when set, replaces the built-in confirmation and wipe that
+	// Del performs in this field's history lists. The host asks the user
+	// itself and keeps whatever entries it must (f4 keeps the pinned ones),
+	// then calls done once e.History holds what is left.
+	ClearHistory func(done func())
+	OnTextChange func(string)
 	// PathHintsEnabled lets the autocomplete menu ask PathHintProvider for
 	// file path suggestions in addition to history matches.
 	PathHintsEnabled  bool
@@ -1138,6 +1148,22 @@ func (e *Edit) confirmClearHistoryMenu(menu *VMenu) {
 	if len(menu.Items) == 0 {
 		return
 	}
+	e.clearHistory(func() {
+		menu.Items = nil
+		menu.ItemCount = 0
+		menu.Close()
+		FrameManager.Redraw()
+	})
+}
+
+// clearHistory wipes the whole history of the field once the user confirms,
+// then calls done. It is the one place every Del-clears-the-list key ends up,
+// so the dropdown and the completion menu cannot drift apart.
+func (e *Edit) clearHistory(done func()) {
+	if e.ClearHistory != nil {
+		e.ClearHistory(done)
+		return
+	}
 	buttons := []string{Msg("vtui.Ok"), Msg("vtui.Cancel")}
 	dlg := ShowMessageEx(Msg("vtui.History"), Msg("vtui.HistoryClearConfirm"), buttons, MessageInfo)
 	dlg.OnResult = func(code int) {
@@ -1149,10 +1175,7 @@ func (e *Edit) confirmClearHistoryMenu(menu *VMenu) {
 			GlobalHistoryProvider.SaveHistory(e.HistoryID, e.History)
 		}
 		e.HistoryPos = -1
-		menu.Items = nil
-		menu.ItemCount = 0
-		menu.Close()
-		FrameManager.Redraw()
+		done()
 	}
 }
 

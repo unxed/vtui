@@ -50,7 +50,9 @@ var autoCompleteMaxVisible = 5
 // autoCompleteFooter is the key hint drawn into the bottom border. The menu
 // is never narrower than it needs to show the hint whole (f4 #1155): a history
 // of short commands used to leave a 24-cell menu that cut it off mid-word.
-const autoCompleteFooter = "Up/Down Enter Esc Tab Shift+Del"
+// Shift+Del drops the picked entry and Del clears the whole list, in that
+// order as in f4's own history lists (f4 #1155).
+const autoCompleteFooter = "Up/Down Enter Esc Tab Shift+Del Del"
 
 // autoCompletePerCategory selects how the visible height is computed:
 // false = the whole list shares one window of autoCompleteMaxVisible rows,
@@ -318,6 +320,9 @@ func (ac *AutoCompleteMenu) UpdateMatches() {
 	text := ac.Edit.GetText()
 	if text != "" {
 		matcher := NewFuzzyMatcher(text, false)
+		if ac.Edit.StrictAutoComplete {
+			matcher.maxDistance = 0
+		}
 		seen := make(map[string]bool)
 		type histMatch struct {
 			text       string
@@ -664,6 +669,23 @@ func (ac *AutoCompleteMenu) ProcessKey(e *vtinput.InputEvent) bool {
 				}
 			}
 			return true
+		}
+		// Plain Del on a history entry the user picked clears the whole list,
+		// as it does in every other history list (f4 #1155). Without a pick
+		// the focus is still on the text, and Del edits it.
+		if ac.chosen && (e.ControlKeyState&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed|vtinput.LeftAltPressed|vtinput.RightAltPressed)) == 0 &&
+			ac.lb.SelectPos >= 0 && ac.lb.SelectPos < len(ac.items) {
+			it := ac.items[ac.lb.SelectPos]
+			if !it.Separator && it.ReplaceTo <= it.ReplaceFrom {
+				ac.Edit.clearHistory(func() {
+					ac.dropChoice()
+					ac.UpdateMatches()
+					if !ac.HasMatches() {
+						ac.Close()
+					}
+				})
+				return true
+			}
 		}
 	}
 

@@ -108,6 +108,11 @@ func (e *HelpEngine) LoadFile(path string) error {
 
 // parseLinks extracts ~Text~Target@ patterns from a line.
 func (e *HelpEngine) parseLinks(topic *HelpTopic, line string, lineIdx int) {
+	parseHelpLinksInto(topic, line, lineIdx)
+}
+
+// parseHelpLinksInto appends the links of one line of a topic.
+func parseHelpLinksInto(topic *HelpTopic, line string, lineIdx int) {
 	// Simple state machine for ~LinkText~Target@
 	start := -1
 	for i := 0; i < len(line); i++ {

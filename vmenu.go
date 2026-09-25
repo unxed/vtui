@@ -137,7 +137,7 @@ func NewVMenu(title string) *VMenu {
 			m.scrollFilteredBy(m.visibleRows(), v-m.filterTop)
 			return
 		}
-		m.ScrollBy(v - m.TopPos)
+		m.ScrollBy(v - m.scrollBarTop())
 	}
 	return m
 }
@@ -604,7 +604,11 @@ func (m *VMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 		m.scrollFilteredBy(m.visibleRows(), lines)
 		return true
 	}
+	oldPos := m.SelectPos
 	if m.HandleMouseScroll(e) {
+		if m.SelectPos != oldPos && m.OnSelect != nil {
+			m.OnSelect(m.SelectPos)
+		}
 		return true
 	}
 
@@ -706,6 +710,9 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	}
 	for i := 0; i < height; i++ {
 		itemIdx := i + top
+		if shown == nil {
+			itemIdx = m.ItemAtRow(i)
+		}
 		currY := m.Y1 + 1 + i
 		if currY >= m.Y2 {
 			break
@@ -738,6 +745,13 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 				scr.Write(m.X2, currY, []CharInfo{{Char: uint64(symbols[bsHCrossRight]), Attributes: colBox}})
 			} else {
 				p.DrawLine(m.X1, currY, m.X2, currY, boxSymbols[bsH], colBox, true, true)
+			}
+			// A separator may carry a heading. It is drawn here, on the row the
+			// separator really has, so that it follows scrolling and the filter;
+			// a caller painting headings over the menu by row number had them
+			// left on rows that hold other things (f4 #263).
+			if item.Text != "" {
+				p.DrawTitle(m.X1, currY, m.X2, " "+item.Text+" ", Palette[m.ColorTitleIdx])
 			}
 			continue
 		}

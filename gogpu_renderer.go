@@ -428,6 +428,12 @@ func (r *GogpuRenderer) drawCustomChar(dc *gg.Context, char rune, x, y, w, h, as
 		dc.DrawRectangle(rx, ry, rw, rh)
 		dc.Fill()
 	}
+	if rects, ok := classicGlyphRects(char, w, h, thick); ok {
+		for _, rect := range rects {
+			fillR(x+rect.x, y+rect.y, rect.w, rect.h)
+		}
+		return true
+	}
 
 	mx := math.Floor(x + w/2 - thick/2)
 	my := math.Floor(y + h/2 - thick/2)

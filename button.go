@@ -10,6 +10,18 @@ type Button struct {
 	caption      string
 	mouseArmed   bool
 	mousePressed bool
+	// implicitDefault is set by the dialog that holds the button when it flags
+	// no default button of its own and Enter falls back to this one: the
+	// button that gets the key is then drawn as the default, and the two are
+	// one decision instead of two (f4 #320).
+	implicitDefault bool
+}
+
+// IsEnterDefault reports whether Enter presses this button when the focused
+// control does not take the key: it is the dialog's flagged default button, or
+// the one the dialog falls back to when it flags none.
+func (b *Button) IsEnterDefault() bool {
+	return b.IsDefault || b.implicitDefault
 }
 
 func NewButton(x, y int, text string) *Button {
@@ -48,7 +60,7 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 		return
 	}
 	normalIdx := ColDialogButton
-	if b.IsDefault {
+	if b.IsEnterDefault() {
 		normalIdx = ColDialogHighlightButton
 	}
 	n, h := b.GetStateAttrs(normalIdx, ColDialogSelectedButton, ColDialogHighlightButton, ColDialogHighlightSelectedButton)
