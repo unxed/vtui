@@ -65,7 +65,7 @@ func glyphRectsForStyle(style GlyphStyle, char rune, w, h, thick float64) ([]cla
 		thick *= 2
 	}
 
-	mx, my := math.Floor(w / 2), math.Floor(h / 2)
+	mx, my := math.Floor(w/2), math.Floor(h/2)
 	ofs := math.Floor(math.Min(w, h) / 4)
 	if ofs < 1 {
 		ofs = 1
@@ -190,7 +190,7 @@ func glyphRectsForStyle(style GlyphStyle, char rune, w, h, thick float64) ([]cla
 }
 
 func roundedCornerRects(char rune, w, h, thick float64) []classicRect {
-	mx, my := math.Floor(w / 2), math.Floor(h / 2)
+	mx, my := math.Floor(w/2), math.Floor(h/2)
 	radius := math.Floor(math.Min(w, h) / 4)
 	if radius < 1 {
 		radius = 1
