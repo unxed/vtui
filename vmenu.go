@@ -19,6 +19,10 @@ type MenuItem struct {
 	OnClick      func() // Closure called when selected
 	UserData     any
 	Separator    bool
+	// Description is far2l's MenuItemEx::strDescription: the longer text a
+	// menu with a bottom text area (see SetBottomTextLines) shows while this
+	// item is selected. Menus without that area never draw it.
+	Description string
 	// SubItems turns the item into a nested menu: selecting it opens a
 	// second VMenu beside this one instead of firing an action. An item
 	// with SubItems is a heading, so its Command and OnClick are never
@@ -33,9 +37,12 @@ type VMenu struct {
 	// bottomTitle is drawn centred on the lower border, where far2l's
 	// VMenu::SetBottomTitle puts a menu's key hints.
 	bottomTitle string
-	Items       []MenuItem
-	done        bool
-	exitCode    int
+	// bottomTextLines is far2l's BottomTextLines: rows at the foot of the
+	// box, under a separator, that show the selected item's Description.
+	bottomTextLines int
+	Items           []MenuItem
+	done            bool
+	exitCode        int
 	// selectAtOpen is SelectPos as of the last ClearDone. Browsing moves
 	// SelectPos live (arrows, mouse hover), so cancelling has to put it
 	// back: dialogs read SelectPos as the confirmed choice, and without the
@@ -523,6 +530,49 @@ func (m *VMenu) GetBottomTitle() string {
 func (m *VMenu) SetBottomTitle(title string) {
 	m.bottomTitle = title
 }
+
+// SetBottomTextLines is far2l's VMenu::SetBottomTextLines: it reserves n
+// rows at the foot of the box, under a separator, where the Description of
+// the selected item is shown word-wrapped, the way far2l's far:config
+// explains the option under the cursor. The list keeps the rows above the
+// separator, so its scrollbar, paging and mouse hits stop there too. Zero,
+// the default, removes the area.
+//
+// far2l grows the area while a long description is selected; here it keeps
+// the size it is given, so that the list does not jump as the selection
+// moves. The caller sizes it for the longest description it will show.
+func (m *VMenu) SetBottomTextLines(n int) {
+	if n < 0 {
+		n = 0
+	}
+	m.bottomTextLines = n
+	m.MarginBottom = 1 + m.bottomAreaHeight()
+	if m.Y2 > m.Y1 {
+		m.SetPosition(m.X1, m.Y1, m.X2, m.Y2)
+	}
+}
+
+// GetBottomTextLines returns the value last given to SetBottomTextLines.
+func (m *VMenu) GetBottomTextLines() int {
+	return m.bottomTextLines
+}
+
+// bottomAreaHeight is the bottom text area with its separator row, or zero
+// when the menu has none.
+func (m *VMenu) bottomAreaHeight() int {
+	if m.bottomTextLines <= 0 {
+		return 0
+	}
+	return m.bottomTextLines + 1
+}
+
+// BottomTextWidth is the width the bottom text area wraps descriptions to,
+// as far2l's VMenu::GetBottomTextWidth: the box less its borders and a
+// column of padding on each side.
+func (m *VMenu) BottomTextWidth() int {
+	return max(0, m.X2-m.X1-3)
+}
+
 func (m *VMenu) GetProgress() int {
 	return -1
 }
@@ -691,7 +741,8 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 	colText := Palette[m.ColorTextIdx]
 	colSel := Palette[m.ColorSelectedTextIdx]
 	colBox := Palette[m.ColorBoxIdx]
-	height := m.Y2 - m.Y1 - 1
+	listBottom := m.Y2 - m.bottomAreaHeight()
+	height := listBottom - m.Y1 - 1
 	if height < 0 {
 		height = 0
 	}
@@ -714,7 +765,7 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 			itemIdx = m.ItemAtRow(i)
 		}
 		currY := m.Y1 + 1 + i
-		if currY >= m.Y2 {
+		if currY >= listBottom {
 			break
 		}
 		if shown != nil {
@@ -738,14 +789,7 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 		}
 
 		if item.Separator {
-			if m.BoxType == SingleBox {
-				symbols := getBoxSymbols(SingleBox)
-				p.DrawLine(m.X1, currY, m.X2, currY, symbols[bsH], colBox, false, false)
-				scr.Write(m.X1, currY, []CharInfo{{Char: uint64(symbols[bsHCrossLeft]), Attributes: colBox}})
-				scr.Write(m.X2, currY, []CharInfo{{Char: uint64(symbols[bsHCrossRight]), Attributes: colBox}})
-			} else {
-				p.DrawLine(m.X1, currY, m.X2, currY, boxSymbols[bsH], colBox, true, true)
-			}
+			m.drawSeparator(p, scr, currY, colBox)
 			// A separator may carry a heading. It is drawn here, on the row the
 			// separator really has, so that it follows scrolling and the filter;
 			// a caller painting headings over the menu by row number had them
@@ -794,6 +838,48 @@ func (m *VMenu) DisplayObject(scr *ScreenBuf) {
 		}
 	}
 
-	// 4. Scrollbar
+	// 4. The selected item's description, under the list.
+	m.drawBottomText(p, scr, listBottom, colText, colBox)
+
+	// 5. Scrollbar
 	m.DrawScrollBar(scr)
+}
+
+// drawSeparator draws a horizontal rule across the box on row y, joined to
+// its borders.
+func (m *VMenu) drawSeparator(p *Painter, scr *ScreenBuf, y int, colBox uint64) {
+	if m.BoxType == SingleBox {
+		symbols := getBoxSymbols(SingleBox)
+		p.DrawLine(m.X1, y, m.X2, y, symbols[bsH], colBox, false, false)
+		scr.Write(m.X1, y, []CharInfo{{Char: uint64(symbols[bsHCrossLeft]), Attributes: colBox}})
+		scr.Write(m.X2, y, []CharInfo{{Char: uint64(symbols[bsHCrossRight]), Attributes: colBox}})
+	} else {
+		p.DrawLine(m.X1, y, m.X2, y, boxSymbols[bsH], colBox, true, true)
+	}
+}
+
+// drawBottomText is far2l's VMenu::DrawBottomText: a separator on row
+// separatorY, then the selected item's Description wrapped to the box,
+// as many lines as the area has. What does not fit is cut off.
+func (m *VMenu) drawBottomText(p *Painter, scr *ScreenBuf, separatorY int, colText, colBox uint64) {
+	if m.bottomTextLines <= 0 || separatorY <= m.Y1 || separatorY >= m.Y2 {
+		return
+	}
+	m.drawSeparator(p, scr, separatorY, colBox)
+	width := m.BottomTextWidth()
+	if width <= 0 || m.SelectPos < 0 || m.SelectPos >= len(m.Items) {
+		return
+	}
+	item := m.Items[m.SelectPos]
+	if item.Separator || item.Description == "" {
+		return
+	}
+	y := separatorY + 1
+	for _, line := range WrapText(item.Description, width) {
+		if y >= m.Y2 {
+			break
+		}
+		p.DrawString(m.X1+2, y, TruncateString(line, width, ""), colText)
+		y++
+	}
 }
