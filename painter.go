@@ -83,6 +83,14 @@ func (p *Painter) DrawSymGlyph(x, y int, sym SymGlyph, attr uint64) {
 	p.scr.Write(x, y, SymGlyphCharInfo(sym, attr))
 }
 
+// DrawButtonEar draws one of a Button's symbolic ear tokens (symchar.go) at
+// (x, y): SymButtonEarLeft or SymButtonEarRight. The token always occupies 2
+// cells, exactly like the classic "[ "/" ]" text it replaces, so callers can
+// lay out the label next to it precisely as before.
+func (p *Painter) DrawButtonEar(x, y int, sym SymGlyph, attr uint64) {
+	p.scr.Write(x, y, SymButtonEarCharInfo(sym, attr))
+}
+
 // DrawHighlightedText draws a pre-parsed string with a specific hotkey position.
 func (p *Painter) DrawHighlightedText(x, y int, cleanText string, hkPos int, normAttr, highAttr uint64) {
 	cells := make([]CharInfo, 0, len(cleanText))

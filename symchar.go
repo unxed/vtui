@@ -34,9 +34,10 @@ const symGlyphPartBits = 2
 const symGlyphPartMask = (uint64(1) << symGlyphPartBits) - 1
 
 // SymGlyph identifies a symbolic glyph variant: one visual state of a
-// checkbox or radio button. Each variant is 3 cells wide, exactly like the
-// classic text it replaces ("[x] ", "( ) ", ...), so a symbolic checkbox or
-// radio button lays out identically to the literal text it replaced.
+// checkbox or radio button, or one decorative "ear" of a Button. Each
+// variant occupies exactly as many cells as the classic text it replaces
+// ("[x] ", "( ) ", 3 cells; a button ear, 2), so a symbolic widget lays out
+// identically to the literal text it replaced.
 type SymGlyph uint32
 
 const (
@@ -50,6 +51,13 @@ const (
 	// RadioGroup item can render: unselected and selected.
 	SymRadioOff
 	SymRadioOn
+	// SymButtonEarLeft and SymButtonEarRight are a Button's left and right
+	// decorative "ears": the classic style's "[ " and " ]" (bracket plus the
+	// adjoining padding space), 2 cells each, framing the button's label.
+	// Unlike the checkbox/radio glyphs, the bracket rune itself is not a
+	// fixed literal -- see buttonEarClassicCell.
+	SymButtonEarLeft
+	SymButtonEarRight
 )
 
 // SymCharToken packs a symbol variant and the index of one of its cells
@@ -104,11 +112,42 @@ func symCharClassicString(ch uint64) string {
 	if !ok {
 		return "?"
 	}
+	if s, ok := buttonEarClassicCell(sym, part); ok {
+		return s
+	}
 	cells, ok := symGlyphClassicCells[sym]
 	if !ok || part < 0 || part > 2 {
 		return "?"
 	}
 	return cells[part]
+}
+
+// buttonEarClassicCell returns the classic style's literal text for one
+// cell of a button-ear token (SymButtonEarLeft/SymButtonEarRight), and false
+// for any other symbol. Unlike the checkbox/radio glyphs, a button's
+// brackets are not a fixed literal: UIStrings.ButtonBrackets (strings.go)
+// can be relocalized, and Button.SetText already bakes whatever value was
+// current at construction time into the button's own decorated text.
+// Reading UIStrings.ButtonBrackets here, at expansion time, reproduces
+// exactly the two runes Button used to write directly for its ears.
+func buttonEarClassicCell(sym SymGlyph, part int) (string, bool) {
+	switch sym {
+	case SymButtonEarLeft:
+		switch part {
+		case 0:
+			return string(UIStrings.ButtonBrackets[0]), true
+		case 1:
+			return " ", true
+		}
+	case SymButtonEarRight:
+		switch part {
+		case 0:
+			return " ", true
+		case 1:
+			return string(UIStrings.ButtonBrackets[1]), true
+		}
+	}
+	return "", false
 }
 
 // SymGlyphCharInfo builds the 3 CharInfo cells a symbolic glyph token
@@ -122,5 +161,17 @@ func SymGlyphCharInfo(sym SymGlyph, attr uint64) []CharInfo {
 		{Char: SymCharToken(sym, 0), Attributes: attr},
 		{Char: SymCharToken(sym, 1), Attributes: attr},
 		{Char: SymCharToken(sym, 2), Attributes: attr},
+	}
+}
+
+// SymButtonEarCharInfo builds the 2 CharInfo cells one of a Button's
+// symbolic ear tokens occupies (SymButtonEarLeft or SymButtonEarRight),
+// ready to hand to ScreenBuf.Write. attr is applied to both cells, the way
+// Button used to draw its literal "[ "/" ]" ear text with a single
+// attribute.
+func SymButtonEarCharInfo(sym SymGlyph, attr uint64) []CharInfo {
+	return []CharInfo{
+		{Char: SymCharToken(sym, 0), Attributes: attr},
+		{Char: SymCharToken(sym, 1), Attributes: attr},
 	}
 }

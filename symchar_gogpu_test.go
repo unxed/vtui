@@ -21,4 +21,15 @@ func TestSymChar_GogpuBatchRuneExcludesTokens(t *testing.T) {
 			}
 		}
 	}
+	// buttonEarSyms (symchar_test.go) are 2 cells wide rather than 3, but the
+	// exclusion gogpuBatchRune applies is generic (any IsSymChar token), so
+	// they belong in this same test.
+	for _, sym := range buttonEarSyms {
+		for part := 0; part < 2; part++ {
+			tok := SymCharToken(sym, part)
+			if gogpuBatchRune(tok) {
+				t.Errorf("gogpuBatchRune(SymCharToken(%v, %d)) = true, want false (raw token must not join a batched run)", sym, part)
+			}
+		}
+	}
 }
