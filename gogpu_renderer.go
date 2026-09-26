@@ -421,6 +421,24 @@ func (r *GogpuRenderer) glyphRectsCached(char rune) (glyphMemoEntry, bool) {
 	return e, ok
 }
 
+// drawSymGlyphShape draws one checkbox/radio SymGlyph token (symchar.go) as
+// a geometric shape spanning the w x h pixel area of the 3 cells it
+// occupies -- the gogpu counterpart of drawCustomChar for box-drawing runes.
+// false means the active GlyphStyle has no shape for sym (always the case
+// for GlyphStyleClassic), so the caller falls through to its ordinary
+// per-cell font path unchanged.
+func (r *GogpuRenderer) drawSymGlyphShape(dc *gg.Context, sym SymGlyph, x, y, w, h float64) bool {
+	rects, ok := symGlyphRects(sym, w, h, 1.0)
+	if !ok {
+		return false
+	}
+	for _, rect := range rects {
+		dc.DrawRectangle(x+rect.x, y+rect.y, rect.w, rect.h)
+		_ = dc.Fill()
+	}
+	return true
+}
+
 // drawCustomChar draws one cell of a box/arrow/block rune.
 func (r *GogpuRenderer) drawCustomChar(dc *gg.Context, char rune, x, y, w, h, ascent float64) bool {
 	thick := 1.0
@@ -756,8 +774,25 @@ func (r *GogpuRenderer) drawFrame(dc *gg.Context, w, h int) gogpuFrameStats {
 					rw = 2
 				}
 
-				char := CellBaseRune(currCell.Char)
 				underlined := currCell.Attributes&CommonLvbUnderscore != 0
+
+				if IsSymChar(currCell.Char) && sx+2 < spanW && x+sx+2 < drawCols {
+					if sym, symOk := symGlyphAt(currCell.Char, r.renderBuf[idx+1].Char, r.renderBuf[idx+2].Char); symOk {
+						tBox := gogpuProfNow()
+						drawn := r.drawSymGlyphShape(dc, sym, lx+float64(sx*r.cellW), ly, float64(3*r.cellW), float64(r.cellH))
+						prof.boxTime += gogpuProfSince(tBox)
+						if drawn {
+							prof.boxChars++
+							if underlined {
+								drawGogpuUnderline(dc, lx+float64(sx*r.cellW), ly, float64(3*r.cellW), float64(r.cellH), fg)
+							}
+							sx += 3
+							continue
+						}
+					}
+				}
+
+				char := CellBaseRune(currCell.Char)
 
 				if isBoxDrawRune(char) {
 					tBox := gogpuProfNow()

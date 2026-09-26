@@ -67,3 +67,128 @@ func TestGogpuRenderer_CustomCharVectorCoverage(t *testing.T) {
 		})
 	}
 }
+
+// pixelSnapshot copies every pixel of a WxH image into an independent Go
+// slice, read immediately after drawing. Comparisons in the tests below use
+// this instead of holding several *gg.Context values alive and reading them
+// back later, and instead of asserting what an undrawn background's exact
+// colour value is: both would tie the test to gg.Context implementation
+// details (buffer reuse across contexts, Clear()'s exact colour semantics)
+// that have nothing to do with what this slice of f4#285 actually changed.
+//
+// FlushGPU is required before Image(): github.com/gogpu/gg registers a GPU
+// accelerator on import (gogpu_renderer.go's blank "github.com/gogpu/gg/gpu"
+// import) that every *gg.Context picks up automatically, even a bare
+// gg.NewContext with no window/device behind it. Context.Fill() then queues
+// the shape on that accelerator's per-context GPU render target instead of
+// writing straight into the CPU pixmap Image() reads -- gg.Context.SavePNG
+// documents the same requirement ("Flush pending GPU shapes before reading
+// pixels"), it is not specific to this shape. Production rendering never hit
+// this because it always goes through ggcanvas.Canvas.Draw, which flushes to
+// its GPU view itself; only a bare gg.NewContext read back via Image(), as
+// every test in this file does, needs it done explicitly.
+func pixelSnapshot(dc *gg.Context, w, h int) []uint64 {
+	_ = dc.FlushGPU()
+	img := dc.Image()
+	out := make([]uint64, w*h)
+	i := 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r32, g32, b32, a32 := img.At(x, y).RGBA()
+			out[i] = uint64(r32)<<48 | uint64(g32)<<32 | uint64(b32)<<16 | uint64(a32)
+			i++
+		}
+	}
+	return out
+}
+
+func pixelSnapshotsEqual(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// newBlankGogpuCanvas builds a WxH canvas cleared to white and immediately
+// snapshots it, giving every test below the same "what an untouched canvas
+// looks like" baseline without asserting a specific colour value for it.
+func newBlankGogpuCanvas(w, h int) []uint64 {
+	dc := gg.NewContext(w, h)
+	dc.SetRGB(1, 1, 1)
+	dc.Clear()
+	return pixelSnapshot(dc, w, h)
+}
+
+// TestGogpuRenderer_SymGlyphShape_ClassicDeclines confirms drawSymGlyphShape
+// (gogpu_renderer.go), the vector-drawing counterpart of drawCustomChar for
+// checkbox/radio SymGlyph tokens (symchar.go), draws nothing under
+// GlyphStyleClassic: the graphics path must stay pixel-identical to before
+// f4#285's shape slice, the same invariant TestSymChar_GraphicsPathUnaffected
+// pins down for the ordinary font path.
+func TestGogpuRenderer_SymGlyphShape_ClassicDeclines(t *testing.T) {
+	previous := CurrentGlyphStyle()
+	t.Cleanup(func() { SetGlyphStyle(previous) })
+	SetGlyphStyle(GlyphStyleClassic)
+
+	blank := newBlankGogpuCanvas(24, 16)
+	r := NewGogpuRenderer(nil, nil, 8, 16)
+	for _, sym := range allSymGlyphs {
+		dc := gg.NewContext(24, 16)
+		dc.SetRGB(1, 1, 1)
+		dc.Clear()
+		if r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
+			t.Errorf("drawSymGlyphShape(%v) = true under GlyphStyleClassic, want false", sym)
+		}
+		if got := pixelSnapshot(dc, 24, 16); !pixelSnapshotsEqual(got, blank) {
+			t.Errorf("drawSymGlyphShape(%v) declined under GlyphStyleClassic but changed the canvas", sym)
+		}
+	}
+}
+
+// TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer confirms
+// drawSymGlyphShape draws a real shape under GlyphStyleRounded, and that a
+// checked/mixed/selected state renders visibly differently from its
+// unchecked/unselected counterpart.
+func TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer(t *testing.T) {
+	previous := CurrentGlyphStyle()
+	t.Cleanup(func() { SetGlyphStyle(previous) })
+	SetGlyphStyle(GlyphStyleRounded)
+
+	blank := newBlankGogpuCanvas(24, 16)
+	r := NewGogpuRenderer(nil, nil, 8, 16)
+	render := func(sym SymGlyph) []uint64 {
+		dc := gg.NewContext(24, 16)
+		dc.SetRGB(1, 1, 1)
+		dc.Clear()
+		dc.SetRGB(0, 0, 0)
+		if !r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
+			t.Fatalf("drawSymGlyphShape(%v) = false under GlyphStyleRounded, want true", sym)
+		}
+		snap := pixelSnapshot(dc, 24, 16)
+		if pixelSnapshotsEqual(snap, blank) {
+			t.Fatalf("drawSymGlyphShape(%v) claimed success but drew nothing", sym)
+		}
+		return snap
+	}
+
+	off, on, mixed := render(SymCheckboxOff), render(SymCheckboxOn), render(SymCheckboxMixed)
+	if pixelSnapshotsEqual(off, on) {
+		t.Error("SymCheckboxOff and SymCheckboxOn rendered identically")
+	}
+	if pixelSnapshotsEqual(off, mixed) {
+		t.Error("SymCheckboxOff and SymCheckboxMixed rendered identically")
+	}
+	if pixelSnapshotsEqual(on, mixed) {
+		t.Error("SymCheckboxOn and SymCheckboxMixed rendered identically")
+	}
+
+	radioOff, radioOn := render(SymRadioOff), render(SymRadioOn)
+	if pixelSnapshotsEqual(radioOff, radioOn) {
+		t.Error("SymRadioOff and SymRadioOn rendered identically")
+	}
+}
