@@ -3,6 +3,7 @@
 package vtui
 
 import (
+	"image"
 	"testing"
 
 	"github.com/gogpu/gg"
@@ -65,5 +66,104 @@ func TestGogpuRenderer_CustomCharVectorCoverage(t *testing.T) {
 				t.Errorf("drawCustomChar(%q) claimed success but drew nothing", tc.ch)
 			}
 		})
+	}
+}
+
+// countNonWhite reports how many pixels of a WxH gg.Context drawn over a
+// white background are no longer white -- the same "did it actually draw
+// something" probe TestGogpuRenderer_CustomCharVectorCoverage uses above.
+func countNonWhite(dc *gg.Context, w, h int) int {
+	img := dc.Image()
+	n := 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r32, g32, b32, _ := img.At(x, y).RGBA()
+			if r32 != 0xFFFF || g32 != 0xFFFF || b32 != 0xFFFF {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// imagesPixelEqual reports whether two images agree on every pixel in a WxH
+// area, compared through the image.Image interface so it works whatever
+// concrete image type gg.Context.Image() returns.
+func imagesPixelEqual(a, b image.Image, w, h int) bool {
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			ar, ag, ab, aa := a.At(x, y).RGBA()
+			br, bg, bb, ba := b.At(x, y).RGBA()
+			if ar != br || ag != bg || ab != bb || aa != ba {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// TestGogpuRenderer_SymGlyphShape_ClassicDeclines confirms drawSymGlyphShape
+// (gogpu_renderer.go), the vector-drawing counterpart of drawCustomChar for
+// checkbox/radio SymGlyph tokens (symchar.go), draws nothing under
+// GlyphStyleClassic: the graphics path must stay pixel-identical to before
+// f4#285's shape slice, the same invariant TestSymChar_GraphicsPathUnaffected
+// pins down for the ordinary font path.
+func TestGogpuRenderer_SymGlyphShape_ClassicDeclines(t *testing.T) {
+	previous := CurrentGlyphStyle()
+	t.Cleanup(func() { SetGlyphStyle(previous) })
+	SetGlyphStyle(GlyphStyleClassic)
+
+	r := NewGogpuRenderer(nil, nil, 8, 16)
+	for _, sym := range allSymGlyphs {
+		dc := gg.NewContext(24, 16)
+		dc.SetRGB(1, 1, 1)
+		dc.Clear()
+		if r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
+			t.Errorf("drawSymGlyphShape(%v) = true under GlyphStyleClassic, want false", sym)
+		}
+		if n := countNonWhite(dc, 24, 16); n != 0 {
+			t.Errorf("drawSymGlyphShape(%v) declined under GlyphStyleClassic but drew %d pixels", sym, n)
+		}
+	}
+}
+
+// TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer confirms
+// drawSymGlyphShape draws a real shape under GlyphStyleRounded, and that a
+// checked/mixed/selected state renders visibly differently from its
+// unchecked/unselected counterpart.
+func TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer(t *testing.T) {
+	previous := CurrentGlyphStyle()
+	t.Cleanup(func() { SetGlyphStyle(previous) })
+	SetGlyphStyle(GlyphStyleRounded)
+
+	r := NewGogpuRenderer(nil, nil, 8, 16)
+	render := func(sym SymGlyph) *gg.Context {
+		dc := gg.NewContext(24, 16)
+		dc.SetRGB(1, 1, 1)
+		dc.Clear()
+		dc.SetRGB(0, 0, 0)
+		if !r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
+			t.Fatalf("drawSymGlyphShape(%v) = false under GlyphStyleRounded, want true", sym)
+		}
+		if n := countNonWhite(dc, 24, 16); n == 0 {
+			t.Fatalf("drawSymGlyphShape(%v) claimed success but drew nothing", sym)
+		}
+		return dc
+	}
+
+	off, on, mixed := render(SymCheckboxOff), render(SymCheckboxOn), render(SymCheckboxMixed)
+	if imagesPixelEqual(off.Image(), on.Image(), 24, 16) {
+		t.Error("SymCheckboxOff and SymCheckboxOn rendered identically")
+	}
+	if imagesPixelEqual(off.Image(), mixed.Image(), 24, 16) {
+		t.Error("SymCheckboxOff and SymCheckboxMixed rendered identically")
+	}
+	if imagesPixelEqual(on.Image(), mixed.Image(), 24, 16) {
+		t.Error("SymCheckboxOn and SymCheckboxMixed rendered identically")
+	}
+
+	radioOff, radioOn := render(SymRadioOff), render(SymRadioOn)
+	if imagesPixelEqual(radioOff.Image(), radioOn.Image(), 24, 16) {
+		t.Error("SymRadioOff and SymRadioOn rendered identically")
 	}
 }

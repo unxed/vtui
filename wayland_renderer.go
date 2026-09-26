@@ -253,6 +253,28 @@ func (r *WaylandRenderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw b
 					continue
 				}
 
+				if IsSymChar(currCell.Char) && sx+2 < spanW && currX+2 < w {
+					if sym, symOk := symGlyphAt(currCell.Char, buf[cIdx+1].Char, buf[cIdx+2].Char); symOk {
+						scale := int(math.Ceil(r.host.scale))
+						cpx := currX * cw
+						cfg, _ := r.getCellColors(currCell)
+						if drawSymGlyphRaster(img, sym, cpx, py, cw*3, ch, scale, cfg) {
+							r.stats.glyphs++
+							if currCell.Attributes&CommonLvbUnderscore != 0 {
+								drawUnderline(img, cpx, py, cw*3, ch, scale, cfg)
+							}
+							for k := 0; k < 3; k++ {
+								colX := currX + k
+								if cursorVisible && y == r.cursorY && r.cursorX == colX {
+									invertCursorRect(img.Pix, img.Stride, img.Rect.Max.X, img.Rect.Max.Y, colX*cw, py, r.cursorShape, cw, ch, r.host.scale > 1)
+								}
+							}
+							sx += 3
+							continue
+						}
+					}
+				}
+
 				char := CellBaseRune(currCell.Char)
 				_, rw := CellSpanAt(buf, w, currX, y)
 

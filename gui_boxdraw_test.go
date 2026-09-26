@@ -150,6 +150,68 @@ func TestGlyphStyleRoundedOnlyChangesSingleCorners(t *testing.T) {
 	}
 }
 
+// drawSymGlyphRaster is the X11/Wayland/Ebiten/Win32-GUI raster path for a
+// checkbox/radio SymGlyph token (symchar.go): the counterpart of
+// drawClassicGlyph for box-drawing runes, sharing the same fillClassicRects
+// fill loop (classic_glyph_raster.go).
+
+// Under GlyphStyleClassic every symbol must decline and draw nothing, so
+// text is byte/pixel-identical to before this change, exactly like
+// TestSymChar_GraphicsPathUnaffected already pins down for the ordinary
+// font path.
+func TestDrawSymGlyphRaster_ClassicDeclines(t *testing.T) {
+	previous := CurrentGlyphStyle()
+	t.Cleanup(func() { SetGlyphStyle(previous) })
+	SetGlyphStyle(GlyphStyleClassic)
+
+	for _, sym := range allSymGlyphs {
+		img := newTestSurface(48, 16)
+		if drawSymGlyphRaster(img, sym, 0, 0, 48, 16, 1, 0xffffff) {
+			t.Errorf("drawSymGlyphRaster(%v) claimed a shape under GlyphStyleClassic", sym)
+		}
+		if litPixels(img) != 0 {
+			t.Errorf("drawSymGlyphRaster(%v) declined under GlyphStyleClassic but still drew", sym)
+		}
+	}
+}
+
+// Under GlyphStyleRounded every checkbox/radio symbol must draw something,
+// and a checked/mixed/selected state must look different from its
+// unchecked/unselected counterpart -- the actual geometric rendering this
+// slice of f4#285 adds.
+func TestDrawSymGlyphRaster_RoundedDrawsAndStatesDiffer(t *testing.T) {
+	previous := CurrentGlyphStyle()
+	t.Cleanup(func() { SetGlyphStyle(previous) })
+	SetGlyphStyle(GlyphStyleRounded)
+
+	imgFor := func(sym SymGlyph) *image.RGBA {
+		img := newTestSurface(48, 16)
+		if !drawSymGlyphRaster(img, sym, 0, 0, 48, 16, 1, 0xffffff) {
+			t.Fatalf("drawSymGlyphRaster(%v) declined under GlyphStyleRounded", sym)
+		}
+		if litPixels(img) == 0 {
+			t.Fatalf("drawSymGlyphRaster(%v) claimed a shape but drew nothing", sym)
+		}
+		return img
+	}
+
+	off, on, mixed := imgFor(SymCheckboxOff), imgFor(SymCheckboxOn), imgFor(SymCheckboxMixed)
+	if bytes.Equal(off.Pix, on.Pix) {
+		t.Error("SymCheckboxOff and SymCheckboxOn rendered identically under GlyphStyleRounded")
+	}
+	if bytes.Equal(off.Pix, mixed.Pix) {
+		t.Error("SymCheckboxOff and SymCheckboxMixed rendered identically under GlyphStyleRounded")
+	}
+	if bytes.Equal(on.Pix, mixed.Pix) {
+		t.Error("SymCheckboxOn and SymCheckboxMixed rendered identically under GlyphStyleRounded")
+	}
+
+	radioOff, radioOn := imgFor(SymRadioOff), imgFor(SymRadioOn)
+	if bytes.Equal(radioOff.Pix, radioOn.Pix) {
+		t.Error("SymRadioOff and SymRadioOn rendered identically under GlyphStyleRounded")
+	}
+}
+
 func TestIsBoxDrawRune(t *testing.T) {
 	for _, r := range []rune{'─', '│', '┼', '═', '║', '╬', '█', '▄', '↑', '↕', '▲', '▼'} {
 		if !isBoxDrawRune(r) {

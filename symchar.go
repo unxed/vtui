@@ -20,11 +20,17 @@ package vtui
 // tests) expand a token back to the classic style's literal text through
 // CellString/CellBaseRune -- the same choke point that already expands
 // CompCharFlag registry entries -- so with the default "classic" style their
-// output is unchanged by the token's existence. Graphics backends resolve a
-// token's classic rune through the same functions and keep drawing it via
-// the ordinary font path: checkbox/radio glyphs were never geometric shapes
-// the way box-drawing characters are (see classic_glyph.go), so the classic
-// style needs no shape-table entry to stay pixel-identical either.
+// output is unchanged by the token's existence, whatever GlyphStyle a
+// graphics backend has active (GlyphStyle only ever affects graphics
+// output, never text). Graphics backends resolve a token's classic rune
+// through the same functions: under GlyphStyleClassic that rune keeps going
+// through the ordinary font path exactly as before checkbox/radio glyphs
+// became tokens (f4#285's PR #134), since classic never had a shape-table
+// entry for them any more than for a literal "[x]"/"( )" would. Under
+// GlyphStyleRounded, a checkbox/radio token is instead recognised whole (its
+// 3 cells together, see symGlyphAt) and drawn as a real geometric shape by
+// symGlyphRectsForStyle (symchar_glyph.go), the SymGlyph analogue of
+// classicGlyphRects for box-drawing characters.
 const SymCharFlag uint64 = 1 << 62
 
 // symGlyphPartBits is the number of low bits SymCharToken reserves for the
@@ -82,6 +88,29 @@ func DecodeSymChar(ch uint64) (sym SymGlyph, part int, ok bool) {
 	// cannot lose bits that were ever set.
 	sym = SymGlyph(payload >> symGlyphPartBits)
 	return sym, part, true
+}
+
+// symGlyphAt decodes a 3-cell checkbox/radio SymGlyph run starting at c0,
+// which must be that symbol's own part 0: c1 and c2 must be parts 1 and 2 of
+// the very same symbol (SymGlyphCharInfo always writes the 3 cells of one
+// token together, so a well-formed screen buffer never splits them). This
+// is how a graphics renderer recognises a whole token -- one visual glyph,
+// not 3 independent cells -- before asking symGlyphRectsForStyle whether the
+// active GlyphStyle draws it as a shape (symchar_glyph.go). Button-ear
+// tokens (2 cells, not 3) never match here; they are out of scope for
+// geometric rendering in this slice.
+func symGlyphAt(c0, c1, c2 uint64) (sym SymGlyph, ok bool) {
+	sym, part, ok := DecodeSymChar(c0)
+	if !ok || part != 0 {
+		return 0, false
+	}
+	if sym1, part1, ok1 := DecodeSymChar(c1); !ok1 || sym1 != sym || part1 != 1 {
+		return 0, false
+	}
+	if sym2, part2, ok2 := DecodeSymChar(c2); !ok2 || sym2 != sym || part2 != 2 {
+		return 0, false
+	}
+	return sym, true
 }
 
 // IsSymChar reports whether a CharInfo.Char value is a symbolic glyph token

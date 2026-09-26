@@ -179,6 +179,26 @@ func (r *EbitenRenderer) Render(buf, shadow []CharInfo, w, h int, forceRedraw bo
 					continue
 				}
 
+				if IsSymChar(curr.Char) && sx+2 < spanW && currX+2 < w {
+					if sym, symOk := symGlyphAt(curr.Char, buf[rowOff+currX+1].Char, buf[rowOff+currX+2].Char); symOk {
+						px, py := currX*r.cellW, y*r.cellH
+						symFg, _ := r.getCellColors(curr)
+						if drawSymGlyphRaster(img, sym, px, py, r.cellW*3, r.cellH, r.scale, symFg) {
+							if curr.Attributes&CommonLvbUnderscore != 0 {
+								drawUnderline(img, px, py, r.cellW*3, r.cellH, r.scale, symFg)
+							}
+							for k := 0; k < 3; k++ {
+								colX := currX + k
+								if cursorVisible && y == r.cursorY && r.cursorX == colX {
+									r.invertCursor(img, colX*r.cellW, y*r.cellH, 1)
+								}
+							}
+							sx += 3
+							continue
+						}
+					}
+				}
+
 				_, rw := CellSpanAt(buf, w, currX, y)
 				if rw < 1 {
 					rw = 1
