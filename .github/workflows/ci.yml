@@ -13,9 +13,57 @@ on:
 # A push fans out into more than forty checks, and only the latest queued run
 # for a branch and event is useful. Preserve every main run: its history must
 # never be interrupted.
+#
+# That per-ref grouping still leaves every DIFFERENT open pull_request in
+# its own group, so several simultaneously open PRs run several full
+# forty-plus-check matrices in true parallel, all competing for the same
+# finite runner pool shared with f4 in the same account. The Лунобот bot
+# swarm routinely keeps several PRs open at once across both repos, each
+# redundantly re-testing unrelated, unchanged code. Those specifically get
+# folded into one shared 'bot-pr-queue' group, cancel-in-progress: false so
+# nothing is ever dropped -- every bot PR still gets a complete, honest CI
+# result, just one full matrix at a time for the swarm collectively instead
+# of many in parallel. Anything else (a human PR, or the main/tag pushes
+# above) keeps its own per-ref group, fully unaffected.
+#
+# Bot branches are recognised by github.head_ref: the 'codex/' and
+# 'lunobot/' prefixes (per-node working-branch layout, e.g.
+# "codex/<hash>/lunobot-1/window-app-id") plus a bare leading digit, the
+# issue-number-first shape ("363-color-validator", "615-chat-window-
+# control") this swarm also uses here with no prefix at all. A human is
+# exceedingly unlikely to pick 'codex/' or 'lunobot/' as a personal branch
+# prefix, but a digit-led branch name is a much weaker signal: GitHub's own
+# "create a branch for this issue" button suggests that exact shape to any
+# contributor, bot or human. Accepted risk: a human PR named that way
+# queues behind the bot lane instead of starting immediately -- it still
+# runs to completion and reports a full, correct result, just later.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: >-
+    ${{
+      (github.event_name == 'pull_request' &&
+        (startsWith(github.head_ref, 'codex/') ||
+         startsWith(github.head_ref, 'lunobot/') ||
+         startsWith(github.head_ref, '0') || startsWith(github.head_ref, '1') ||
+         startsWith(github.head_ref, '2') || startsWith(github.head_ref, '3') ||
+         startsWith(github.head_ref, '4') || startsWith(github.head_ref, '5') ||
+         startsWith(github.head_ref, '6') || startsWith(github.head_ref, '7') ||
+         startsWith(github.head_ref, '8') || startsWith(github.head_ref, '9')))
+      && 'bot-pr-queue'
+      || format('{0}-{1}-{2}', github.workflow, github.event_name, github.ref)
+    }}
+  cancel-in-progress: >-
+    ${{
+      (github.event_name == 'pull_request' &&
+        (startsWith(github.head_ref, 'codex/') ||
+         startsWith(github.head_ref, 'lunobot/') ||
+         startsWith(github.head_ref, '0') || startsWith(github.head_ref, '1') ||
+         startsWith(github.head_ref, '2') || startsWith(github.head_ref, '3') ||
+         startsWith(github.head_ref, '4') || startsWith(github.head_ref, '5') ||
+         startsWith(github.head_ref, '6') || startsWith(github.head_ref, '7') ||
+         startsWith(github.head_ref, '8') || startsWith(github.head_ref, '9')))
+      && false
+      || github.ref != 'refs/heads/main'
+    }}
 
 jobs:
   test:
