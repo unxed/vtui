@@ -143,6 +143,7 @@ func TestScreenBuf_LockDeliversFullyComposedFrameOnly(t *testing.T) {
 		want := uint64('A' + y)
 		for x := 0; x < 3; x++ {
 			if got := snap[y*3+x].Char; got != want {
+				// #nosec G115 -- got/want are always 'A'..'C' here, far below any rune/uint64 truncation risk.
 				t.Fatalf("cell (%d,%d) = %q, want %q -- delivered frame is not the fully composed one", x, y, rune(got), rune(want))
 			}
 		}
