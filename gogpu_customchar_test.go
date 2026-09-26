@@ -153,6 +153,8 @@ func TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer(t *testing.T) {
 		dc.SetRGB(1, 1, 1)
 		dc.Clear()
 		dc.SetRGB(0, 0, 0)
+		rects, ok := symGlyphRects(sym, 24, 16, 1.0)
+		t.Logf("DIAG sym=%v ok=%v rects=%+v", sym, ok, rects)
 		if !r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
 			t.Fatalf("drawSymGlyphShape(%v) = false under GlyphStyleRounded, want true", sym)
 		}
