@@ -156,6 +156,19 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 	// Dynamically calculate required width for the submenu
 	maxWidth := menuItemsWidth(items, 24)
 
+	// Anchoring the submenu's left edge to its bar item's left edge clips
+	// its right side off narrow screens (a phone in portrait mode, f4#1432):
+	// shift it left just enough to fit, the way far2l keeps a dropdown fully
+	// on screen instead of pinning it to the button that opened it.
+	if FrameManager != nil {
+		if screenWidth := FrameManager.GetScreenSize(); screenWidth > 0 && x+maxWidth > screenWidth {
+			x = screenWidth - maxWidth
+			if x < 0 {
+				x = 0
+			}
+		}
+	}
+
 	menuY := mb.Y1 + 1
 	menuBottom := menuY + m.GetItemCount() + 1
 	// VMenu already provides a scrolling viewport and scrollbar.  Keep the
