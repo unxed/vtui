@@ -75,7 +75,20 @@ func TestGogpuRenderer_CustomCharVectorCoverage(t *testing.T) {
 // colour value is: both would tie the test to gg.Context implementation
 // details (buffer reuse across contexts, Clear()'s exact colour semantics)
 // that have nothing to do with what this slice of f4#285 actually changed.
+//
+// FlushGPU is required before Image(): github.com/gogpu/gg registers a GPU
+// accelerator on import (gogpu_renderer.go's blank "github.com/gogpu/gg/gpu"
+// import) that every *gg.Context picks up automatically, even a bare
+// gg.NewContext with no window/device behind it. Context.Fill() then queues
+// the shape on that accelerator's per-context GPU render target instead of
+// writing straight into the CPU pixmap Image() reads -- gg.Context.SavePNG
+// documents the same requirement ("Flush pending GPU shapes before reading
+// pixels"), it is not specific to this shape. Production rendering never hit
+// this because it always goes through ggcanvas.Canvas.Draw, which flushes to
+// its GPU view itself; only a bare gg.NewContext read back via Image(), as
+// every test in this file does, needs it done explicitly.
 func pixelSnapshot(dc *gg.Context, w, h int) []uint64 {
+	_ = dc.FlushGPU()
 	img := dc.Image()
 	out := make([]uint64, w*h)
 	i := 0
@@ -153,8 +166,6 @@ func TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer(t *testing.T) {
 		dc.SetRGB(1, 1, 1)
 		dc.Clear()
 		dc.SetRGB(0, 0, 0)
-		rects, ok := symGlyphRects(sym, 24, 16, 1.0)
-		t.Logf("DIAG sym=%v ok=%v rects=%+v", sym, ok, rects)
 		if !r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
 			t.Fatalf("drawSymGlyphShape(%v) = false under GlyphStyleRounded, want true", sym)
 		}

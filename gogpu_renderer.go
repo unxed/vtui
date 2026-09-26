@@ -3,7 +3,6 @@
 package vtui
 
 import (
-	"fmt"
 	"image/color"
 	"math"
 	"os"
@@ -435,11 +434,7 @@ func (r *GogpuRenderer) drawSymGlyphShape(dc *gg.Context, sym SymGlyph, x, y, w,
 	}
 	for _, rect := range rects {
 		dc.DrawRectangle(x+rect.x, y+rect.y, rect.w, rect.h)
-		if err := dc.Fill(); err != nil {
-			// DIAG(lunobot-3): temporary -- see if gg.Fill() is silently
-			// failing for these rects (PR #138 CI investigation).
-			fmt.Fprintf(os.Stderr, "DIAG drawSymGlyphShape: Fill() error for rect %+v: %v\n", rect, err)
-		}
+		dc.Fill()
 	}
 	return true
 }
