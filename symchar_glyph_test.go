@@ -27,6 +27,7 @@ func TestSymGlyphAt_RejectsMalformedRuns(t *testing.T) {
 	}{
 		{"not part 0", off1, off2, SymCharToken(SymCheckboxOff, 0)},
 		{"mixed symbols", off0, on1, off2},
+		{"different symbol at part 0", on0, off1, off2},
 		{"wrong part order", off0, off2, off1},
 		{"plain text first cell", uint64('['), off1, off2},
 		{"plain text middle cell", off0, uint64('x'), off2},
