@@ -338,18 +338,16 @@ func TestChatWindow_BusyLabel(t *testing.T) {
 	cw := NewChatWindow(0, 0, 40, 23, "")
 	cw.Busy = true
 	cw.BusyLabel = "typing"
-	cw.updateLines()
+
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(80, 25)
+	cw.Show(scr)
 
 	found := false
-	for _, l := range cw.lines {
-		var sb strings.Builder
-		for _, c := range l.cells {
-			if c.Char != WideCharFiller {
-				sb.WriteRune(rune(c.Char))
-			}
-		}
-		if strings.Contains(sb.String(), "typing") {
+	for y := 0; y < 25; y++ {
+		if strings.Contains(ScreenRow(scr, y, 0, 40), "typing") {
 			found = true
+			break
 		}
 	}
 	if !found {
