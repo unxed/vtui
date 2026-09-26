@@ -118,6 +118,28 @@ func TestButton_HotkeyParsing(t *testing.T) {
 	}
 }
 
+// A host can reach the embedded ScreenObject.SetText directly to give a
+// button raw, already-decorated text without Button's own "[ Text ]"
+// wrapping — f4's settings center does this for its search prev/next arrow
+// buttons ("[←]"/"[→]"), a 3-rune cleanText shorter than the 4-rune frame
+// (bracket, space, space, bracket) DisplayObject's ear-carving assumes.
+// That used to panic with a negative-length slice; it must instead just
+// render the raw text without ears.
+func TestButton_ShortRawTextDoesNotPanic(t *testing.T) {
+	SetDefaultPalette()
+	scr := NewSilentScreenBuf()
+	scr.AllocBuf(10, 1)
+
+	b := NewButton(0, 0, "placeholder")
+	b.ScreenObject.SetText("[←]")
+
+	b.Show(scr) // must not panic
+
+	if got := ScreenRow(scr, 0, 0, 2); got != "[←]" {
+		t.Errorf("expected the raw text drawn as-is, got %q", got)
+	}
+}
+
 func TestButton_DefaultUsesHighlightStyleWhenUnfocused(t *testing.T) {
 	SetDefaultPalette()
 	scr := NewSilentScreenBuf()
