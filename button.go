@@ -67,7 +67,26 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 	if b.mousePressed {
 		n, h = b.GetStateAttrs(ColDialogSelectedButton, ColDialogSelectedButton, ColDialogHighlightSelectedButton, ColDialogHighlightSelectedButton)
 	}
-	NewPainter(scr).DrawHighlightedText(b.X1, b.Y1, b.cleanText, b.hotkeyPos, n, h)
+
+	// b.cleanText is "<left bracket><space><label><space><right bracket>":
+	// the decorative ears (2 cells each) are drawn as symbolic tokens, and
+	// the label between them keeps going through DrawHighlightedText exactly
+	// as before, just shifted by the 2 cells the left ear now occupies
+	// instead of literal text. hotkeyPos, like cleanText, is measured from
+	// the start of the whole decorated string, so it shifts by the same 2
+	// cells; it was never inside the ears (the hotkey is always a letter of
+	// the label), so subtracting 2 keeps pointing at the same rune.
+	runes := []rune(b.cleanText)
+	label := string(runes[2 : len(runes)-2])
+	labelHotkeyPos := b.hotkeyPos
+	if labelHotkeyPos >= 0 {
+		labelHotkeyPos -= 2
+	}
+
+	p := NewPainter(scr)
+	p.DrawButtonEar(b.X1, b.Y1, SymButtonEarLeft, n)
+	p.DrawHighlightedText(b.X1+2, b.Y1, label, labelHotkeyPos, n, h)
+	p.DrawButtonEar(b.X1+2+StringWidth(label), b.Y1, SymButtonEarRight, n)
 }
 
 func (b *Button) ProcessKey(e *vtinput.InputEvent) bool {
