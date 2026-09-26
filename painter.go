@@ -73,6 +73,16 @@ func (p *Painter) DrawString(x, y int, text string, attr uint64) {
 	p.scr.Write(x, y, StringToCharInfo(text, attr))
 }
 
+// DrawSymGlyph draws a symbolic checkbox/radio glyph token (symchar.go) at
+// (x, y). The token always occupies 3 cells, exactly like the classic text
+// it replaces, so callers can lay out around it precisely as before. attr
+// applies to all 3 cells; the label or spacing next to the glyph is drawn
+// with a separate call, just as a differently-coloured indicator prefix was
+// previously written on top of a plain "[x] "/"( ) " string.
+func (p *Painter) DrawSymGlyph(x, y int, sym SymGlyph, attr uint64) {
+	p.scr.Write(x, y, SymGlyphCharInfo(sym, attr))
+}
+
 // DrawHighlightedText draws a pre-parsed string with a specific hotkey position.
 func (p *Painter) DrawHighlightedText(x, y int, cleanText string, hkPos int, normAttr, highAttr uint64) {
 	cells := make([]CharInfo, 0, len(cleanText))

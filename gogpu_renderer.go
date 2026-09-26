@@ -108,7 +108,7 @@ func (r *GogpuRenderer) SetFallbackFontChain(chain *fontFallbackChain) {
 // no box-drawing runes (they go through drawCustomChar) and never regional
 // indicators — two lone RIs in one string would shape into a flag.
 func gogpuBatchRune(ch uint64) bool {
-	if ch == 0 || ch == WideCharFiller || IsCompChar(ch) {
+	if ch == 0 || ch == WideCharFiller || IsCompChar(ch) || IsSymChar(ch) {
 		return false
 	}
 	if ch == ' ' {

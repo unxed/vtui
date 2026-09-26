@@ -121,7 +121,7 @@ func charInfoToWin32(ci CharInfo, activePal *[256]uint32) win32CharInfo {
 	var uc uint16
 	if ci.Char == 0 || ci.Char == WideCharFiller {
 		uc = ' '
-	} else if IsCompChar(ci.Char) {
+	} else if IsCompChar(ci.Char) || IsSymChar(ci.Char) {
 		uc = uint16(CellBaseRune(ci.Char))
 	} else if ci.Char < 0x10000 {
 		uc = uint16(ci.Char)

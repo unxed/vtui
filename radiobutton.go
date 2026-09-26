@@ -34,15 +34,19 @@ func (rb *RadioButton) DisplayObject(scr *ScreenBuf) {
 	}
 	n, h := rb.GetStateAttrs(ColDialogText, ColDialogSelectedButton, ColDialogHighlightText, ColDialogHighlightSelectedButton)
 
-	prefix := "( ) "
+	sym := SymRadioOff
 	if rb.Selected {
-		prefix = "(•) "
+		sym = SymRadioOn
 	}
 
+	// The indicator ("( )", 3 cells) and the space after it are drawn
+	// separately so the indicator can carry DialogIndicatorAttr while the
+	// space keeps the plain text attribute, exactly as the previous literal
+	// "( ) " prefix did when its first 3 cells were redrawn on top.
 	p := NewPainter(scr)
-	p.DrawString(rb.X1, rb.Y1, prefix, n)
-	p.DrawString(rb.X1, rb.Y1, string([]rune(prefix)[:3]), DialogIndicatorAttr(n, rb.IsFocused()))
-	p.DrawHighlightedText(rb.X1+runewidth.StringWidth(prefix), rb.Y1, rb.cleanText, rb.hotkeyPos, n, h)
+	p.DrawSymGlyph(rb.X1, rb.Y1, sym, DialogIndicatorAttr(n, rb.IsFocused()))
+	p.DrawString(rb.X1+3, rb.Y1, " ", n)
+	p.DrawHighlightedText(rb.X1+4, rb.Y1, rb.cleanText, rb.hotkeyPos, n, h)
 }
 
 func (rb *RadioButton) ProcessKey(e *vtinput.InputEvent) bool {

@@ -77,9 +77,9 @@ func (cg *CheckGroup) DisplayObject(scr *ScreenBuf) {
 			curAttr, curHigh = DimColor(curAttr), DimColor(curHigh)
 		}
 
-		prefix := "[ ] "
+		sym := SymCheckboxOff
 		if cg.States[i] {
-			prefix = "[x] "
+			sym = SymCheckboxOn
 		}
 
 		row := i / cg.Columns
@@ -89,8 +89,12 @@ func (cg *CheckGroup) DisplayObject(scr *ScreenBuf) {
 			cx += cg.colWidths[c]
 		}
 
+		// "[x]" (3 cells) plus the padding space that used to be part of the
+		// literal "[ ] "/"[x] " prefix, then the item text.
 		p := NewPainter(scr)
-		p.DrawStringHighlighted(cx, cg.Y1+row, prefix+itm, curAttr, curHigh)
+		p.DrawSymGlyph(cx, cg.Y1+row, sym, curAttr)
+		p.DrawString(cx+3, cg.Y1+row, " ", curAttr)
+		p.DrawStringHighlighted(cx+4, cg.Y1+row, itm, curAttr, curHigh)
 	}
 }
 

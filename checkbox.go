@@ -38,18 +38,21 @@ func (cb *Checkbox) DisplayObject(scr *ScreenBuf) {
 	}
 	n, h := cb.GetStateAttrs(ColDialogText, ColDialogSelectedButton, ColDialogHighlightText, ColDialogHighlightSelectedButton)
 
-	mark := " "
+	sym := SymCheckboxOff
 	if cb.State == 1 {
-		mark = "x"
+		sym = SymCheckboxOn
 	} else if cb.State == 2 {
-		mark = "?"
+		sym = SymCheckboxMixed
 	}
-	prefix := "[" + mark + "] "
 
+	// The indicator ("[x]", 3 cells) and the space after it are drawn
+	// separately so the indicator can carry DialogIndicatorAttr while the
+	// space keeps the plain text attribute, exactly as the previous literal
+	// "[x] " prefix did when its first 3 cells were redrawn on top.
 	p := NewPainter(scr)
-	p.DrawString(cb.X1, cb.Y1, prefix, n)
-	p.DrawString(cb.X1, cb.Y1, string([]rune(prefix)[:3]), DialogIndicatorAttr(n, cb.IsFocused()))
-	p.DrawHighlightedText(cb.X1+StringWidth(prefix), cb.Y1, cb.cleanText, cb.hotkeyPos, n, h)
+	p.DrawSymGlyph(cb.X1, cb.Y1, sym, DialogIndicatorAttr(n, cb.IsFocused()))
+	p.DrawString(cb.X1+3, cb.Y1, " ", n)
+	p.DrawHighlightedText(cb.X1+4, cb.Y1, cb.cleanText, cb.hotkeyPos, n, h)
 }
 
 func (cb *Checkbox) ProcessKey(e *vtinput.InputEvent) bool {

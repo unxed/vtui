@@ -105,6 +105,9 @@ func sysconsCell(out *byteBuffer, ch uint64, wide bool) {
 	if IsCompChar(ch) {
 		// A grapheme cluster: the base character stands for all of it.
 		r, _ = utf8.DecodeRuneInString(CellString(ch))
+	} else if IsSymChar(ch) {
+		// A checkbox/radio token: stand in for its classic literal rune.
+		r = CellBaseRune(ch)
 	}
 	b := asciiStandIn(r)
 	out.WriteByte(b)

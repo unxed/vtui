@@ -61,9 +61,9 @@ func (rg *RadioGroup) DisplayObject(scr *ScreenBuf) {
 			curAttr, curHigh = DimColor(curAttr), DimColor(curHigh)
 		}
 
-		prefix := "( ) "
+		sym := SymRadioOff
 		if i == rg.Selected {
-			prefix = "(•) "
+			sym = SymRadioOn
 		}
 
 		row := i / rg.Columns
@@ -73,7 +73,11 @@ func (rg *RadioGroup) DisplayObject(scr *ScreenBuf) {
 			cx += rg.colWidths[c]
 		}
 
-		p.DrawStringHighlighted(cx, rg.Y1+row, prefix+itm, curAttr, curHigh)
+		// "( )" (3 cells) plus the padding space that used to be part of the
+		// literal "( ) "/"(•) " prefix, then the item text.
+		p.DrawSymGlyph(cx, rg.Y1+row, sym, curAttr)
+		p.DrawString(cx+3, rg.Y1+row, " ", curAttr)
+		p.DrawStringHighlighted(cx+4, rg.Y1+row, itm, curAttr, curHigh)
 	}
 }
 
