@@ -873,6 +873,9 @@ func (r *AnsiRenderer) SetPalette(pal *[256]uint32) {
 // used to hold.
 func isGhostProneText(ch uint64) bool {
 	if IsSymChar(ch) {
+		// #nosec G115 -- CellBaseRune returns one of the fixed classic runes a
+		// symbol token expands to (e.g. '[', 'x', '('), always a small
+		// non-negative code point; widening to uint64 is lossless.
 		return isGhostProneText(uint64(CellBaseRune(ch)))
 	}
 	if ch < 0x80 {
@@ -903,6 +906,8 @@ func cellAdvanceTrusted(ch uint64, wide bool) bool {
 	case IsSymChar(ch):
 		// Judge a checkbox/radio token by the classic rune it expands to,
 		// exactly as if the literal character were still stored here.
+		// #nosec G115 -- see isGhostProneText: always a small non-negative
+		// classic code point.
 		return cellAdvanceTrusted(uint64(CellBaseRune(ch)), false)
 	case ch < 0x80:
 		return true

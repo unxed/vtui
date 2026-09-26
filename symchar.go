@@ -56,6 +56,8 @@ const (
 // (0-based, left to right) into a CharInfo.Char value tagged with
 // SymCharFlag.
 func SymCharToken(sym SymGlyph, part int) uint64 {
+	// #nosec G115 -- part is always one of a token's own small, non-negative
+	// cell indices (0-2), and the low bits are masked off besides.
 	return SymCharFlag | uint64(sym)<<symGlyphPartBits | (uint64(part) & symGlyphPartMask)
 }
 
@@ -67,6 +69,9 @@ func DecodeSymChar(ch uint64) (sym SymGlyph, part int, ok bool) {
 	}
 	payload := ch &^ SymCharFlag
 	part = int(payload & symGlyphPartMask)
+	// #nosec G115 -- payload is already masked down to the token's own small
+	// symbol-variant range by SymCharToken; truncating to SymGlyph (uint32)
+	// cannot lose bits that were ever set.
 	sym = SymGlyph(payload >> symGlyphPartBits)
 	return sym, part, true
 }

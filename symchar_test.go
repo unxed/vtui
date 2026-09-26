@@ -73,6 +73,8 @@ func TestSymCharFlag_NoCollision(t *testing.T) {
 		t.Error("IsSymChar(0) = true, want false")
 	}
 	for _, r := range []rune{'[', ']', 'x', '?', '(', ')', ' ', '•', 0x10FFFF} {
+		// #nosec G115 -- every value in the literal above is a small
+		// non-negative rune constant.
 		if IsSymChar(uint64(r)) {
 			t.Errorf("IsSymChar(%q) = true, want false", r)
 		}
