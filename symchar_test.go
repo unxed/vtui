@@ -116,10 +116,12 @@ func TestSymGlyphClassicText_MatchesLiteral(t *testing.T) {
 
 // TestSymChar_GraphicsPathUnaffected confirms that once a graphics backend
 // resolves a token through CellBaseRune, nothing routes it into the
-// geometric box-drawing table (classic_glyph.go, gui_boxdraw.go) or into the
-// gogpu batched-string fast path with the raw 64-bit token value: checkbox
+// geometric box-drawing table (classic_glyph.go, gui_boxdraw.go): checkbox
 // and radio glyphs were always plain font-rendered text, never a shape, so
-// "classic" needs no shape-table entry to stay pixel-identical (f4#285).
+// "classic" needs no shape-table entry to stay pixel-identical (f4#285). The
+// gogpu-specific half of this guarantee (the batched-string fast path never
+// sees a raw token) is covered separately in symchar_gogpu_test.go, which
+// carries the same build constraint as gogpuBatchRune's home file.
 func TestSymChar_GraphicsPathUnaffected(t *testing.T) {
 	for _, sym := range allSymGlyphs {
 		for part := 0; part < 3; part++ {
@@ -130,9 +132,6 @@ func TestSymChar_GraphicsPathUnaffected(t *testing.T) {
 			}
 			if _, ok := classicGlyphRects(base, 16, 16, 1); ok {
 				t.Errorf("classicGlyphRects claims a shape for %q (from SymCharToken(%v, %d))", base, sym, part)
-			}
-			if gogpuBatchRune(tok) {
-				t.Errorf("gogpuBatchRune(SymCharToken(%v, %d)) = true, want false (raw token must not join a batched run)", sym, part)
 			}
 		}
 	}
