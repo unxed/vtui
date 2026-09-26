@@ -2679,6 +2679,18 @@ func (fm *frameManager) renderPhase() {
 	// If the frame is "busy" (e.g., mass insertion in progress), skip drawing
 	// and Flush to avoid flickering and save CPU.
 	if !topFrame.IsBusy() {
+		// This is exactly the "large multi-step redraw" the render lock
+		// (f4#254) exists for: the frame stack, menu bar, key bar, status
+		// line, toast and workspace chrome below are painted through many
+		// separate ScreenBuf.Write/FillRect/ApplyColor calls. Lock defers
+		// any actual flush to the backend until Unlock, at the bottom of
+		// this block, so nothing -- not even a Flush called concurrently
+		// from elsewhere while this composition is in progress -- can
+		// observe or present a half-drawn intermediate frame while an
+		// entire panel is toggled (e.g. Ctrl+O).
+		fm.scr.Lock()
+		defer fm.scr.Unlock()
+
 		// Cleanup orphaned menus safely outside the frames iteration loop
 		// to avoid "index out of range" during rendering.
 		fm.cleanupOrphanedMenus()
@@ -2806,7 +2818,8 @@ func (fm *frameManager) renderPhase() {
 			semanticRenderer.SetSemanticScene(fm.ExportSemanticScene())
 		}
 
-		fm.scr.Flush()
+		// fm.scr.Unlock() (deferred above) delivers the fully composed
+		// frame here.
 	}
 	renderPhaseDur := time.Since(renderPhaseStart)
 	if renderPhaseDur > 10*time.Millisecond {
