@@ -434,7 +434,7 @@ func (r *GogpuRenderer) drawSymGlyphShape(dc *gg.Context, sym SymGlyph, x, y, w,
 	}
 	for _, rect := range rects {
 		dc.DrawRectangle(x+rect.x, y+rect.y, rect.w, rect.h)
-		dc.Fill()
+		_ = dc.Fill()
 	}
 	return true
 }
