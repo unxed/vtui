@@ -25,6 +25,11 @@ var EmojiPresentationWide = true
 // an index into a process wide registry instead of a code point. Indices are
 // marked with CompCharFlag; anything below it is a plain rune. This mirrors
 // far2l's COMP_CHAR, which is why CharInfo.Char is 64 bit wide.
+//
+// Bit 62, SymCharFlag (symchar.go), is a second, independent space of the
+// same kind: it tags a symbolic glyph token (a checkbox or radio button
+// state) instead of a registry index. CompCharFlag values only ever set
+// bits 63 and 0-23 (see MaxCompChar), so the two flags never collide.
 const (
 	CompCharFlag uint64 = 1 << 63
 	// MaxCompChar is the largest index the registry may hand out. It stays
@@ -117,7 +122,10 @@ func RegisterCluster(cluster string) uint64 {
 }
 
 // CellString returns the text a cell carries. Fillers and empty cells render
-// as nothing and a space respectively, which is what every backend wants.
+// as nothing and a space respectively, which is what every backend wants. A
+// SymCharFlag token (symchar.go) expands to the classic style's literal
+// text for the checkbox/radio glyph it identifies, so every text-mode
+// backend keeps drawing "[x]"/"( )" unchanged.
 func CellString(ch uint64) string {
 	switch {
 	case ch == WideCharFiller:
@@ -134,6 +142,8 @@ func CellString(ch uint64) string {
 		}
 		clusters.mu.RUnlock()
 		return string(runeReplacement)
+	case IsSymChar(ch):
+		return symCharClassicString(ch)
 	default:
 		return cellRuneString(ch)
 	}
@@ -187,19 +197,22 @@ func CellRunes(ch uint64) []rune {
 	if ch == WideCharFiller || ch == 0 {
 		return nil
 	}
-	if !IsCompChar(ch) {
+	if !IsCompChar(ch) && !IsSymChar(ch) {
 		return []rune{rune(ch)}
 	}
 	return []rune(CellString(ch))
 }
 
 // CellBaseRune returns the base character of a cell, ignoring any combining
-// marks. Backends that can only draw one glyph per cell use this.
+// marks. Backends that can only draw one glyph per cell use this. A
+// SymCharFlag token resolves to the classic style's literal rune for that
+// cell, so it renders through the same font/box-drawing path as any other
+// character.
 func CellBaseRune(ch uint64) rune {
 	if ch == WideCharFiller {
 		return 0
 	}
-	if !IsCompChar(ch) {
+	if !IsCompChar(ch) && !IsSymChar(ch) {
 		return rune(ch)
 	}
 	r, _ := utf8.DecodeRuneInString(CellString(ch))

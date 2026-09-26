@@ -868,7 +868,16 @@ func (r *AnsiRenderer) SetPalette(pal *[256]uint32) {
 
 // isGhostProneText reports Unicode that can shift width through font
 // fallback; box/block runes are fixed single-column cells that never shift.
+// A SymCharFlag token is judged by the classic rune it expands to, so a
+// checkbox/radio cell is exactly as ghost-prone as the literal character it
+// used to hold.
 func isGhostProneText(ch uint64) bool {
+	if IsSymChar(ch) {
+		// #nosec G115 -- CellBaseRune returns one of the fixed classic runes a
+		// symbol token expands to (e.g. '[', 'x', '('), always a small
+		// non-negative code point; widening to uint64 is lossless.
+		return isGhostProneText(uint64(CellBaseRune(ch)))
+	}
 	if ch < 0x80 {
 		return false
 	}
@@ -894,6 +903,12 @@ func cellAdvanceTrusted(ch uint64, wide bool) bool {
 		return true
 	case wide:
 		return false
+	case IsSymChar(ch):
+		// Judge a checkbox/radio token by the classic rune it expands to,
+		// exactly as if the literal character were still stored here.
+		// #nosec G115 -- see isGhostProneText: always a small non-negative
+		// classic code point.
+		return cellAdvanceTrusted(uint64(CellBaseRune(ch)), false)
 	case ch < 0x80:
 		return true
 	case ch >= 0x2500 && ch <= 0x259F:
@@ -1026,7 +1041,7 @@ func (r *AnsiRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 			} else if IsFreeBSDSyscons {
 				// Every byte is a cell there: see syscons_text.go.
 				sysconsCell(&r.frameOut, char, x+1 < w && buf[idx+1].Char == WideCharFiller)
-			} else if IsCompChar(char) {
+			} else if IsCompChar(char) || IsSymChar(char) {
 				r.frameOut.WriteString(CellString(char))
 			} else {
 				r.frameOut.WriteRune(rune(char))
@@ -1238,7 +1253,7 @@ func ScreenRow(scr *ScreenBuf, y, x1, x2 int) string {
 		}
 		if cell.Char == 0 {
 			sb.WriteByte(' ')
-		} else if IsCompChar(cell.Char) {
+		} else if IsCompChar(cell.Char) || IsSymChar(cell.Char) {
 			sb.WriteString(CellString(cell.Char))
 		} else {
 			sb.WriteRune(rune(cell.Char))
