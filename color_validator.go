@@ -30,12 +30,37 @@ func (e ColorError) Error() string {
 // The two checks approach visual discomfort from opposite directions.
 // MinContrastRatio catches colors that are too close in luminance to read
 // comfortably — the classic light-yellow-on-light-gray hotkey bug (about
-// 1.2:1) is far below WCAG AA's 4.5:1 for normal text. HarshChromaThreshold
-// and HarshHueDeltaDeg catch the opposite problem that current models of
-// human color perception also flag: two highly saturated colors of very
-// different hue sitting right next to each other, which reads as harsh or
-// "eye-gouging" even when their luminance contrast is technically fine (a
-// saturated yellow on a saturated cyan is the textbook example).
+// 1.2:1) is far below WCAG AA's 4.5:1 for normal text. HarshChromaThreshold,
+// HarshHueDeltaDeg and HarshMaxLightnessDelta catch the opposite problem
+// that current models of human color perception also flag: two highly
+// saturated colors of very different hue sitting right next to each other,
+// which reads as harsh or "eye-gouging" even when their luminance contrast
+// is technically fine (a saturated yellow on a saturated blue is the
+// textbook example).
+//
+// Chroma and hue delta alone are not enough to tell that apart from a
+// completely ordinary bright-foreground-on-dark-background pair, though:
+// bright cyan text (#00ffff, C*≈50) on a navy panel background (#0000a0,
+// C*≈94) is a classic, comfortable terminal color choice — Norton
+// Commander/far2l-style — yet both colors are "saturated" by that
+// definition and their hues sit 110° apart, well past a flat 60° cutoff.
+// What actually separates that pair from a genuine clash (saturated yellow
+// directly on saturated blue, hues 157° apart) is lightness: the clash
+// pairs found in practice are close to isoluminant (ΔL* well under 40 —
+// pure red on pure green, magenta on cyan, and so on), matching the known
+// perceptual effect that two saturated, hue-opposed colors "vibrate"
+// uncomfortably mainly when neither one reads as clearly lighter or darker
+// than the other. Once there is a wide lightness gap (ΔL* in the high 60s
+// or more, as with cyan-on-navy at 73 or the Classic scheme's
+// yellow-on-navy selection highlight at 79), the pair instead reads as
+// ordinary light-on-dark text, and the vibrating-clash effect does not
+// apply even though the hue delta is, if anything, larger than in the
+// genuine clash cases. HarshMaxLightnessDelta encodes that gap: it exempts
+// a pair from the clash check once its two colors are far enough apart in
+// lightness, rather than trying to fix the false positive by loosening
+// chroma or hue delta (which would just stop catching real clashes, since
+// real clashes and this false positive share very similar chroma and hue
+// numbers).
 type ColorRules struct {
 	// MinContrastRatio is the WCAG relative-luminance contrast ratio every
 	// pair must reach. 0 disables this check.
@@ -48,15 +73,27 @@ type ColorRules struct {
 
 	// HarshHueDeltaDeg is the minimum hue-angle difference, in degrees
 	// around the a*b* plane, between two saturated colors before their
-	// combination is flagged as a harsh clash.
+	// combination is a candidate harsh clash (subject to
+	// HarshMaxLightnessDelta below).
 	HarshHueDeltaDeg float64
+
+	// HarshMaxLightnessDelta caps how far apart, in CIE L* (0..100), two
+	// otherwise-clashing colors may be before the clash check is skipped.
+	// A wide lightness gap means the pair reads as light text on a dark
+	// (or dark text on a light) surface rather than as two isoluminant
+	// saturated colors vibrating against each other — see the ColorRules
+	// doc comment for the empirical basis. 0 disables this exemption, so
+	// every pair that clears the chroma and hue-delta gates is flagged
+	// regardless of lightness.
+	HarshMaxLightnessDelta float64
 }
 
 // DefaultColorRules is used by ValidateColors and AssertColors.
 var DefaultColorRules = ColorRules{
-	MinContrastRatio:     4.5,
-	HarshChromaThreshold: 40,
-	HarshHueDeltaDeg:     60,
+	MinContrastRatio:       4.5,
+	HarshChromaThreshold:   40,
+	HarshHueDeltaDeg:       60,
+	HarshMaxLightnessDelta: 69,
 }
 
 // ValidateColors checks each pair against DefaultColorRules.
@@ -80,11 +117,13 @@ func ValidateColorsWithRules(pairs []ColorPair, rules ColorRules) []error {
 		}
 
 		if rules.HarshChromaThreshold > 0 && rules.HarshHueDeltaDeg > 0 {
-			_, a1, b1 := rgbToLab(pair.FG)
-			_, a2, b2 := rgbToLab(pair.BG)
+			l1, a1, b1 := rgbToLab(pair.FG)
+			l2, a2, b2 := rgbToLab(pair.BG)
 			c1 := math.Hypot(a1, b1)
 			c2 := math.Hypot(a2, b2)
-			if c1 >= rules.HarshChromaThreshold && c2 >= rules.HarshChromaThreshold {
+			lightnessGap := math.Abs(l1 - l2)
+			if c1 >= rules.HarshChromaThreshold && c2 >= rules.HarshChromaThreshold &&
+				(rules.HarshMaxLightnessDelta <= 0 || lightnessGap <= rules.HarshMaxLightnessDelta) {
 				if hue := hueDeltaDeg(a1, b1, a2, b2); hue >= rules.HarshHueDeltaDeg {
 					errs = append(errs, ColorError{
 						Pair: pair,

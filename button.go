@@ -76,7 +76,19 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 	// the start of the whole decorated string, so it shifts by the same 2
 	// cells; it was never inside the ears (the hotkey is always a letter of
 	// the label), so subtracting 2 keeps pointing at the same rune.
+	//
+	// SetText always produces at least 4 runes (the two brackets and their
+	// two spaces), but a caller that reaches the embedded ScreenObject's
+	// SetText directly — bypassing Button's bracket-wrapping override, as
+	// generic property/reflection-driven code can — can leave cleanText
+	// shorter than that. Guard the slice instead of trusting the invariant,
+	// and fall back to drawing the raw text without carving out ears.
 	runes := []rune(b.cleanText)
+	if len(runes) < 4 {
+		p := NewPainter(scr)
+		p.DrawHighlightedText(b.X1, b.Y1, b.cleanText, b.hotkeyPos, n, h)
+		return
+	}
 	label := string(runes[2 : len(runes)-2])
 	labelHotkeyPos := b.hotkeyPos
 	if labelHotkeyPos >= 0 {

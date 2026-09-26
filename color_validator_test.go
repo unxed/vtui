@@ -76,6 +76,66 @@ func TestValidateColors_FlagsHarshSaturatedClash(t *testing.T) {
 	}
 }
 
+// TestValidateColors_AllowsCyanOnNavyPanelText is the false-positive
+// regression named in f4#363: bright cyan foreground on a navy background
+// (f4's own default Panel.Text, Norton-Commander/far2l-style) is a
+// comfortable, high-contrast, thoroughly ordinary terminal color choice.
+// Both colors are "saturated" (C*=50 and C*=94) and their hues sit 110°
+// apart, so a flat chroma+hue-delta check flags it — but its 73-point
+// lightness gap means it reads as light text on a dark panel, not a
+// vibrating clash, which is exactly what HarshMaxLightnessDelta exempts.
+func TestValidateColors_AllowsCyanOnNavyPanelText(t *testing.T) {
+	pairs := []ColorPair{
+		{Name: "Panel.Text", FG: 0x00FFFF, BG: 0x0000A0},
+	}
+	if errs := ValidateColors(pairs); len(errs) != 0 {
+		t.Errorf("expected cyan-on-navy panel text to pass, got: %v", errs)
+	}
+}
+
+// TestValidateColors_AllowsRealDefaultScheme runs every FG/BG pair actually
+// shipped in f4's "Default Dark" theme (internal/theme/styles/default_dark.ini,
+// itself ported from far2l) through the harsh-clash check. A validator that
+// cannot run clean against a real, currently-shipped default scheme is not
+// useful, so this is a broad regression net alongside the narrower
+// cyan-on-navy case above.
+//
+// This only exercises the harsh-clash side (MinContrastRatio disabled): a
+// few of this theme's decorative pairs (scrollbars, cursor highlights) sit
+// below 4.5:1 WCAG contrast by design, which is an independent, unrelated,
+// already-correct check that this fix does not touch.
+func TestValidateColors_AllowsRealDefaultScheme(t *testing.T) {
+	rules := DefaultColorRules
+	rules.MinContrastRatio = 0
+	pairs := []ColorPair{
+		{Name: "Panel.Box", FG: 0x555753, BG: 0x2E3436},
+		{Name: "Panel.Cursor", FG: 0x2E3436, BG: 0x06989A},
+		{Name: "Panel.Cursor.Inactive", FG: 0xD3D7CF, BG: 0x555753},
+		{Name: "Panel.Cursor.Inactive.Selected", FG: 0xFCE94F, BG: 0x555753},
+		{Name: "Panel.Cursor.Selected", FG: 0xFCE94F, BG: 0x06989A},
+		{Name: "Panel.Text", FG: 0x34E2E2, BG: 0x2E3436},
+		{Name: "Panel.Text.Highlight", FG: 0xD3D7CF, BG: 0x3465A4},
+		{Name: "Panel.Text.Info", FG: 0xFCE94F, BG: 0x2E3436},
+		{Name: "Panel.Text.Selected", FG: 0xFCE94F, BG: 0x3F474A},
+		{Name: "Dialog.Box", FG: 0x555753, BG: 0xD3D7CF},
+		{Name: "Dialog.Combo.Box", FG: 0xEEEEEC, BG: 0x06989A},
+		{Name: "Dialog.Combo.Highlight", FG: 0xFCE94F, BG: 0x06989A},
+		{Name: "Dialog.Edit.Selected", FG: 0xFCE94F, BG: 0x4E9A06},
+		{Name: "WarnDialog.Box", FG: 0xD3D7CF, BG: 0xCC0000},
+		{Name: "WarnDialog.Box.Title.Highlight", FG: 0xFCE94F, BG: 0xCC0000},
+		{Name: "Editor.Text", FG: 0x34E2E2, BG: 0x3465A4},
+		{Name: "Editor.WrapMark", FG: 0xFCE94F, BG: 0x3465A4},
+		{Name: "Editor.Occurrence", FG: 0x2E3436, BG: 0xFCE94F},
+		{Name: "Editor.Syntax.String", FG: 0x8AE234, BG: 0x3465A4},
+		{Name: "Viewer.Text.Selected", FG: 0x2E3436, BG: 0xFCE94F},
+		{Name: "Keybar.Text", FG: 0x2E3436, BG: 0x06989A},
+		{Name: "Help.Box", FG: 0x2E3436, BG: 0x06989A},
+	}
+	if errs := ValidateColorsWithRules(pairs, rules); len(errs) != 0 {
+		t.Errorf("expected f4's shipped Default Dark theme to pass the harsh-clash check clean, got: %v", errs)
+	}
+}
+
 // TestValidateColorsWithRules_ThresholdsAreHonored spot-checks that both
 // checks can be independently disabled and that the contrast threshold is
 // configurable, the way LayoutRules' fields work for the layout validator.
@@ -94,6 +154,42 @@ func TestValidateColorsWithRules_ThresholdsAreHonored(t *testing.T) {
 	rules.MinContrastRatio = 1.0
 	if errs := ValidateColorsWithRules(pairs, rules); len(errs) != 0 {
 		t.Errorf("a 1.0:1 minimum should accept every pair, got: %v", errs)
+	}
+}
+
+// TestValidateColorsWithRules_LightnessGapExemptsClash spot-checks
+// HarshMaxLightnessDelta directly: the cyan-on-navy pair passes under
+// DefaultColorRules because of its 73-point lightness gap, but flags again
+// once that exemption is disabled (0) or tightened below the gap, and the
+// existing harsh yellow-on-blue clash — whose lightness gap is a narrower
+// 65 points — must keep flagging throughout.
+func TestValidateColorsWithRules_LightnessGapExemptsClash(t *testing.T) {
+	cyanOnNavy := []ColorPair{{Name: "Panel.Text", FG: 0x00FFFF, BG: 0x0000A0}}
+	yellowOnBlue := []ColorPair{{Name: "Test.HarshPair", FG: 0xFFFF00, BG: 0x0000FF}}
+
+	if errs := ValidateColorsWithRules(cyanOnNavy, DefaultColorRules); len(errs) != 0 {
+		t.Errorf("cyan-on-navy should pass under DefaultColorRules, got: %v", errs)
+	}
+	if errs := ValidateColorsWithRules(yellowOnBlue, DefaultColorRules); len(errs) == 0 {
+		t.Error("yellow-on-blue should still be flagged under DefaultColorRules")
+	}
+
+	// Disabling the exemption (0) must flag cyan-on-navy too: it clears the
+	// same chroma and hue-delta gates as the genuine clash, it is only the
+	// lightness gap that tells them apart.
+	rules := DefaultColorRules
+	rules.HarshMaxLightnessDelta = 0
+	if errs := ValidateColorsWithRules(cyanOnNavy, rules); len(errs) == 0 {
+		t.Error("HarshMaxLightnessDelta = 0 should disable the exemption and flag cyan-on-navy")
+	}
+
+	// A cap tighter than the yellow-on-blue clash's own ~65-point gap must
+	// exempt it too, showing the field genuinely gates on the lightness gap
+	// rather than on anything specific to cyan-on-navy.
+	rules = DefaultColorRules
+	rules.HarshMaxLightnessDelta = 50
+	if errs := ValidateColorsWithRules(yellowOnBlue, rules); len(errs) != 0 {
+		t.Errorf("a 50-point cap should exempt yellow-on-blue (its gap is ~65), got: %v", errs)
 	}
 }
 
