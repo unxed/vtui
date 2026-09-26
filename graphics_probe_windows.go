@@ -13,6 +13,9 @@ import (
 // da1Sixel sends a primary device attributes query and reads the answer,
 // reporting whether the terminal declares sixel support (parameter 4).
 func da1Sixel() bool {
+	if useWinescapeProbe() {
+		return winescapeDA1Sixel()
+	}
 	hIn := windows.Handle(os.Stdin.Fd())
 	var oldIn uint32
 	if err := windows.GetConsoleMode(hIn, &oldIn); err != nil {
@@ -58,6 +61,9 @@ func da1Sixel() bool {
 
 // QueryCellSize asks the terminal (CSI 16 t) for the pixel size of one cell.
 func QueryCellSize() (cw, ch int, ok bool) {
+	if useWinescapeProbe() {
+		return winescapeQueryCellSize()
+	}
 	hIn := windows.Handle(os.Stdin.Fd())
 	var oldIn uint32
 	if err := windows.GetConsoleMode(hIn, &oldIn); err != nil {

@@ -16,6 +16,7 @@ require (
 	github.com/unxed/goclip v0.1.2
 	github.com/unxed/keytrans v0.1.33
 	github.com/unxed/kiwi-go v0.1.0
+	github.com/unxed/libwinescape v0.2.1
 	github.com/unxed/vtinput v0.1.8
 	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0

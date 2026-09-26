@@ -45,6 +45,8 @@ github.com/unxed/keytrans v0.1.33 h1:tW+nWhd6GKLc0xEKDhtqb2Cehu/RA2JPZ+6EkBb/fvA
 github.com/unxed/keytrans v0.1.33/go.mod h1:rBB4IN6grB7BjyRuNmy8Kxlsu1P6Nf4pchLHvPmFpGg=
 github.com/unxed/kiwi-go v0.1.0 h1:JTZb5mZSrzevswnL3OxCgN8oODkbPLHX7LXxJnpJ9YU=
 github.com/unxed/kiwi-go v0.1.0/go.mod h1:9nseXE0X7yf8SPvY4N2KOD2FiPwa+uNBDztt1kqf0aY=
+github.com/unxed/libwinescape v0.2.1 h1:ZqJAswhO9WbXt6EDId5SRBtAN7gqdYnqZbzFGLUSHRs=
+github.com/unxed/libwinescape v0.2.1/go.mod h1:tDmnUN0ij+iiqOovxUybQWgpm/Q8IEst6n8VTn3I1AE=
 github.com/unxed/pureffi v0.1.20 h1:AEUoJleSh1NBtkkwZZlrw3tHd94qxMuASWMeqm/KLjs=
 github.com/unxed/pureffi v0.1.20/go.mod h1:0maabTbD8JYY2NPzeTeEbSTDMvDQE0JQc+vesFJqDmo=
 github.com/unxed/vtinput v0.1.8 h1:fo2LKaJZZGARq4SiXk3PGKBE0Ozy3Yy90E06RrTXDcY=
