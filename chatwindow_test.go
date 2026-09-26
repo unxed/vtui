@@ -179,11 +179,12 @@ func TestChatWindow_RenderingAndLinkNavigation(t *testing.T) {
 	scr.AllocBuf(80, 25)
 	cw.Show(scr)
 
-	if len(cw.visibleLinks) == 0 {
+	visible := cw.VisibleLinks()
+	if len(visible) == 0 {
 		t.Fatal("Show should have collected visible links")
 	}
 	var targets []string
-	for _, l := range cw.visibleLinks {
+	for _, l := range visible {
 		targets = append(targets, l.Target)
 	}
 	joined := strings.Join(targets, "\n")
@@ -366,5 +367,19 @@ func TestChatWindow_ScrollToBottom(t *testing.T) {
 	maxTop := len(cw.lines) - h
 	if cw.topPos != maxTop {
 		t.Fatalf("ScrollToBottom left topPos %d, want %d", cw.topPos, maxTop)
+	}
+}
+
+func TestChatWindow_VisibleLinksIsACopy(t *testing.T) {
+	cw := NewChatWindow(0, 0, 40, 23, "")
+	cw.visibleLinks = []ChatLink{{Row: 0, Col: 0, Width: 1, Target: "a"}}
+
+	got := cw.VisibleLinks()
+	if len(got) != 1 || got[0].Target != "a" {
+		t.Fatalf("VisibleLinks = %v", got)
+	}
+	got[0].Target = "mutated"
+	if cw.visibleLinks[0].Target != "a" {
+		t.Fatal("VisibleLinks should return a copy, not the internal slice")
 	}
 }

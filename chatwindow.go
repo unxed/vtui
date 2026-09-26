@@ -239,6 +239,13 @@ func (cw *ChatWindow) FocusedLink() (ChatLink, bool) {
 	return cw.visibleLinks[cw.focusedLinkIdx], true
 }
 
+// VisibleLinks returns the links found on the currently visible page of the
+// message area, as collected by the last Show. It is recomputed on every
+// Show, so a host inspecting it (or in tests) should call Show first.
+func (cw *ChatWindow) VisibleLinks() []ChatLink {
+	return append([]ChatLink(nil), cw.visibleLinks...)
+}
+
 func (cw *ChatWindow) barAvailWidth() int {
 	return cw.X2 - cw.X1 - 3
 }
