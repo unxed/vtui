@@ -3,7 +3,6 @@
 package vtui
 
 import (
-	"image"
 	"testing"
 
 	"github.com/gogpu/gg"
@@ -69,37 +68,47 @@ func TestGogpuRenderer_CustomCharVectorCoverage(t *testing.T) {
 	}
 }
 
-// countNonWhite reports how many pixels of a WxH gg.Context drawn over a
-// white background are no longer white -- the same "did it actually draw
-// something" probe TestGogpuRenderer_CustomCharVectorCoverage uses above.
-func countNonWhite(dc *gg.Context, w, h int) int {
+// pixelSnapshot copies every pixel of a WxH image into an independent Go
+// slice, read immediately after drawing. Comparisons in the tests below use
+// this instead of holding several *gg.Context values alive and reading them
+// back later, and instead of asserting what an undrawn background's exact
+// colour value is: both would tie the test to gg.Context implementation
+// details (buffer reuse across contexts, Clear()'s exact colour semantics)
+// that have nothing to do with what this slice of f4#285 actually changed.
+func pixelSnapshot(dc *gg.Context, w, h int) []uint64 {
 	img := dc.Image()
-	n := 0
+	out := make([]uint64, w*h)
+	i := 0
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			r32, g32, b32, _ := img.At(x, y).RGBA()
-			if r32 != 0xFFFF || g32 != 0xFFFF || b32 != 0xFFFF {
-				n++
-			}
+			r32, g32, b32, a32 := img.At(x, y).RGBA()
+			out[i] = uint64(r32)<<48 | uint64(g32)<<32 | uint64(b32)<<16 | uint64(a32)
+			i++
 		}
 	}
-	return n
+	return out
 }
 
-// imagesPixelEqual reports whether two images agree on every pixel in a WxH
-// area, compared through the image.Image interface so it works whatever
-// concrete image type gg.Context.Image() returns.
-func imagesPixelEqual(a, b image.Image, w, h int) bool {
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			ar, ag, ab, aa := a.At(x, y).RGBA()
-			br, bg, bb, ba := b.At(x, y).RGBA()
-			if ar != br || ag != bg || ab != bb || aa != ba {
-				return false
-			}
+func pixelSnapshotsEqual(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
 		}
 	}
 	return true
+}
+
+// newBlankGogpuCanvas builds a WxH canvas cleared to white and immediately
+// snapshots it, giving every test below the same "what an untouched canvas
+// looks like" baseline without asserting a specific colour value for it.
+func newBlankGogpuCanvas(w, h int) []uint64 {
+	dc := gg.NewContext(w, h)
+	dc.SetRGB(1, 1, 1)
+	dc.Clear()
+	return pixelSnapshot(dc, w, h)
 }
 
 // TestGogpuRenderer_SymGlyphShape_ClassicDeclines confirms drawSymGlyphShape
@@ -113,6 +122,7 @@ func TestGogpuRenderer_SymGlyphShape_ClassicDeclines(t *testing.T) {
 	t.Cleanup(func() { SetGlyphStyle(previous) })
 	SetGlyphStyle(GlyphStyleClassic)
 
+	blank := newBlankGogpuCanvas(24, 16)
 	r := NewGogpuRenderer(nil, nil, 8, 16)
 	for _, sym := range allSymGlyphs {
 		dc := gg.NewContext(24, 16)
@@ -121,8 +131,8 @@ func TestGogpuRenderer_SymGlyphShape_ClassicDeclines(t *testing.T) {
 		if r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
 			t.Errorf("drawSymGlyphShape(%v) = true under GlyphStyleClassic, want false", sym)
 		}
-		if n := countNonWhite(dc, 24, 16); n != 0 {
-			t.Errorf("drawSymGlyphShape(%v) declined under GlyphStyleClassic but drew %d pixels", sym, n)
+		if got := pixelSnapshot(dc, 24, 16); !pixelSnapshotsEqual(got, blank) {
+			t.Errorf("drawSymGlyphShape(%v) declined under GlyphStyleClassic but changed the canvas", sym)
 		}
 	}
 }
@@ -136,8 +146,9 @@ func TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer(t *testing.T) {
 	t.Cleanup(func() { SetGlyphStyle(previous) })
 	SetGlyphStyle(GlyphStyleRounded)
 
+	blank := newBlankGogpuCanvas(24, 16)
 	r := NewGogpuRenderer(nil, nil, 8, 16)
-	render := func(sym SymGlyph) *gg.Context {
+	render := func(sym SymGlyph) []uint64 {
 		dc := gg.NewContext(24, 16)
 		dc.SetRGB(1, 1, 1)
 		dc.Clear()
@@ -145,25 +156,26 @@ func TestGogpuRenderer_SymGlyphShape_RoundedDrawsAndStatesDiffer(t *testing.T) {
 		if !r.drawSymGlyphShape(dc, sym, 0, 0, 24, 16) {
 			t.Fatalf("drawSymGlyphShape(%v) = false under GlyphStyleRounded, want true", sym)
 		}
-		if n := countNonWhite(dc, 24, 16); n == 0 {
+		snap := pixelSnapshot(dc, 24, 16)
+		if pixelSnapshotsEqual(snap, blank) {
 			t.Fatalf("drawSymGlyphShape(%v) claimed success but drew nothing", sym)
 		}
-		return dc
+		return snap
 	}
 
 	off, on, mixed := render(SymCheckboxOff), render(SymCheckboxOn), render(SymCheckboxMixed)
-	if imagesPixelEqual(off.Image(), on.Image(), 24, 16) {
+	if pixelSnapshotsEqual(off, on) {
 		t.Error("SymCheckboxOff and SymCheckboxOn rendered identically")
 	}
-	if imagesPixelEqual(off.Image(), mixed.Image(), 24, 16) {
+	if pixelSnapshotsEqual(off, mixed) {
 		t.Error("SymCheckboxOff and SymCheckboxMixed rendered identically")
 	}
-	if imagesPixelEqual(on.Image(), mixed.Image(), 24, 16) {
+	if pixelSnapshotsEqual(on, mixed) {
 		t.Error("SymCheckboxOn and SymCheckboxMixed rendered identically")
 	}
 
 	radioOff, radioOn := render(SymRadioOff), render(SymRadioOn)
-	if imagesPixelEqual(radioOff.Image(), radioOn.Image(), 24, 16) {
+	if pixelSnapshotsEqual(radioOff, radioOn) {
 		t.Error("SymRadioOff and SymRadioOn rendered identically")
 	}
 }
