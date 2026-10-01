@@ -153,3 +153,101 @@ func TestMouseGestureANSIButtonReleaseAndPopupCancel(t *testing.T) {
 	}
 	fm.RemoveFrame(combo.Menu)
 }
+
+func TestMouseGestureHelpers_IsMouseMotion(t *testing.T) {
+	ev := gestureEvent(10, 5, true, 0, true)
+	if !IsMouseMotion(ev) {
+		t.Error("Expected IsMouseMotion to return true for MouseMoved event")
+	}
+
+	ev2 := gestureEvent(10, 5, true, 1, false)
+	if IsMouseMotion(ev2) {
+		t.Error("Expected IsMouseMotion to return false for non-moved event")
+	}
+}
+
+func TestMouseGestureHelpers_IsMouseWheelEvent(t *testing.T) {
+	ev := &vtinput.InputEvent{
+		Type:           vtinput.MouseEventType,
+		WheelDirection: 1,
+	}
+	if !IsMouseWheelEvent(ev) {
+		t.Error("Expected IsMouseWheelEvent to return true for wheel event")
+	}
+
+	ev2 := gestureEvent(10, 5, true, 1, false)
+	if IsMouseWheelEvent(ev2) {
+		t.Error("Expected IsMouseWheelEvent to return false for non-wheel event")
+	}
+}
+
+func TestMouseGestureHelpers_ButtonDetection(t *testing.T) {
+	leftEv := &vtinput.InputEvent{
+		Type:        vtinput.MouseEventType,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+	}
+	if !IsLeftMouseButton(leftEv) {
+		t.Error("Expected IsLeftMouseButton to return true")
+	}
+
+	middleEv := &vtinput.InputEvent{
+		Type:        vtinput.MouseEventType,
+		ButtonState: vtinput.FromLeft2ndButtonPressed,
+	}
+	if !IsMiddleMouseButton(middleEv) {
+		t.Error("Expected IsMiddleMouseButton to return true")
+	}
+
+	rightEv := &vtinput.InputEvent{
+		Type:        vtinput.MouseEventType,
+		ButtonState: vtinput.RightmostButtonPressed,
+	}
+	if !IsRightMouseButton(rightEv) {
+		t.Error("Expected IsRightMouseButton to return true")
+	}
+}
+
+func TestMouseGestureHelpers_IsDoubleClick(t *testing.T) {
+	ev := &vtinput.InputEvent{
+		Type:            vtinput.MouseEventType,
+		MouseEventFlags: vtinput.DoubleClick,
+	}
+	if !IsDoubleClick(ev) {
+		t.Error("Expected IsDoubleClick to return true")
+	}
+
+	ev2 := &vtinput.InputEvent{
+		Type: vtinput.MouseEventType,
+	}
+	if IsDoubleClick(ev2) {
+		t.Error("Expected IsDoubleClick to return false for non-double-click event")
+	}
+}
+
+func TestMouseGestureHelpers_GetMouseCoordinates(t *testing.T) {
+	ev := &vtinput.InputEvent{
+		Type:   vtinput.MouseEventType,
+		MouseX: 42,
+		MouseY: 17,
+	}
+	x, y := GetMouseCoordinates(ev)
+	if x != 42 || y != 17 {
+		t.Errorf("Expected (42, 17), got (%d, %d)", x, y)
+	}
+}
+
+func TestMouseGestureHelpers_IsMouseEventInBounds(t *testing.T) {
+	ev := &vtinput.InputEvent{
+		Type:   vtinput.MouseEventType,
+		MouseX: 15,
+		MouseY: 10,
+	}
+
+	if !IsMouseEventInBounds(ev, 10, 5, 20, 15) {
+		t.Error("Expected IsMouseEventInBounds to return true for point within bounds")
+	}
+
+	if IsMouseEventInBounds(ev, 20, 15, 30, 25) {
+		t.Error("Expected IsMouseEventInBounds to return false for point outside bounds")
+	}
+}
