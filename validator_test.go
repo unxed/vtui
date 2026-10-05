@@ -15,6 +15,61 @@ func TestFilterValidator(t *testing.T) {
 	}
 }
 
+func TestIntRangeValidator(t *testing.T) {
+	v := &IntRangeValidator{Min: -2, Max: 10}
+	for _, tc := range []struct {
+		input string
+		valid bool
+	}{
+		{"-2", true}, {"10", true}, {"-3", false}, {"11", false}, {"nope", false},
+	} {
+		if got := v.Validate(tc.input); got != tc.valid {
+			t.Errorf("Validate(%q) = %v, want %v", tc.input, got, tc.valid)
+		}
+	}
+	for _, tc := range []struct {
+		input string
+		valid bool
+	}{
+		{"", true}, {"-", true}, {"12", true}, {"1x", false},
+	} {
+		if got := v.IsValidInput(tc.input); got != tc.valid {
+			t.Errorf("IsValidInput(%q) = %v, want %v", tc.input, got, tc.valid)
+		}
+	}
+}
+
+func TestRegexValidator(t *testing.T) {
+	v := &RegexValidator{Pattern: `^[a-z]+$`}
+	if !v.Validate("hello") {
+		t.Error("RegexValidator rejected a matching string")
+	}
+	if v.Validate("Hello1") {
+		t.Error("RegexValidator accepted a non-matching string")
+	}
+	if !v.IsValidInput("partial") {
+		t.Error("RegexValidator should allow partial input")
+	}
+}
+
+func TestOctalValidator(t *testing.T) {
+	v := &OctalValidator{MaxDigits: 3}
+	for _, tc := range []struct {
+		input   string
+		final   bool
+		partial bool
+	}{
+		{"", true, true}, {"755", true, true}, {"7550", false, false}, {"789", false, false}, {"77x", false, false},
+	} {
+		if got := v.Validate(tc.input); got != tc.final {
+			t.Errorf("Validate(%q) = %v, want %v", tc.input, got, tc.final)
+		}
+		if got := v.IsValidInput(tc.input); got != tc.partial {
+			t.Errorf("IsValidInput(%q) = %v, want %v", tc.input, got, tc.partial)
+		}
+	}
+}
+
 func TestLookupValidator(t *testing.T) {
 	v := &LookupValidator{
 		List:       []string{"UTF-8", "CP866", "Windows-1251"},
