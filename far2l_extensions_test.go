@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -142,12 +143,13 @@ func TestFar2lInteract_NoEventStealing(t *testing.T) {
 		Char:           'a',
 	}
 
-	// Track dispatching via a mock frame
-	received := false
+	// Track dispatching via a mock frame. The frame runs on the goroutine
+	// pumping WaitFar2lResponse, so the flag is atomic.
+	var received atomic.Bool
 	frame := &mockFrame{
 		onProcessKey: func(e *vtinput.InputEvent) bool {
 			if e == kp {
-				received = true
+				received.Store(true)
 			}
 			return true
 		},
@@ -157,47 +159,59 @@ func TestFar2lInteract_NoEventStealing(t *testing.T) {
 	stk := &vtinput.Far2lStack{}
 	stk.PushU8('w')
 
-	// 2. Start Far2lInteract (which will block in WaitFar2lResponse)
+	// 2. Queue a keypress, then start Far2lInteract, which blocks in
+	// WaitFar2lResponse and has to pump that keypress while it waits.
+	localFm.EventChan <- kp
 	var reply *vtinput.Far2lStack
-	done := make(chan bool)
+	done := make(chan struct{})
 	go func() {
-		// Put the event into the queue AFTER Far2lInteract starts waiting
-		time.Sleep(20 * time.Millisecond)
-		localFm.EventChan <- kp
-
 		reply = Far2lInteract(stk, true)
-		done <- true
+		close(done)
 	}()
 
-	// 3. Now simulate the dispatcher receiving the reply
-	// We wait a bit to ensure WaitFar2lResponse has processed the kp event.
-	time.Sleep(100 * time.Millisecond)
-
-	idToWait := uint8(far2lIDCounter.Load())
+	// 3. Wait -- on the conditions themselves, not on sleeps a slow runner
+	// can outlast -- until the waiter is registered and the keypress has
+	// been dispatched, and only then let the reply arrive.
+	waitFor := func(what string, cond func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for !cond() {
+			if time.Now().After(deadline) {
+				t.Fatalf("timed out waiting for %s", what)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	idToWait := uint8(0)
+	waitFor("the far2l waiter to register", func() bool {
+		localFm.far2lMu.Lock()
+		defer localFm.far2lMu.Unlock()
+		for id := range localFm.pendingFar2l {
+			idToWait = id
+			return true
+		}
+		return false
+	})
+	waitFor("the keypress to be dispatched", received.Load)
 
 	resp := vtinput.Far2lStack{}
 	resp.PushU16(24) // height
 	resp.PushU16(80) // width
 	resp.PushU8(idToWait)
 
-	replyEvent := &vtinput.InputEvent{
+	// Queued rather than dispatched from here, so the waiting goroutine
+	// dispatches it itself, as it would a real reply.
+	localFm.EventChan <- &vtinput.InputEvent{
 		Type:         vtinput.Far2lEventType,
 		Far2lCommand: "reply",
 		Far2lData:    resp,
 	}
-
-	// Manually dispatch the reply to satisfy the waiter
-	localFm.dispatchEvent(replyEvent, false)
 
 	// 4. Wait for the interaction to complete
 	select {
 	case <-done:
 		if reply == nil {
 			t.Fatal("Interaction failed on valid reply")
-		}
-		// Verify that the keypress event was DISPATCHED by the WaitFar2lResponse pump
-		if !received {
-			t.Error("KeyPress event was not dispatched during Far2lInteract wait!")
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Interaction timed out / hung")
