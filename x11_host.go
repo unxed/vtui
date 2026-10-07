@@ -10,8 +10,6 @@ import (
 	"os"
 	"reflect"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/jezek/xgb"
@@ -57,10 +55,19 @@ type X11Host struct {
 	scr      *ScreenBuf
 	fontName string
 	fontSize float64
-	// dpi is the font DPI computed once at window creation from Xft.dpi (see
-	// runInX11Window); SetFont reuses it so a font hot-swap keeps the same
-	// scaling the window opened with.
+	// dpi is the font DPI derived from the desktop DPI (see x11_dpi.go): set
+	// at window creation and again whenever the desktop DPI changes. SetFont
+	// reuses it so a font hot-swap keeps the current scaling.
 	dpi float64
+	// dpiWatch tracks the properties that carry the desktop DPI; nil when
+	// the window was built without a connection (unit tests).
+	dpiWatch *x11DPIWatch
+	// gridStale says the cell size changed (DPI change, font hot-swap) since
+	// cols x rows were last derived from the window size. The next
+	// ConfigureNotify re-derives them even when the pixel size is unchanged:
+	// a maximized or tiled window cannot follow the grid, so the grid has to
+	// follow the window.
+	gridStale bool
 
 	translator     keytrans.Translator
 	mouseBtn       uint32
@@ -293,6 +300,9 @@ func (h *X11Host) RunEventLoop() {
 		if ev == nil {
 			break
 		}
+		if h.handleDPIEvent(ev) {
+			continue
+		}
 
 		switch e := ev.(type) {
 		case xproto.ExposeEvent:
@@ -304,14 +314,7 @@ func (h *X11Host) RunEventLoop() {
 			h.flushImage()
 
 		case xproto.ConfigureNotifyEvent:
-			w, ht := e.Width, e.Height
-			if w != h.width || ht != h.height {
-				h.mu.Lock()
-				h.width, h.height = w, ht
-				h.cols, h.rows = int(w)/h.cellW, int(ht)/h.cellH
-				h.mu.Unlock()
-				h.sendEvent(&vtinput.InputEvent{Type: vtinput.ResizeEventType})
-			}
+			h.onConfigureNotify(e)
 
 		case xproto.FocusInEvent:
 			h.handleFocusEvent(true)
@@ -354,10 +357,11 @@ func (h *X11Host) RunEventLoop() {
 			h.mu.Lock()
 			btn := h.mouseBtn
 			h.mu.Unlock()
+			cellW, cellH := h.cellSize()
 			h.sendEvent(&vtinput.InputEvent{
 				Type:            vtinput.MouseEventType,
-				MouseX:          int16(int(e.EventX) / h.cellW),
-				MouseY:          int16(int(e.EventY) / h.cellH),
+				MouseX:          pixelToCell(int(e.EventX), cellW),
+				MouseY:          pixelToCell(int(e.EventY), cellH),
 				MouseEventFlags: vtinput.MouseMoved,
 				ButtonState:     btn,
 				ControlKeyState: h.translateModifiers(e.State),
@@ -542,11 +546,12 @@ func (h *X11Host) handleButtonEvent(x, y int16, detail xproto.Button, state uint
 	}
 	currMouseBtn := h.mouseBtn
 	h.mu.Unlock()
+	cellW, cellH := h.cellSize()
 
 	event := &vtinput.InputEvent{
 		Type:            vtinput.MouseEventType,
-		MouseX:          int16(int(x) / h.cellW),
-		MouseY:          int16(int(y) / h.cellH),
+		MouseX:          pixelToCell(int(x), cellW),
+		MouseY:          pixelToCell(int(y), cellH),
 		KeyDown:         isDown,
 		ButtonState:     currMouseBtn,
 		ControlKeyState: h.translateModifiers(state),
@@ -760,6 +765,7 @@ func (h *X11Host) applyFontLocked(fontName string, fontSize float64) {
 	h.fontSize = fontSize
 	h.cellW = cellW
 	h.cellH = cellH
+	h.gridStale = true
 	if h.renderer != nil {
 		h.renderer.setFace(face)
 	}
@@ -785,21 +791,9 @@ func (h *X11Host) SetFont(fontName string, fontSize float64) {
 	}
 	h.mu.Lock()
 	h.applyFontLocked(fontName, fontSize)
-	conn, wid := h.conn, h.wid
-	cols, rows, cellW, cellH := h.cols, h.rows, h.cellW, h.cellH
 	h.mu.Unlock()
 
-	if conn != nil {
-		// #nosec G115 -- cols/rows are the terminal's fixed grid size and
-		// cellW/cellH are font-metric pixel sizes from loadBestFont; both
-		// pairs are always small non-negative values, so neither product
-		// approaches uint32's range.
-		width, height := uint32(cols*cellW), uint32(rows*cellH)
-		xproto.ConfigureWindow(conn, wid, xproto.ConfigWindowWidth|xproto.ConfigWindowHeight, []uint32{width, height})
-	}
-	if FrameManager != nil {
-		FrameManager.HardRefresh()
-	}
+	h.resizeToGrid()
 }
 
 func runInX11Window(cols, rows int, fontName string, fontSize float64, setupApp func()) error {
@@ -810,39 +804,16 @@ func runInX11Window(cols, rows int, fontName string, fontSize float64, setupApp 
 	if fontSize <= 0 {
 		fontSize = 18.0
 	}
-	tempConn, _ := xgb.NewConn()
-	xftDpi := 96.0
-	if tempConn != nil {
-		setup := xproto.Setup(tempConn)
-		screen := setup.DefaultScreen(tempConn)
-
-		// Attempt to read explicit DPI scaling from the X11 Resource Manager
-		atomReply, err := xproto.InternAtom(tempConn, false, 16, "RESOURCE_MANAGER").Reply()
-		if err == nil && atomReply != nil {
-			propReply, err := xproto.GetProperty(tempConn, false, screen.Root, atomReply.Atom, xproto.AtomAny, 0, 1024*1024).Reply()
-			if err == nil && propReply != nil && propReply.Format == 8 {
-				val := string(propReply.Value)
-				for _, line := range strings.Split(val, "\n") {
-					if strings.HasPrefix(line, "Xft.dpi:") {
-						parts := strings.Split(line, ":")
-						if len(parts) == 2 {
-							parsed, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-							if err == nil && parsed > 0 {
-								xftDpi = parsed
-								break
-							}
-						}
-					}
-				}
-			}
-		}
+	// The desktop DPI, read over a throwaway connection because the font has
+	// to be measured before the window can be sized. The host's own
+	// connection then keeps watching it (see x11_dpi.go).
+	desktopDPI := x11DefaultDPI
+	if tempConn, _ := xgb.NewConn(); tempConn != nil {
+		root := xproto.Setup(tempConn).DefaultScreen(tempConn).Root
+		desktopDPI = newX11DPIWatch(xgbDPIConn{tempConn}, root, tempConn.DefaultScreen).readDPI()
 		tempConn.Close()
 	}
-
-	// gogpu treats fontSize as pixels (DPI=72). We want to match this visually.
-	// Scale the 72 DPI baseline by the OS scale factor (Xft.dpi / 96.0).
-	scaleFactor := xftDpi / 96.0
-	dpi := 72.0 * scaleFactor
+	dpi, lineScale := x11FontDPI(desktopDPI)
 
 	face, cellW, cellH := loadBestFont(fontName, fontSize, dpi)
 
@@ -854,6 +825,9 @@ func runInX11Window(cols, rows int, fontName string, fontSize float64, setupApp 
 	host.fontName = fontName
 	host.fontSize = fontSize
 	host.dpi = dpi
+	host.scale = lineScale
+	host.dpiWatch = newX11DPIWatch(xgbDPIConn{host.conn}, host.screen.Root, host.conn.DefaultScreen)
+	host.dpiWatch.subscribe()
 
 	renderer := NewX11Renderer(host, face)
 	host.renderer = renderer

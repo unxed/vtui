@@ -227,6 +227,9 @@ type GogpuHost struct {
 	// Cached sizes to prevent deadlocks and speed up GetTerminalSize
 	lastAppW, lastAppH int
 	resizePending      bool
+	// lastScale is the device scale (physical pixels per logical pixel) the
+	// last frame was drawn at; 0 before the first frame. See noteScale.
+	lastScale float64
 	// dragOut is the gesture waiting for the main loop to hand it to
 	// gogpu, or nil. One pointer, so one gesture at a time.
 	dragOut *gogpuDragRequest
@@ -566,6 +569,34 @@ func (h *GogpuHost) SetFont(fontName string, fontSize float64) {
 	}
 }
 
+// noteScale records the device scale a frame is drawn at and reports whether
+// it differs from the previous frame's -- the window moved to a display with
+// another scale, or the display's scale or resolution changed.
+//
+// gogpu lays the window out in logical pixels and ggcanvas follows the device
+// scale on its own, so the cell size and the grid stay as they are; the
+// caller only forces a full repaint at the new scale. Every change is logged, with both sizes: on macOS the backing scale
+// is the one thing this backend cannot observe directly, so the log is what
+// tells a wrong scale from gogpu apart from a wrong one in vtui.
+func (h *GogpuHost) noteScale(scale float64, w, ht, fbW, fbH int) bool {
+	if scale <= 0 {
+		return false
+	}
+	h.mu.Lock()
+	prev := h.lastScale
+	h.lastScale = scale
+	h.mu.Unlock()
+	if prev == 0 {
+		DebugLog("GOGPU_HOST: device scale %.3f, logical %dx%d, framebuffer %dx%d", scale, w, ht, fbW, fbH)
+		return false
+	}
+	if math.Abs(prev-scale) < 0.001 {
+		return false
+	}
+	DebugLog("GOGPU_HOST: device scale %.3f -> %.3f, logical %dx%d, framebuffer %dx%d", prev, scale, w, ht, fbW, fbH)
+	return true
+}
+
 func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp func()) error {
 	// DX12: use naga DXIL backend instead of HLSL->FXC
 	// to avoid 2-6s shader compilation via d3dcompiler_47.dll
@@ -847,6 +878,12 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 			host.resizePending = true
 		}
 		host.mu.Unlock()
+
+		if host.noteScale(dc.ScaleFactor(), w, h, dc.FramebufferWidth(), dc.FramebufferHeight()) {
+			if FrameManager != nil {
+				FrameManager.HardRefresh()
+			}
+		}
 
 		if sizeChanged && host.reader != nil && host.reader.EventChan != nil {
 			host.sendEvent(&vtinput.InputEvent{Type: vtinput.ResizeEventType})

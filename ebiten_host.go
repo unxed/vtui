@@ -36,6 +36,11 @@ type EbitenHost struct {
 	// every crossing between the two goes through this.
 	scale int
 
+	// fontName and fontSize are the font the cells are drawn with, kept so a
+	// display scale change can reload it at the new scale (see checkScale).
+	fontName string
+	fontSize float64
+
 	// Last window size seen by Layout, in logical pixels.
 	winW, winH int
 
@@ -252,6 +257,7 @@ func (h *EbitenHost) requestSize(w, h2 int) {
 // SetFont do.
 func (h *EbitenHost) SetFont(fontName string, fontSize float64) {
 	h.mu.Lock()
+	h.fontName, h.fontSize = fontName, fontSize
 	scale := h.scale
 	h.mu.Unlock()
 	if scale < 1 {
@@ -316,6 +322,7 @@ func planEbitenDraw(newTarget bool, frameW, frameH, drawnW, drawnH int, changed 
 
 func (g *ebitenGame) Update() error {
 	h := g.host
+	h.checkScale(ebitenMonitorScale())
 
 	h.mu.Lock()
 	if h.pendingSize.valid {
@@ -326,7 +333,7 @@ func (g *ebitenGame) Update() error {
 		if sc < 1 {
 			sc = 1
 		}
-		ebiten.SetWindowSize(w/sc, ph/sc)
+		ebiten.SetWindowSize(ebitenDIPs(w, sc), ebitenDIPs(ph, sc))
 	} else {
 		h.mu.Unlock()
 	}
@@ -652,17 +659,9 @@ func RunEbitenHost(cols, rows int, fontName string, fontSize float64, setupApp f
 	// The scale factor has to be known before the font is measured, because a
 	// HiDPI screen needs the face rasterised at the larger size. Scaling a
 	// face built for 96dpi up afterwards is what makes text look soft.
-	// DeviceScaleFactor is readable before RunGame; if the window later moves
-	// to a monitor with a different factor the cells keep their pixel size,
-	// which is a visible but not a broken result and is left for later.
-	var monitorScale float64 = 1.0
-	if m := ebiten.Monitor(); m != nil {
-		monitorScale = m.DeviceScaleFactor()
-	}
-	scale := int(monitorScale + 0.5)
-	if scale < 1 {
-		scale = 1
-	}
+	// DeviceScaleFactor is readable before RunGame; a later change is picked
+	// up by checkScale.
+	scale := ebitenScale(ebitenMonitorScale())
 
 	face, cellW, cellH := loadBestFont(fontName, fontSize*float64(scale), 72)
 	if cellW <= 0 || cellH <= 0 {
@@ -676,6 +675,8 @@ func RunEbitenHost(cols, rows int, fontName string, fontSize float64, setupApp f
 		cellW:      cellW,
 		cellH:      cellH,
 		scale:      scale,
+		fontName:   fontName,
+		fontSize:   fontSize,
 		winW:       cols * cellW,
 		winH:       rows * cellH,
 		lastMouseX: -1,
@@ -696,6 +697,7 @@ func RunEbitenHost(cols, rows int, fontName string, fontSize float64, setupApp f
 	// terminal, and the viewer falls back to showing a JPEG as text even
 	// though this backend can draw it.
 	scr.Graphics().SetProtocol(GraphicsNative)
+	scr.Graphics().SetCellSize(cellW, cellH)
 	host.scr = scr
 	FrameManager.Init(scr)
 
@@ -733,7 +735,7 @@ func RunEbitenHost(cols, rows int, fontName string, fontSize float64, setupApp f
 	setWheelNotchLines(getSystemScrollLines())
 
 	ebiten.SetWindowTitle(WindowTitleWithBackend(AppName))
-	ebiten.SetWindowSize(cols*cellW/scale, rows*cellH/scale)
+	ebiten.SetWindowSize(ebitenDIPs(cols*cellW, scale), ebitenDIPs(rows*cellH, scale))
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	// Draw repaints the offscreen from our own framebuffer and clears it
 	// itself whenever the offscreen or the frame size changes (see

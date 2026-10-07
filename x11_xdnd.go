@@ -355,14 +355,15 @@ func (d *x11Dnd) onPosition(e *xproto.ClientMessageEvent) {
 // modifiers are held, which XdndPosition itself does not carry.
 func (d *x11Dnd) pointer(rootX, rootY int) (int, int, vtinput.ControlKeyState) {
 	h := d.host
+	cellW, cellH := h.cellSize()
 	if reply, err := xproto.QueryPointer(d.conn, h.wid).Reply(); err == nil && reply != nil {
-		return dndCell(int(reply.WinX), h.cellW), dndCell(int(reply.WinY), h.cellH), h.translateModifiers(reply.Mask)
+		return dndCell(int(reply.WinX), cellW), dndCell(int(reply.WinY), cellH), h.translateModifiers(reply.Mask)
 	}
 	if h.screen != nil {
 		reply, err := xproto.TranslateCoordinates(d.conn, h.screen.Root, h.wid,
 			int16(rootX), int16(rootY)).Reply()
 		if err == nil && reply != nil {
-			return dndCell(int(reply.DstX), h.cellW), dndCell(int(reply.DstY), h.cellH), 0
+			return dndCell(int(reply.DstX), cellW), dndCell(int(reply.DstY), cellH), 0
 		}
 	}
 	return 0, 0, 0

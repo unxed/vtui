@@ -619,15 +619,7 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		// ResizeGrid takes logical cells, but SetWindowPos takes the outer
 		// window size. Use the exact same style/ex-style pair as creation so
 		// the requested client area remains cols*cellW by rows*cellH.
-		var rc win32Rect
-		rc.right = int32(cols * cellW)
-		rc.bottom = int32(rows * cellH)
-		procAdjustWindowRectEx.Call(
-			uintptr(unsafe.Pointer(&rc)),
-			uintptr(wsOverlappedWindow),
-			0,
-			uintptr(wsExAcceptFiles|wsExAppWindow),
-		)
+		rc := gridWindowRect(0, 0, cols, rows, cellW, cellH, win32WindowDPI(hwnd))
 		outerW := rc.right - rc.left
 		outerH := rc.bottom - rc.top
 		if outerW <= 0 || outerH <= 0 {
@@ -698,6 +690,13 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 			h.everPainted = true
 			h.mu.Unlock()
 		}
+		return 0
+
+	case wmDpiChanged:
+		// LOWORD(wParam) is the new DPI (X and Y are always equal);
+		// lParam points at the rectangle Windows suggests for it.
+		dpi := float64(wParam & 0xFFFF)
+		h.handleDPIChange(hwnd, dpi, (*win32Rect)(winPtr(lParam)))
 		return 0
 
 	case wmSize:
@@ -777,8 +776,9 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		procSetCapture.Call(uintptr(hwnd))
 		x := int16(int32(int16(lParam & 0xFFFF)))
 		y := int16(int32(int16(lParam >> 16)))
-		cellX := int16(int(x) / h.cellW)
-		cellY := int16(int(y) / h.cellH)
+		cellW, cellH := h.cellSize()
+		cellX := pixelToCell(int(x), cellW)
+		cellY := pixelToCell(int(y), cellH)
 		var btn uint32
 		switch msg {
 		case wmLButtonDown:
@@ -805,8 +805,9 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 	case wmLButtonUp, wmRButtonUp, wmMButtonUp:
 		x := int16(int32(int16(lParam & 0xFFFF)))
 		y := int16(int32(int16((lParam >> 16) & 0xFFFF)))
-		cellX := int16(int(x) / h.cellW)
-		cellY := int16(int(y) / h.cellH)
+		cellW, cellH := h.cellSize()
+		cellX := pixelToCell(int(x), cellW)
+		cellY := pixelToCell(int(y), cellH)
 		var btn uint32
 		switch msg {
 		case wmLButtonUp:
@@ -836,8 +837,9 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 	case wmLButtonDblClk, wmRButtonDblClk, wmMButtonDblClk:
 		x := int16(int32(int16(lParam & 0xFFFF)))
 		y := int16(int32(int16((lParam >> 16) & 0xFFFF)))
-		cellX := int16(int(x) / h.cellW)
-		cellY := int16(int(y) / h.cellH)
+		cellW, cellH := h.cellSize()
+		cellX := pixelToCell(int(x), cellW)
+		cellY := pixelToCell(int(y), cellH)
 		var btn uint32
 		switch msg {
 		case wmLButtonDblClk:
@@ -865,8 +867,9 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 	case wmMouseMove:
 		x := int16(int32(int16(lParam & 0xFFFF)))
 		y := int16(int32(int16((lParam >> 16) & 0xFFFF)))
-		cellX := int16(int(x) / h.cellW)
-		cellY := int16(int(y) / h.cellH)
+		cellW, cellH := h.cellSize()
+		cellX := pixelToCell(int(x), cellW)
+		cellY := pixelToCell(int(y), cellH)
 		h.mu.Lock()
 		btn := h.mouseBtn
 		moved := !h.mouseCellKnown || cellX != h.lastMouseCellX || cellY != h.lastMouseCellY
@@ -909,8 +912,9 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		pt.x = int32(int16(lParam & 0xFFFF))
 		pt.y = int32(int16((lParam >> 16) & 0xFFFF))
 		procScreenToClient.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&pt)))
-		cellX := int16(int(pt.x) / h.cellW)
-		cellY := int16(int(pt.y) / h.cellH)
+		cellW, cellH := h.cellSize()
+		cellX := pixelToCell(int(pt.x), cellW)
+		cellY := pixelToCell(int(pt.y), cellH)
 		h.sendEvent(&vtinput.InputEvent{
 			Type:            vtinput.MouseEventType,
 			MouseX:          cellX,
@@ -924,8 +928,9 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		hDrop := syscall.Handle(wParam)
 		var pt win32Point
 		procDragQueryPoint.Call(uintptr(hDrop), uintptr(unsafe.Pointer(&pt)))
-		cellX := int(pt.x) / h.cellW
-		cellY := int(pt.y) / h.cellH
+		cellW, cellH := h.cellSize()
+		cellX := int(pt.x) / cellW
+		cellY := int(pt.y) / cellH
 
 		countRet, _, _ := procDragQueryFileW.Call(uintptr(hDrop), 0xFFFFFFFF, 0, 0)
 		fileCount := int(countRet)
@@ -1151,20 +1156,15 @@ func RunWin32GuiHost(cols, rows int, fontName string, fontSize float64, setupApp
 		fontSize = 18.0
 	}
 
-	win32DPI := getWin32DPI()
-	scaleFactor := win32DPI / 96.0
-	if scaleFactor < 1.0 {
-		scaleFactor = 1.0
-	}
-	fontDPI := 72.0 * scaleFactor
+	// The primary monitor's current DPI, not the system DPI, which Windows
+	// freezes at sign-in (see win32_gui_dpi_windows.go). syncWindowDPI
+	// corrects it once the window exists, should it open elsewhere.
+	win32DPI := primaryMonitorDPI()
+	fontDPI, scale := win32DPIScale(win32DPI)
+	scaleFactor := fontDPI / 72.0
 	face, cellW, cellH := loadBestFont(fontName, fontSize, fontDPI)
 	if cellW <= 0 || cellH <= 0 {
 		cellW, cellH = int(8*scaleFactor+0.5), int(16*scaleFactor+0.5)
-	}
-
-	scale := int(scaleFactor + 0.5)
-	if scale < 1 {
-		scale = 1
 	}
 
 	host := &Win32GuiHost{
@@ -1211,10 +1211,7 @@ func RunWin32GuiHost(cols, rows int, fontName string, fontSize float64, setupApp
 	win32GuiClassMu.Unlock()
 
 	style := uint32(wsOverlappedWindow)
-	var rc struct{ left, top, right, bottom int32 }
-	rc.right = int32(cols * cellW)
-	rc.bottom = int32(rows * cellH)
-	procAdjustWindowRectEx.Call(uintptr(unsafe.Pointer(&rc)), uintptr(style), 0, uintptr(wsExAcceptFiles|wsExAppWindow))
+	rc := gridWindowRect(0, 0, cols, rows, cellW, cellH, win32DPI)
 	adjW := rc.right - rc.left
 	adjH := rc.bottom - rc.top
 
@@ -1277,6 +1274,10 @@ func RunWin32GuiHost(cols, rows int, fontName string, fontSize float64, setupApp
 	UseWindowClipboard()
 	SetDragBackend(host)
 	setupApp()
+	// setupApp may have moved the window to its saved position; either way,
+	// measure it against the monitor it is on before it is first painted.
+	host.syncWindowDPI(host.hwnd)
+	cellW, cellH = host.cellSize()
 	SetActiveBackend("win32", fmt.Sprintf("cell %dx%d, font %q", cellW, cellH, fontName), "GDI SetDIBitsToDevice")
 	setWheelNotchLines(getSystemScrollLines())
 
