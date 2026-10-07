@@ -938,6 +938,15 @@ func (r *GogpuRenderer) DrawToScreen(ctx *gogpu.Context) {
 	if w <= 0 || h <= 0 {
 		return
 	}
+	// Wayland may learn the output scale after the first configure event. The
+	// canvas captures the provider's scale when it is created, so keep it in
+	// sync with the frame context as well. Otherwise a canvas created at 1x is
+	// uploaded to a 2x surface and the compositor scales the whole UI, making
+	// text and graphics blurry on HiDPI displays (f4 #1774).
+	scale := ctx.ScaleFactor()
+	if scale <= 0 {
+		scale = 1
+	}
 
 	if debugLastCtxW != w || debugLastCtxH != h {
 		debugLastCtxW, debugLastCtxH = w, h
@@ -953,6 +962,10 @@ func (r *GogpuRenderer) DrawToScreen(ctx *gogpu.Context) {
 			return
 		}
 		r.canvas, _ = ggcanvas.New(provider, w, h)
+	}
+	if r.canvas.DeviceScale() != scale {
+		r.canvas.SetDeviceScale(scale)
+		r.dirty = true
 	}
 
 	var prof gogpuFrameStats
