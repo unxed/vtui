@@ -27,6 +27,13 @@ const (
 	// dimmed caption is meant to look faded, keeps roundedButtonDisabledContrast.
 	roundedButtonMinContrast      = 4.5
 	roundedButtonDisabledContrast = 3.0
+	// roundedButtonAccentMix is how far the block of a default button moves
+	// from the neutral tint towards the accent colour of the theme (the
+	// foreground it gives a default button in the classic look). Correcting the
+	// caption for contrast pulls an accent caption towards black or white and
+	// would leave the default button looking like any other one, so the accent
+	// has to live in the block (f4 #1782).
+	roundedButtonAccentMix = 0.40
 	// roundedButtonLightLuminance is the relative luminance above which a
 	// background counts as light: black and white text have equal contrast on it.
 	roundedButtonLightLuminance = 0.179
@@ -98,7 +105,19 @@ func readableOn(fg, bg uint32, minRatio float64) uint32 {
 // tinted background, caption colour kept readable, caption underlined when
 // underline is set (the ears are blank, so they are not).
 func roundedButtonAttr(attr uint64, disabled, underline bool) uint64 {
+	return roundedButtonAttrAccent(attr, disabled, underline, false)
+}
+
+// roundedButtonAttrAccent is roundedButtonAttr for a button that is the
+// dialog's default: with accent set, the block is mixed towards the attribute's
+// own foreground, the colour a theme gives a default button, so the button
+// stands out by its block and not by a caption colour the contrast correction
+// would flatten.
+func roundedButtonAttrAccent(attr uint64, disabled, underline, accent bool) uint64 {
 	bg := roundedButtonBack(attrColorRGB(attr, true))
+	if accent && !disabled {
+		bg = mixRGB(bg, attrColorRGB(attr, false), roundedButtonAccentMix)
+	}
 	want := roundedButtonMinContrast
 	if disabled {
 		want = roundedButtonDisabledContrast
@@ -113,11 +132,14 @@ func roundedButtonAttr(attr uint64, disabled, underline bool) uint64 {
 
 // drawRoundedButton draws the button's label (the text between the classic
 // ears) as a tinted block: 2 blank cells, the underlined label, 2 blank cells.
-func (b *Button) drawRoundedButton(scr *ScreenBuf, label string, hotkeyPos int, n, h uint64) {
+//
+// accent marks the dialog's default button in its idle state (not focused, not
+// pressed), whose block takes the theme's accent colour.
+func (b *Button) drawRoundedButton(scr *ScreenBuf, label string, hotkeyPos int, n, h uint64, accent bool) {
 	disabled := b.IsDisabled()
-	blankN := roundedButtonAttr(n, disabled, false)
-	labelN := roundedButtonAttr(n, disabled, true)
-	labelH := roundedButtonAttr(h, disabled, true)
+	blankN := roundedButtonAttrAccent(n, disabled, false, accent)
+	labelN := roundedButtonAttrAccent(n, disabled, true, accent)
+	labelH := roundedButtonAttrAccent(h, disabled, true, accent)
 
 	p := NewPainter(scr)
 	blank := []CharInfo{{Char: uint64(' '), Attributes: blankN}, {Char: uint64(' '), Attributes: blankN}}

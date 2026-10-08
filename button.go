@@ -96,7 +96,10 @@ func (b *Button) DisplayObject(scr *ScreenBuf) {
 	}
 
 	if roundedButtonsActive() {
-		b.drawRoundedButton(scr, label, labelHotkeyPos, n, h)
+		// The default button in its idle state: no focus, no press. Its
+		// colours are then exactly the "normal" ones of ColDialogHighlightButton.
+		idleDefault := b.IsEnterDefault() && !b.mousePressed && n == b.GetStateAttr(normalIdx, normalIdx)
+		b.drawRoundedButton(scr, label, labelHotkeyPos, n, h, idleDefault)
 		return
 	}
 
