@@ -194,3 +194,59 @@ func TestButtonRounded_RawShortTextStillRendersAsIs(t *testing.T) {
 		t.Errorf("raw text = %q, want it drawn as is", got)
 	}
 }
+
+// The default button must not rely on its caption colour: the contrast
+// correction flattens a theme's accent caption (red on grey becomes near
+// black), which is how the default button of f4's own dark theme stopped
+// being recognisable in the rounded style (f4 #1782).
+func TestButtonRounded_DefaultStaysRecognisableWithThemeColours(t *testing.T) {
+	cases := []struct {
+		name                 string
+		fg, accent, buttonBg uint32
+	}{
+		{"f4 default dark", 0x2e3436, 0xcc0000, 0xd3d7cf},
+		{"f4 modern", 0xD0D0D0, 0x7FAFE3, 0x434343},
+		{"far blue", 0x000000, 0xFFFF55, 0xAAAAAA},
+	}
+	for _, c := range cases {
+		normal := SetRGBBoth(0, c.fg, c.buttonBg)
+		def := SetRGBBoth(0, c.accent, c.buttonBg)
+
+		n := roundedButtonAttrAccent(normal, false, true, false)
+		d := roundedButtonAttrAccent(def, false, true, true)
+		nb, db := attrColorRGB(n, true), attrColorRGB(d, true)
+		if nb == db {
+			t.Errorf("%s: default block %06X equals the ordinary one", c.name, db)
+		}
+		// A visible step, not a rounding difference.
+		if contrastRatioRGB(nb, db) < 1.15 {
+			t.Errorf("%s: block %06X vs %06X differ by only %.2f", c.name, nb, db, contrastRatioRGB(nb, db))
+		}
+		if got := contrastRatioRGB(attrColorRGB(d, false), db); got < roundedButtonMinContrast {
+			t.Errorf("%s: default caption contrast %.2f, want >= %.1f", c.name, got, roundedButtonMinContrast)
+		}
+	}
+}
+
+func TestButtonRounded_AccentOnlyOnIdleDefault(t *testing.T) {
+	roundedButtonEnv(t, "gogpu", GlyphStyleRounded)
+	block := func(mutate func(b *Button)) uint32 {
+		scr, _ := drawButton(t, "OK", mutate)
+		return GetRGBBack(scr.GetCell(1, 0).Attributes)
+	}
+	plain := block(nil)
+	def := block(func(b *Button) { b.IsDefault = true })
+	if def == plain {
+		t.Fatalf("an idle default button has the ordinary block %06X", def)
+	}
+	focusedPlain := block(func(b *Button) { b.SetFocus(true) })
+	focusedDef := block(func(b *Button) { b.IsDefault = true; b.SetFocus(true) })
+	if focusedDef != focusedPlain {
+		t.Errorf("a focused default button (%06X) must look like any focused one (%06X)", focusedDef, focusedPlain)
+	}
+	disabledPlain := block(func(b *Button) { b.SetDisabled(true) })
+	disabledDef := block(func(b *Button) { b.IsDefault = true; b.SetDisabled(true) })
+	if disabledDef != disabledPlain {
+		t.Errorf("a disabled default button (%06X) must not take the accent (%06X)", disabledDef, disabledPlain)
+	}
+}
