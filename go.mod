@@ -11,7 +11,7 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.10.0-alpha.13.0.20260811162617-464c2ddfc34c
 	github.com/jezek/xgb v1.3.1
 	github.com/mattn/go-runewidth v0.0.15
-	github.com/neurlang/wayland v0.4.4
+	github.com/neurlang/wayland v0.4.5-0.20261007184820-37f4fac9bad0
 	github.com/rivo/uniseg v0.2.0
 	github.com/soniakeys/quant v1.0.0
 	github.com/unxed/goclip v0.1.2
@@ -53,5 +53,3 @@ replace github.com/ebitengine/purego => github.com/unxed/pureffi v0.1.21
 replace github.com/go-webgpu/goffi => github.com/unxed/goffi v0.1.9
 
 replace github.com/ebitengine/hideconsole => ./internal/hideconsole
-
-replace github.com/neurlang/wayland => github.com/unxed/wayland v0.4.5-0.20260929195943-eab109b70429
