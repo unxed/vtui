@@ -50,6 +50,20 @@ func TestDimColor(t *testing.T) {
 		t.Errorf("DimColor RGB failed, got %X", GetRGBFore(dimmed))
 	}
 
+	// With an RGB background the foreground fades into it, so dark text on a
+	// light background gets lighter instead of staying as dark as it was.
+	onLight := SetRGBBack(SetRGBFore(0, 0x2E3436), 0xD3D7CF)
+	if got := GetRGBFore(DimColor(onLight)); got != 0x808582 {
+		t.Errorf("DimColor over a light background = %06X, want 808582", got)
+	}
+	if got := GetRGBFore(DimColor(SetRGBBack(SetRGBFore(0, 0xEEEEEC), 0x333333))); got != 0x90908F {
+		t.Errorf("DimColor over a dark background = %06X, want 90908F", got)
+	}
+	// Over a DarkGray background DarkGray would vanish.
+	if got := GetIndexFore(DimColor(SetIndexBoth(0, 15, 8))); got != 7 {
+		t.Errorf("DimColor over DarkGray = %d, want 7", got)
+	}
+
 	// Index Test (ANSI fallback)
 	idxAttr := SetIndexFore(0, 15) // White
 	dimmedIdx := DimColor(idxAttr)
