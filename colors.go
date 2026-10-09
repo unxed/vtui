@@ -123,12 +123,25 @@ func InvertColors(attr uint64) uint64 {
 	return attr
 }
 
-// DimColor reduces the brightness of the foreground color to visually indicate a disabled state.
+// DimColor shows a disabled state by moving the foreground half way to the
+// background, so it fades whichever way round the colours are. Halving the
+// foreground alone made dark text on a light dialog (the usual button) nearly
+// unchanged, so a disabled button looked as live as an enabled one (f4#918).
+// Without an RGB background to blend with, an RGB foreground is halved and an
+// indexed one becomes DarkGray, or LightGray over a DarkGray background.
 func DimColor(attr uint64) uint64 {
 	if attr&IsFgRGB != 0 {
 		fg := GetRGBFore(attr)
 		r, g, b := (fg>>16)&0xFF, (fg>>8)&0xFF, fg&0xFF
+		if attr&IsBgRGB != 0 {
+			bg := GetRGBBack(attr)
+			br, bgG, bb := (bg>>16)&0xFF, (bg>>8)&0xFF, bg&0xFF
+			return SetRGBFore(attr, ((r+br)/2)<<16|((g+bgG)/2)<<8|(b+bb)/2)
+		}
 		return SetRGBFore(attr, (r/2)<<16|(g/2)<<8|(b/2))
+	}
+	if attr&IsBgRGB == 0 && GetIndexBack(attr) == 8 {
+		return SetIndexFore(attr, 7)
 	}
 	return SetIndexFore(attr, 8) // 8 is DarkGray in standard ANSI
 }
