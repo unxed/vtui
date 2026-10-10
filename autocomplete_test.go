@@ -822,3 +822,40 @@ func TestAutoComplete_StrictListsOnlyContainingEntries(t *testing.T) {
 		t.Errorf("strict matching should still ignore case, got %v", got)
 	}
 }
+
+// f4#1855: Ctrl+Enter with the menu open must reach the frame below as
+// Ctrl+Enter (insert the file name under the cursor), not run the command,
+// whether or not a row was picked.
+func TestAutoComplete_CtrlEnterPassesThroughWithItsModifiers(t *testing.T) {
+	for _, pick := range []bool{false, true} {
+		SetDefaultPalette()
+		fm := FrameManager
+		fm.Init(NewSilentScreenBuf())
+		fm.injectedEvents = nil
+
+		edit := NewEdit(0, 10, 20, "g")
+		edit.History = []string{"go run ."}
+		ac := NewAutoCompleteMenu(edit)
+		fm.Push(ac)
+		if pick {
+			ac.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN})
+		}
+		ac.ProcessKey(&vtinput.InputEvent{
+			Type:            vtinput.KeyEventType,
+			KeyDown:         true,
+			VirtualKeyCode:  vtinput.VK_RETURN,
+			ControlKeyState: vtinput.LeftCtrlPressed,
+		})
+
+		if edit.GetText() != "g" {
+			t.Errorf("pick=%v: Ctrl+Enter changed the typed text to %q", pick, edit.GetText())
+		}
+		if !ac.IsDone() {
+			t.Errorf("pick=%v: the menu stayed open", pick)
+		}
+		if len(fm.injectedEvents) != 1 || fm.injectedEvents[0].VirtualKeyCode != vtinput.VK_RETURN ||
+			fm.injectedEvents[0].ControlKeyState&vtinput.LeftCtrlPressed == 0 {
+			t.Errorf("pick=%v: injected %+v, want the same Ctrl+Enter", pick, fm.injectedEvents)
+		}
+	}
+}
