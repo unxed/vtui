@@ -629,6 +629,19 @@ func (ac *AutoCompleteMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		ac.accept(idx, false)
 		return true
 	case vtinput.VK_RETURN:
+		if (e.ControlKeyState & (vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.LeftAltPressed | vtinput.RightAltPressed)) != 0 {
+			// Ctrl+Enter, Alt+Enter and the like are not "confirm": in a file
+			// manager Ctrl+Enter puts the name under the cursor into the
+			// line. The menu used to take them for Enter and run the command
+			// (f4#1855). Step aside and give the frame below the key exactly
+			// as it was pressed, modifiers and all.
+			ac.Close()
+			if FrameManager != nil {
+				ev := *e
+				FrameManager.InjectEvents([]*vtinput.InputEvent{&ev})
+			}
+			return true
+		}
 		if !ac.chosen {
 			// Nothing was picked from the list, so the typed text is what
 			// the user meant. Step aside and let the frame below act on the
