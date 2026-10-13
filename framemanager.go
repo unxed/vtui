@@ -3564,9 +3564,6 @@ func (fm *frameManager) markMultiClick(ev *vtinput.InputEvent, now time.Time) {
 }
 
 func (fm *frameManager) isGUI() bool {
-	if ActiveBackend() != "" {
-		return true
-	}
 	if fm.scr != nil && fm.scr.Renderer != nil {
 		switch fm.scr.Renderer.(type) {
 		case *AnsiRenderer, *Win32ConsoleRenderer:
@@ -3574,6 +3571,12 @@ func (fm *frameManager) isGUI() bool {
 		default:
 			return true
 		}
+	}
+	// If no renderer is set yet (e.g., tests using NewSilentScreenBuf),
+	// fall back to ActiveBackend for applications that have already
+	// selected a backend but haven't initialized the screen buffer.
+	if ActiveBackend() != "" {
+		return true
 	}
 	return false
 }
