@@ -109,7 +109,7 @@ func (cg *CheckGroup) DisplayObject(scr *ScreenBuf) {
 }
 
 func (cg *CheckGroup) ProcessKey(e *vtinput.InputEvent) bool {
-	if !e.KeyDown {
+	if !e.KeyDown || e.TextInput {
 		return false
 	}
 	if cg.IsDisabled() {

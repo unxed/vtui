@@ -415,6 +415,7 @@ func fitHelpCells(cells []CharInfo, width int) []CharInfo {
 }
 
 func (hv *HelpView) ProcessKey(e *vtinput.InputEvent) bool {
+	e = TextInputView(e)
 	if e.Type == vtinput.FocusEventType {
 		return hv.BaseWindow.ProcessKey(e)
 	}

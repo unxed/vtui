@@ -53,3 +53,9 @@ replace github.com/ebitengine/purego => github.com/unxed/pureffi v0.1.21
 replace github.com/go-webgpu/goffi => github.com/unxed/goffi v0.1.9
 
 replace github.com/ebitengine/hideconsole => ./internal/hideconsole
+
+replace github.com/unxed/winkeys => github.com/uranic2/winkeys v0.0.0-20261012155219-35669ea25770
+
+replace github.com/unxed/vtinput => github.com/uranic2/vtinput v0.0.0-20261012155615-7fd23cf8705b
+
+replace github.com/gogpu/gogpu => github.com/uranic2/gogpu v0.0.0-20261012163327-2d133f83dc34

@@ -220,6 +220,7 @@ func (t *TreeView) DisplayObject(scr *ScreenBuf) {
 }
 
 func (t *TreeView) ProcessKey(e *vtinput.InputEvent) bool {
+	e = TextInputView(e)
 	if !e.KeyDown || t.IsDisabled() || len(t.flatNodes) == 0 {
 		return false
 	}

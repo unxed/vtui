@@ -9,8 +9,6 @@ github.com/go-webgpu/webgpu v0.5.5 h1:pIrXzRg0LRlNjNmR+ZNo/ERN88YaObzbCY5oYhir5S
 github.com/go-webgpu/webgpu v0.5.5/go.mod h1:vgIuNTa1UlZ4njCGY6Pmp/0c5T5o2Ml2fQ0znLc7B98=
 github.com/gogpu/gg v0.52.5 h1:aDAxjwcUYWTaEcKiAVSX52FPtYKtMhuFYCQYK2SwJwE=
 github.com/gogpu/gg v0.52.5/go.mod h1:mKiEGiR8lT7BCECfSoxRYBQ96HrDc0DHv/CNDxYQG5M=
-github.com/gogpu/gogpu v0.53.0 h1:V+HMU+tJxw34LlfNzstUqXD9eXmyhrrBNmnrWxXR+o0=
-github.com/gogpu/gogpu v0.53.0/go.mod h1:pUqsHA1Lo5qi4SNBYuJ1fyMqnwWMn3APHx6K63S3+mc=
 github.com/gogpu/gpucontext v0.28.0 h1:W27+0PRnHLVRscDJ2L6r4B1JlaKjlV/EmL0Wxx8vGIc=
 github.com/gogpu/gpucontext v0.28.0/go.mod h1:5rpKj+DpixgAFm8ArBXFXOZQRbeJSFncVMsqyyA9Rhc=
 github.com/gogpu/gputypes v0.5.2 h1:3sbKI0+XW36Ekd3d4QhkbpdY7gbgMVgp8Q4+ZNdGhtE=
@@ -49,12 +47,14 @@ github.com/unxed/libwinescape v0.2.1 h1:ZqJAswhO9WbXt6EDId5SRBtAN7gqdYnqZbzFGLUS
 github.com/unxed/libwinescape v0.2.1/go.mod h1:tDmnUN0ij+iiqOovxUybQWgpm/Q8IEst6n8VTn3I1AE=
 github.com/unxed/pureffi v0.1.21 h1:V0jHKUWpNGpX33XI1Lf1wypFpwuXV55CKKadi+wnTpg=
 github.com/unxed/pureffi v0.1.21/go.mod h1:0maabTbD8JYY2NPzeTeEbSTDMvDQE0JQc+vesFJqDmo=
-github.com/unxed/vtinput v0.1.11 h1:U2lcZ7374382gZClx3v28+yMVoKtjoCLWOxgtH097iA=
-github.com/unxed/vtinput v0.1.11/go.mod h1:ZOqbBmEzYb33FrwsJf0y1QSJLo378ciXEgZWD4cTqGU=
-github.com/unxed/winkeys v0.1.1 h1:CeRhzQLrZtO2aVq8C8gPX1ySdbbvPombbUZ15cRjFTI=
-github.com/unxed/winkeys v0.1.1/go.mod h1:eCDbEJFdYcii0Fd4O9u+CAqjJ4SkkhWDkhikNFwBCd4=
 github.com/unxed/xkb-go v0.1.9 h1:t2lhW6bcPxzX/1DBf9jIRoo13KhMm9+XUPJT4o5a/Kw=
 github.com/unxed/xkb-go v0.1.9/go.mod h1:p0uH0w1PGo5GU/qxcyj65edin5qHssAhvJTjCZ8nxNU=
+github.com/uranic2/gogpu v0.0.0-20261012163327-2d133f83dc34 h1:ba6QUkfqaVJ3G9DjWNxCdsg0nQ5lqHA1C27/iDlRpYU=
+github.com/uranic2/gogpu v0.0.0-20261012163327-2d133f83dc34/go.mod h1:pUqsHA1Lo5qi4SNBYuJ1fyMqnwWMn3APHx6K63S3+mc=
+github.com/uranic2/vtinput v0.0.0-20261012155615-7fd23cf8705b h1:owDIvHmV9X7ZPnS/j896v6XAsq84A4pbnTDrDovUKQI=
+github.com/uranic2/vtinput v0.0.0-20261012155615-7fd23cf8705b/go.mod h1:jmJMDwgdEP3RcX4SOSGFOjlJ3czjbT5OQIQ/PTyRn8s=
+github.com/uranic2/winkeys v0.0.0-20261012155219-35669ea25770 h1:8oRlCYZZYjW1YXysvQrb2Tuihud+kYBC0DbbqeSkuV4=
+github.com/uranic2/winkeys v0.0.0-20261012155219-35669ea25770/go.mod h1:eCDbEJFdYcii0Fd4O9u+CAqjJ4SkkhWDkhikNFwBCd4=
 github.com/yalue/native_endian v1.0.2 h1:e4SxBbaCoOOO4E3axd7FSriUhzc1bIzqZGG5jl6Evbg=
 github.com/yalue/native_endian v1.0.2/go.mod h1:cr+I2WnCwDkkPV0DvgBpGQkJV12CDWR5bAoMtT+56iE=
 github.com/yuin/goldmark v1.8.6 h1:d0VcaP1sx9GkFVkoW+KtggpGi2KZ965i14b0+bDQST4=

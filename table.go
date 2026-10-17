@@ -762,6 +762,7 @@ func (t *Table) formatCell(text string, width int, align Alignment) string {
 }
 
 func (t *Table) ProcessKey(e *vtinput.InputEvent) bool {
+	e = TextInputView(e)
 	if !e.KeyDown || t.IsDisabled() {
 		return false
 	}

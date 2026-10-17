@@ -500,6 +500,10 @@ func (e *Edit) InsertString(text string) {
 }
 
 func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
+	if processTextRepeat(event, e.ProcessKey) {
+		return true
+	}
+	event = TextInputView(event)
 	if event.Type == vtinput.KeyEventType && event.KeyDown {
 		DebugLog("EDIT_DEBUG: ProcessKey entry. Char:%d, VK:0x%X, Mods:0x%X", event.Char, event.VirtualKeyCode, event.ControlKeyState)
 	}

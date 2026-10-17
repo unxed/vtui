@@ -213,6 +213,9 @@ func (bw *BaseWindow) ProcessKey(e *vtinput.InputEvent) bool {
 	if bw.rootGroup.ProcessKey(e) {
 		return true
 	}
+	if e.TextInput {
+		return false
+	}
 
 	// If group didn't handle it, check for window-level keys
 	if e.VirtualKeyCode == vtinput.VK_F5 && bw.ShowZoom {

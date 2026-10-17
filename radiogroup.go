@@ -102,7 +102,7 @@ func (rg *RadioGroup) SetData(val any) {
 }
 
 func (rg *RadioGroup) ProcessKey(e *vtinput.InputEvent) bool {
-	if !e.KeyDown {
+	if !e.KeyDown || e.TextInput {
 		return false
 	}
 	if rg.IsDisabled() {

@@ -153,10 +153,10 @@ type ChatWindow struct {
 	// link. Returning ok == false leaves the line alone.
 	ExtraLink func(line string) (label, target string, ok bool)
 
-	topPos            int
-	lines             []chatWinLine
-	visibleLinks      []ChatLink
-	focusedLinkIdx    int // -1: Input has focus. -2: StatusBar has focus. >=0: that link has focus.
+	topPos         int
+	lines          []chatWinLine
+	visibleLinks   []ChatLink
+	focusedLinkIdx int // -1: Input has focus. -2: StatusBar has focus. >=0: that link has focus.
 
 	// turnsFingerprintStr is a cheap fingerprint of Turns to avoid re-wrapping
 	// on every frame when the conversation hasn't changed.
@@ -280,6 +280,7 @@ func (cw *ChatWindow) headerText(t ChatTurn) string {
 // sending Input's text on Enter. It returns false (letting a host route the
 // key elsewhere, e.g. panel switching on Tab) whenever it does not apply.
 func (cw *ChatWindow) ProcessKey(e *vtinput.InputEvent) bool {
+	e = TextInputView(e)
 	if !e.KeyDown || !cw.IsFocused() {
 		return false
 	}

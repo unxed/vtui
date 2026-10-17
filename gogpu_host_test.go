@@ -180,38 +180,6 @@ func TestGogpuHost_GetTerminalSize(t *testing.T) {
 		t.Errorf("GetTerminalSize: expected %dx%d, got %dx%d", expectedCols, expectedRows, cols, rows)
 	}
 }
-func TestGogpuHost_LastRuneForVK_KeyRepeat(t *testing.T) {
-	pr, _ := io.Pipe()
-	reader := vtinput.NewReader(pr, true)
-	defer reader.Close()
-
-	host := &GogpuHost{
-		reader:        reader,
-		lastRuneForVK: make(map[uint16]rune),
-	}
-
-	vk := uint16(vtinput.VK_A)
-	host.lastRuneForVK[vk] = 'a'
-
-	ev := &vtinput.InputEvent{
-		Type:           vtinput.KeyEventType,
-		KeyDown:        true,
-		VirtualKeyCode: vk,
-	}
-
-	if host.lastRuneForVK[vk] != 'a' {
-		t.Errorf("Expected 'a' for VK_A in lastRuneForVK, got %c", host.lastRuneForVK[vk])
-	}
-
-	// Verify character restoration for key repeat
-	if ev.Char == 0 && host.lastRuneForVK[vk] != 0 {
-		ev.Char = host.lastRuneForVK[vk]
-	}
-
-	if ev.Char != 'a' {
-		t.Errorf("Expected restored Char 'a', got %c", ev.Char)
-	}
-}
 
 // The macOS Command key must act as Ctrl: Cmd+C has to reach the application
 // as Ctrl+C, and the Command key itself as a Ctrl key. Cmd owns the left Ctrl

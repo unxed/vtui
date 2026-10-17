@@ -48,6 +48,7 @@ const (
 	wmSize            = 0x0005
 	wmSetFocus        = 0x0007
 	wmKillFocus       = 0x0008
+	wmInputLangChange = 0x0051
 	wmPaint           = 0x000F
 	wmClose           = 0x0010
 	wmQuit            = 0x0012

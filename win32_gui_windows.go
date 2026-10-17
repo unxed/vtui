@@ -135,6 +135,8 @@ type win32Point struct {
 }
 
 type Win32GuiHost struct {
+	textInput       guiTextInput
+	keyTranslation  int
 	mu              sync.Mutex
 	mouseCoalesceMu sync.Mutex
 	lastMouseSent   time.Time
@@ -730,14 +732,22 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 	case wmKeyDown, wmSysKeyDown:
 		vk := uint16(wParam)
 		mods := h.getModifiers()
+		event := &vtinput.InputEvent{
+			Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vk,
+			VirtualScanCode: uint16((lParam >> 16) & 0xff), RepeatCount: uint16(lParam & 0xffff),
+			ControlKeyState: mods, InputSource: "win32-gui",
+		}
+		if lParam&(1<<24) != 0 {
+			event.ControlKeyState |= vtinput.EnhancedKey
+		}
+		if !isGUIModifierKeyCode(vk) {
+			if h.textInput.press(event, h.keyTranslation) {
+				return 0
+			}
+		}
 		if isSpecialOrModifiedKey(vk, mods) {
-			h.sendEvent(&vtinput.InputEvent{
-				Type:            vtinput.KeyEventType,
-				KeyDown:         true,
-				VirtualKeyCode:  vk,
-				Char:            defaultRuneForVK(vk),
-				ControlKeyState: mods,
-			})
+			event.Char = defaultRuneForVK(vk)
+			h.sendEvent(event)
 			if msg == wmSysKeyDown && vk != vtinput.VK_LMENU && vk != vtinput.VK_RMENU {
 				return 0
 			}
@@ -752,21 +762,26 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 			Type:            vtinput.KeyEventType,
 			KeyDown:         false,
 			VirtualKeyCode:  vk,
+			VirtualScanCode: uint16((lParam >> 16) & 0xff),
+			RepeatCount:     uint16(lParam & 0xffff),
 			ControlKeyState: mods,
+			InputSource:     "win32-gui",
 		})
 		r, _, _ := procDefWindowProcW.Call(uintptr(hwnd), uintptr(msg), wParam, lParam)
 		return r
 
 	case wmChar, wmSysChar:
-		r := rune(wParam)
 		mods := h.getModifiers()
-		if r >= ' ' && r != 0x7F {
-			h.sendEvent(&vtinput.InputEvent{
-				Type:            vtinput.KeyEventType,
-				KeyDown:         true,
-				Char:            r,
-				ControlKeyState: mods,
-			})
+		if event := h.textInput.utf16(uint16(wParam), vtinput.InputEvent{
+			Type:            vtinput.KeyEventType,
+			KeyDown:         true,
+			RepeatCount:     uint16(lParam & 0xffff),
+			VirtualScanCode: uint16((lParam >> 16) & 0xff),
+			ControlKeyState: mods,
+			InputSource:     "win32-gui",
+			TextInput:       msg == wmChar && textProbeSupported,
+		}, msg == wmSysChar); event != nil {
+			h.sendEvent(event)
 			return 0
 		}
 		res, _, _ := procDefWindowProcW.Call(uintptr(hwnd), uintptr(msg), wParam, lParam)
@@ -985,8 +1000,17 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		return 0
 
 	case wmKillFocus:
+		h.textInput = guiTextInput{}
 		h.sendEvent(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: false})
 		return 0
+
+	case wmInputLangChange:
+		// Already translated presses may still have WM_CHAR queued behind
+		// this message. Keep their captured metadata; reset only composition.
+		h.textInput.layoutChanged()
+		h.keyTranslation = 0
+		r, _, _ := procDefWindowProcW.Call(uintptr(hwnd), uintptr(msg), wParam, lParam)
+		return r
 
 	case wmClose:
 		if h.closed || FrameManager.IsShutdown() {
@@ -1313,6 +1337,9 @@ func RunWin32GuiHost(cols, rows int, fontName string, fontSize float64, setupApp
 		r, _, _ := procGetMessageW.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
 		if int32(r) <= 0 {
 			break
+		}
+		if msg.message == wmKeyDown || msg.message == wmSysKeyDown {
+			host.keyTranslation = guiKeyTranslation(uint16(msg.wParam), uint16((msg.lParam>>16)&0xff), host.getModifiers())
 		}
 		procTranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
 		procDispatchMessageW.Call(uintptr(unsafe.Pointer(&msg)))

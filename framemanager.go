@@ -3209,7 +3209,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	// release before choosing a tab would make the visible shortcuts awkward.
 	// Menus retain priority above, and a missing number falls through so
 	// applications and terminals can keep using that combination.
-	if fm.WorkspaceAltNumberSwitch && ev.Type == vtinput.KeyEventType && ev.KeyDown &&
+	if fm.WorkspaceAltNumberSwitch && !ev.TextInput && ev.Type == vtinput.KeyEventType && ev.KeyDown &&
 		ev.VirtualKeyCode >= vtinput.VK_1 && ev.VirtualKeyCode <= vtinput.VK_9 {
 		mods := ev.ControlKeyState & (vtinput.LeftAltPressed | vtinput.RightAltPressed |
 			vtinput.LeftCtrlPressed | vtinput.RightCtrlPressed | vtinput.ShiftPressed)
@@ -3417,7 +3417,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	}
 
 	// 3. Fallbacks (F9, Alt+Hotkey, Global Shortcuts) if top frame didn't want the key
-	if !handled && ev.Type == vtinput.KeyEventType && ev.KeyDown {
+	if !handled && !ev.TextInput && ev.Type == vtinput.KeyEventType && ev.KeyDown {
 
 		// Workspace cycling (Ctrl+Tab / Ctrl+Shift+Tab).
 		if ev.VirtualKeyCode == vtinput.VK_TAB && (fm.ctrlPressed || fm.switcherMenu != nil) {

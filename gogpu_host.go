@@ -264,6 +264,26 @@ func (h *GogpuHost) sendEvent(ev *vtinput.InputEvent) {
 	}
 }
 
+// handleNativeKey uses the text decision and physical metadata captured by
+// gogpu before Windows translates the key. Re-reading a layout here would be
+// too late: gogpu may have already queued a later layout or modifier change.
+func (h *GogpuHost) handleNativeKey(native gogpu.NativeKeyEvent) {
+	if native.Kind == gogpu.NativeKeyDown &&
+		(native.TextExpected == gogpu.NativeTextExpected || native.TextExpected == gogpu.NativeTextDeadKey) {
+		return
+	}
+	event := &vtinput.InputEvent{
+		Type: vtinput.KeyEventType, KeyDown: native.Kind != gogpu.NativeKeyUp,
+		VirtualKeyCode: native.VirtualKeyCode, VirtualScanCode: native.VirtualScanCode,
+		RepeatCount: native.RepeatCount, ControlKeyState: vtinput.ControlKeyState(native.ControlKeyState),
+		Char: native.Char, TextInput: native.TextInput, InputSource: "gogpu",
+	}
+	if native.Kind == gogpu.NativeKeyDown && event.Char == 0 {
+		event.Char = defaultRuneForVK(event.VirtualKeyCode)
+	}
+	h.sendEvent(event)
+}
+
 // charForVK returns the character a modified key should carry: the one this
 // key was last seen to type on the current layout, or else the character its
 // virtual key is named after.
@@ -351,6 +371,7 @@ func (h *GogpuHost) handleTextInput(text string) {
 			h.pendingKeyTimer.Stop()
 		}
 		h.pendingKeyEvent.Char = runes[0]
+		h.pendingKeyEvent.TextInput = textChord(h.pendingKeyEvent.ControlKeyState)
 		h.lastRuneForVK[h.pendingKeyEvent.VirtualKeyCode] = runes[0]
 		h.sendEvent(h.pendingKeyEvent)
 		h.pendingKeyEvent = nil
@@ -361,6 +382,8 @@ func (h *GogpuHost) handleTextInput(text string) {
 				KeyDown:         true,
 				Char:            runes[i],
 				ControlKeyState: h.currentMods,
+				TextInput:       textChord(h.currentMods),
+				InputSource:     "gogpu",
 			})
 		}
 		return
@@ -378,6 +401,8 @@ func (h *GogpuHost) handleTextInput(text string) {
 			KeyDown:         true,
 			Char:            r,
 			ControlKeyState: h.currentMods,
+			TextInput:       textChord(h.currentMods),
+			InputSource:     "gogpu",
 		})
 	}
 }
@@ -678,147 +703,14 @@ func RunGogpuHost(cols, rows int, fontName string, fontSize float64, setupApp fu
 		host.pumpDragOut()
 	})
 
-	app.EventSource().OnKeyPress(func(key gpucontext.Key, mods gpucontext.Modifiers) {
-		host.mu.Lock()
-		currMods := host.syncMods(key, mods, true)
+	if !app.OnNativeKey(host.handleNativeKey) {
+		app.EventSource().OnKeyPress(host.handleKeyPress)
 
-		vk := gogpuKeyToVK(key, currMods)
-		if vk != 0 {
-			DebugLog("GOGPU_HOST_EVENT: OnKeyPress key=%v, vk=%d", key, vk)
-		} else {
-			DebugLog("GOGPU_HOST_EVENT: OnKeyPress UNMAPPED key=%v", key)
-		}
+		app.EventSource().OnTextInput(host.handleTextInput)
 
-		// A keystroke already delivered whole must not also type: a keypad
-		// key that resolved to navigation would type its digit, a chord that
-		// the platform composes would type its symbol ("†" for Option+T).
-		// Every other key press reassigns the flag, and text only ever
-		// follows its own key press.
-		host.suppressTextInput = gogpuKeystrokeSwallowsText(key, vk, currMods)
+		app.EventSource().OnKeyRelease(host.handleKeyRelease)
 
-		if host.pendingKeyEvent != nil {
-			if host.pendingKeyTimer != nil {
-				host.pendingKeyTimer.Stop()
-			}
-			if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
-				host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
-			}
-			host.sendEvent(host.pendingKeyEvent)
-			host.pendingKeyEvent = nil
-		}
-
-		if vk != 0 {
-			host.lastVK = vk
-			ev := &vtinput.InputEvent{
-				Type:            vtinput.KeyEventType,
-				KeyDown:         true,
-				VirtualKeyCode:  vk,
-				ControlKeyState: currMods,
-			}
-			if isGogpuEnhancedNavKey(key) {
-				ev.ControlKeyState |= vtinput.EnhancedKey
-			}
-
-			if isSpecialOrModifiedKey(vk, currMods) {
-				// An Alt chord carries its character too, so that an
-				// accelerator such as Alt+letter knows what it stands for.
-				// The X11 and Wayland hosts put the virtual key and the
-				// character in one event, and the ebiten host fills this in
-				// exactly as here.
-				//
-				// Only Alt chords, and only where the platform composes
-				// their text. Everywhere else that text arrives as an event
-				// of its own carrying the right character, and filling this
-				// event too would deliver the same keystroke twice. Ctrl and
-				// Cmd chords stay Char-less on every platform: Group matches
-				// hotkeys on Char without requiring Alt, so a Char here
-				// would make Cmd+D press a &Delete button that Windows and
-				// Linux never see it press.
-				if gogpuAltComposesText && ev.Char == 0 &&
-					currMods&(vtinput.LeftAltPressed|vtinput.RightAltPressed) != 0 {
-					ev.Char = host.charForVK(vk)
-				}
-				host.sendEvent(ev)
-			} else {
-				if host.lastRuneForVK != nil {
-					ev.Char = host.lastRuneForVK[vk]
-				}
-				// The keypad names its own character, and unlike the letter
-				// rows it does not depend on the layout. Seeding it here keeps
-				// the digit working where the platform sends no text for the
-				// keypad at all; a character that does arrive still wins,
-				// which matters for layouts whose decimal key yields a comma.
-				if ev.Char == 0 {
-					ev.Char = gogpuNumpadRune(vk)
-				}
-				host.pendingKeyEvent = ev
-				host.pendingKeyTimer = time.AfterFunc(10*time.Millisecond, func() {
-					host.mu.Lock()
-					defer host.mu.Unlock()
-					if host.pendingKeyEvent != nil {
-						if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
-							host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
-						}
-						host.sendEvent(host.pendingKeyEvent)
-						host.pendingKeyEvent = nil
-					}
-				})
-			}
-		}
-		host.mu.Unlock()
-	})
-
-	app.EventSource().OnTextInput(host.handleTextInput)
-
-	app.EventSource().OnKeyRelease(func(key gpucontext.Key, mods gpucontext.Modifiers) {
-		host.mu.Lock()
-		currMods := host.syncMods(key, mods, false)
-
-		vk := gogpuKeyToVK(key, currMods)
-		if vk == 0 {
-			DebugLog("GOGPU_HOST_EVENT: OnKeyRelease UNMAPPED key=%v", key)
-		}
-
-		if host.pendingKeyEvent != nil {
-			if host.pendingKeyTimer != nil {
-				host.pendingKeyTimer.Stop()
-			}
-			if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
-				host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
-			}
-			host.sendEvent(host.pendingKeyEvent)
-			host.pendingKeyEvent = nil
-		}
-
-		host.mu.Unlock()
-
-		if vk == 0 {
-			return
-		}
-		// The FrameManager derives Ctrl-held from a Ctrl key-up's virtual key
-		// alone, ignoring ControlKeyState, so a key-up on one Ctrl channel
-		// while the other still holds Ctrl would read as a full release
-		// mid-chord — the Switcher commits its selection on exactly that.
-		// With the channel split this fires only when Cmd and a physical
-		// Ctrl are genuinely held together; gogpu's darwin layer reports a
-		// modifier release only once the aggregate flag clears, so keys
-		// sharing one channel never produce a mid-hold release. Only where
-		// the fold is active: macOS reports the post-change flags on the
-		// modifier's own event, while on Wayland the modifiers event trails
-		// the key event, so a genuine final Ctrl release still carries the
-		// Ctrl bit and would be swallowed here.
-		if gogpuCmdIsCtrl && (vk == vtinput.VK_LCONTROL || vk == vtinput.VK_RCONTROL) &&
-			currMods&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed) != 0 {
-			DebugLog("GOGPU_HOST_EVENT: withheld Ctrl key-up, Ctrl still held (key=%v)", key)
-			return
-		}
-		host.sendEvent(&vtinput.InputEvent{
-			Type:            vtinput.KeyEventType,
-			KeyDown:         false,
-			VirtualKeyCode:  vk,
-			ControlKeyState: currMods,
-		})
-	})
+	}
 
 	app.EventSource().OnMousePress(host.mousePress)
 
@@ -1405,4 +1297,146 @@ func gogpuKeyToVK(k gpucontext.Key, mods vtinput.ControlKeyState) uint16 {
 		return vtinput.VK_OEM_2
 	}
 	return 0
+}
+
+func (host *GogpuHost) handleKeyPress(key gpucontext.Key, mods gpucontext.Modifiers) {
+	host.mu.Lock()
+	currMods := host.syncMods(key, mods, true)
+
+	vk := gogpuKeyToVK(key, currMods)
+	if vk != 0 {
+		DebugLog("GOGPU_HOST_EVENT: OnKeyPress key=%v, vk=%d", key, vk)
+	} else {
+		DebugLog("GOGPU_HOST_EVENT: OnKeyPress UNMAPPED key=%v", key)
+	}
+
+	// A keystroke already delivered whole must not also type: a keypad
+	// key that resolved to navigation would type its digit, a chord that
+	// the platform composes would type its symbol ("†" for Option+T).
+	// Every other key press reassigns the flag, and text only ever
+	// follows its own key press.
+	host.suppressTextInput = gogpuKeystrokeSwallowsText(key, vk, currMods)
+
+	if host.pendingKeyEvent != nil {
+		if host.pendingKeyTimer != nil {
+			host.pendingKeyTimer.Stop()
+		}
+		if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
+			host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
+		}
+		host.sendEvent(host.pendingKeyEvent)
+		host.pendingKeyEvent = nil
+	}
+
+	if vk != 0 {
+		host.lastVK = vk
+		ev := &vtinput.InputEvent{
+			Type:            vtinput.KeyEventType,
+			KeyDown:         true,
+			VirtualKeyCode:  vk,
+			ControlKeyState: currMods,
+			RepeatCount:     1,
+			InputSource:     "gogpu",
+		}
+		if isGogpuEnhancedNavKey(key) {
+			ev.ControlKeyState |= vtinput.EnhancedKey
+		}
+
+		if isSpecialOrModifiedKey(vk, currMods) {
+			// An Alt chord carries its character too, so that an
+			// accelerator such as Alt+letter knows what it stands for.
+			// The X11 and Wayland hosts put the virtual key and the
+			// character in one event, and the ebiten host fills this in
+			// exactly as here.
+			//
+			// Only Alt chords, and only where the platform composes
+			// their text. Everywhere else that text arrives as an event
+			// of its own carrying the right character, and filling this
+			// event too would deliver the same keystroke twice. Ctrl and
+			// Cmd chords stay Char-less on every platform: Group matches
+			// hotkeys on Char without requiring Alt, so a Char here
+			// would make Cmd+D press a &Delete button that Windows and
+			// Linux never see it press.
+			if gogpuAltComposesText && ev.Char == 0 &&
+				currMods&(vtinput.LeftAltPressed|vtinput.RightAltPressed) != 0 {
+				ev.Char = host.charForVK(vk)
+			}
+			host.sendEvent(ev)
+		} else {
+			if host.lastRuneForVK != nil {
+				ev.Char = host.lastRuneForVK[vk]
+			}
+			// The keypad names its own character, and unlike the letter
+			// rows it does not depend on the layout. Seeding it here keeps
+			// the digit working where the platform sends no text for the
+			// keypad at all; a character that does arrive still wins,
+			// which matters for layouts whose decimal key yields a comma.
+			if ev.Char == 0 {
+				ev.Char = gogpuNumpadRune(vk)
+			}
+			host.pendingKeyEvent = ev
+			host.pendingKeyTimer = time.AfterFunc(10*time.Millisecond, func() {
+				host.mu.Lock()
+				defer host.mu.Unlock()
+				if host.pendingKeyEvent != nil {
+					if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
+						host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
+					}
+					host.sendEvent(host.pendingKeyEvent)
+					host.pendingKeyEvent = nil
+				}
+			})
+		}
+	}
+	host.mu.Unlock()
+}
+
+func (host *GogpuHost) handleKeyRelease(key gpucontext.Key, mods gpucontext.Modifiers) {
+	host.mu.Lock()
+	currMods := host.syncMods(key, mods, false)
+
+	vk := gogpuKeyToVK(key, currMods)
+	if vk == 0 {
+		DebugLog("GOGPU_HOST_EVENT: OnKeyRelease UNMAPPED key=%v", key)
+	}
+
+	if host.pendingKeyEvent != nil {
+		if host.pendingKeyTimer != nil {
+			host.pendingKeyTimer.Stop()
+		}
+		if host.pendingKeyEvent.Char == 0 && host.lastRuneForVK != nil {
+			host.pendingKeyEvent.Char = host.lastRuneForVK[host.pendingKeyEvent.VirtualKeyCode]
+		}
+		host.sendEvent(host.pendingKeyEvent)
+		host.pendingKeyEvent = nil
+	}
+
+	host.mu.Unlock()
+
+	if vk == 0 {
+		return
+	}
+	// The FrameManager derives Ctrl-held from a Ctrl key-up's virtual key
+	// alone, ignoring ControlKeyState, so a key-up on one Ctrl channel
+	// while the other still holds Ctrl would read as a full release
+	// mid-chord — the Switcher commits its selection on exactly that.
+	// With the channel split this fires only when Cmd and a physical
+	// Ctrl are genuinely held together; gogpu's darwin layer reports a
+	// modifier release only once the aggregate flag clears, so keys
+	// sharing one channel never produce a mid-hold release. Only where
+	// the fold is active: macOS reports the post-change flags on the
+	// modifier's own event, while on Wayland the modifiers event trails
+	// the key event, so a genuine final Ctrl release still carries the
+	// Ctrl bit and would be swallowed here.
+	if gogpuCmdIsCtrl && (vk == vtinput.VK_LCONTROL || vk == vtinput.VK_RCONTROL) &&
+		currMods&(vtinput.LeftCtrlPressed|vtinput.RightCtrlPressed) != 0 {
+		DebugLog("GOGPU_HOST_EVENT: withheld Ctrl key-up, Ctrl still held (key=%v)", key)
+		return
+	}
+	host.sendEvent(&vtinput.InputEvent{
+		Type:            vtinput.KeyEventType,
+		KeyDown:         false,
+		VirtualKeyCode:  vk,
+		ControlKeyState: currMods,
+	})
 }

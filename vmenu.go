@@ -340,6 +340,14 @@ func (m *VMenu) ProcessKey(e *vtinput.InputEvent) bool {
 	if m.IsDisabled() || !e.KeyDown {
 		return false
 	}
+	if e.TextInput {
+		if processTextRepeat(e, m.ProcessKey) {
+			return true
+		}
+		// Committed text may edit an enabled filter, but cannot invoke menu
+		// callbacks or accelerators even when the filter is disabled/locked.
+		return m.processFilterKey(TextInputView(e))
+	}
 
 	if m.filtering() {
 		// A consumer may have changed Items since the last key.

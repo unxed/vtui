@@ -71,7 +71,7 @@ func (cb *Checkbox) SetMouseHovered(hovered bool) {
 }
 
 func (cb *Checkbox) ProcessKey(e *vtinput.InputEvent) bool {
-	if !e.KeyDown {
+	if !e.KeyDown || e.TextInput {
 		return false
 	}
 	if cb.IsDisabled() {

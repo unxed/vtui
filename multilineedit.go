@@ -368,6 +368,10 @@ func (m *MultiLineEdit) DisplayObject(scr *ScreenBuf) {
 // true when the event was consumed so the surrounding dialog knows not
 // to reroute it.
 func (m *MultiLineEdit) ProcessKey(event *vtinput.InputEvent) bool {
+	if processTextRepeat(event, m.ProcessKey) {
+		return true
+	}
+	event = TextInputView(event)
 	if event.Type == vtinput.PasteEventType {
 		if event.PasteStart {
 			m.pasting = true

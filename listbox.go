@@ -86,9 +86,10 @@ func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
 	if !e.KeyDown || lb.IsDisabled() {
 		return false
 	}
-	if lb.OnKeyDown != nil && lb.OnKeyDown(e) {
+	if !e.TextInput && lb.OnKeyDown != nil && lb.OnKeyDown(e) {
 		return true
 	}
+	e = TextInputView(e)
 	switch e.VirtualKeyCode {
 	case vtinput.VK_SPACE, vtinput.VK_INSERT:
 		if lb.MultiSelect {

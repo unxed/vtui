@@ -130,6 +130,7 @@ func withBackground(attr, backgroundAttr uint64) uint64 {
 }
 
 func (cb *ComboBox) ProcessKey(e *vtinput.InputEvent) bool {
+	e = TextInputView(e)
 
 	if !e.KeyDown {
 		return false

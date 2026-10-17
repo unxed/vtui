@@ -241,7 +241,7 @@ func (g *Group) ProcessKey(e *vtinput.InputEvent) bool {
 		// that the child didn't want, or if the child is a nested group that signals "wrapped out").
 	}
 
-	if !e.KeyDown { // Only process KeyDown events from here onwards for general group navigation/hotkeys.
+	if !e.KeyDown || e.TextInput { // Committed text cannot activate a dialog accelerator.
 		return false
 	}
 

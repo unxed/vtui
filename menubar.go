@@ -190,7 +190,7 @@ func (mb *MenuBar) ActivateSubMenu(index int) {
 }
 
 func (mb *MenuBar) ProcessKey(e *vtinput.InputEvent) bool {
-	if !e.KeyDown {
+	if !e.KeyDown || e.TextInput {
 		return false
 	}
 

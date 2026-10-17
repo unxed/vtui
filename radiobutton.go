@@ -65,6 +65,9 @@ func (rb *RadioButton) SetMouseHovered(hovered bool) {
 }
 
 func (rb *RadioButton) ProcessKey(e *vtinput.InputEvent) bool {
+	if e.TextInput {
+		return false
+	}
 	if !e.KeyDown || rb.IsDisabled() {
 		return false
 	}

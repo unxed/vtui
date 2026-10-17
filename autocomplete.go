@@ -593,6 +593,7 @@ func (ac *AutoCompleteMenu) Show(scr *ScreenBuf) {
 }
 
 func (ac *AutoCompleteMenu) ProcessKey(e *vtinput.InputEvent) bool {
+	e = TextInputView(e)
 	if e.Type == vtinput.FocusEventType {
 		return ac.Window.ProcessKey(e)
 	}
