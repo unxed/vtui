@@ -320,3 +320,119 @@ func TestMultiLineEdit_CtrlShiftArrowsSelectByWord(t *testing.T) {
 		t.Fatalf("Ctrl+Shift+Left selected %q, want %q", got, "t")
 	}
 }
+
+func TestMultiLineEdit_SetDataAndEmptyLines(t *testing.T) {
+	m := NewMultiLineEdit(0, 0, 20, 3, "old")
+	m.SetData("first\nsecond")
+	if got := m.GetData(); got != "first\nsecond" {
+		t.Fatalf("GetData = %v, want multiline string", got)
+	}
+	if row, col := m.CursorPos(); row != 0 || col != 0 {
+		t.Fatalf("cursor after SetData = (%d,%d), want (0,0)", row, col)
+	}
+	m.SetData(42)
+	if got := m.GetText(); got != "first\nsecond" {
+		t.Fatalf("SetData(non-string) changed text: %q", got)
+	}
+	m.SetLines(nil)
+	if got := m.GetLines(); len(got) != 1 || got[0] != "" {
+		t.Fatalf("GetLines after SetLines(nil) = %#v, want one empty row", got)
+	}
+}
+
+func TestMultiLineEdit_KeyBoundariesAndPageNavigation(t *testing.T) {
+	m := NewMultiLineEdit(0, 0, 8, 2, "one\ntwo\nthree\nfour")
+	key := func(vk uint16, mods vtinput.ControlKeyState) bool {
+		return m.ProcessKey(mleKey(vk, 0, mods))
+	}
+
+	if key(vtinput.VK_LEFT, vtinput.LeftAltPressed) || key(vtinput.VK_UP, vtinput.LeftCtrlPressed) {
+		t.Fatal("Alt+Left and Ctrl+Up should be left to the enclosing control")
+	}
+	if key(vtinput.VK_PRIOR, vtinput.LeftAltPressed) || key(vtinput.VK_NEXT, vtinput.LeftCtrlPressed) {
+		t.Fatal("modified page keys should be left to the enclosing control")
+	}
+	if key(vtinput.VK_PRIOR, 0) {
+		if row, _ := m.CursorPos(); row != 0 {
+			t.Fatalf("PageUp at start moved to row %d, want 0", row)
+		}
+	} else {
+		t.Fatal("PageUp should be consumed")
+	}
+	if !key(vtinput.VK_NEXT, 0) {
+		t.Fatal("PageDown should be consumed")
+	}
+	if row, _ := m.CursorPos(); row != 2 {
+		t.Fatalf("PageDown moved to row %d, want 2", row)
+	}
+	if !key(vtinput.VK_NEXT, 0) {
+		t.Fatal("second PageDown should be consumed")
+	}
+	if row, _ := m.CursorPos(); row != 3 {
+		t.Fatalf("PageDown did not clamp to last row: %d", row)
+	}
+	if key(vtinput.VK_BACK, vtinput.ShiftPressed) || key(vtinput.VK_DELETE, vtinput.LeftCtrlPressed) {
+		t.Fatal("modified Backspace/Delete should be left to the enclosing control")
+	}
+	if m.ProcessKey(mleKey(0, '\n', 0)) {
+		t.Fatal("non-printable character should not be inserted")
+	}
+}
+
+func TestMultiLineEdit_MouseWheelAndClickBounds(t *testing.T) {
+	m := NewMultiLineEdit(2, 3, 6, 2, "zero\none\ntwo\nthree")
+	if !m.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: -1}) {
+		t.Fatal("wheel down should be consumed")
+	}
+	if m.topPos != WheelLinesPerNotch() {
+		t.Fatalf("topPos after wheel down = %d, want %d", m.topPos, WheelLinesPerNotch())
+	}
+	if !m.ProcessMouse(&vtinput.InputEvent{Type: vtinput.MouseEventType, WheelDirection: 1}) {
+		t.Fatal("wheel up should be consumed")
+	}
+	if m.topPos != 0 {
+		t.Fatalf("topPos after wheel up = %d, want 0", m.topPos)
+	}
+	click := &vtinput.InputEvent{Type: vtinput.MouseEventType, KeyDown: true, ButtonState: vtinput.FromLeft1stButtonPressed, MouseX: 1, MouseY: 3}
+	if m.ProcessMouse(click) {
+		t.Fatal("click left of the control should not be consumed")
+	}
+	click.MouseX, click.MouseY = 2, 4
+	if !m.ProcessMouse(click) {
+		t.Fatal("click inside the control should be consumed")
+	}
+	if row, col := m.CursorPos(); row != 1 || col != 0 {
+		t.Fatalf("cursor after click = (%d,%d), want (1,0)", row, col)
+	}
+	click.MouseX, click.MouseY = 2, 20
+	if m.ProcessMouse(click) {
+		t.Fatal("click below the control should not be consumed")
+	}
+	if m.ProcessMouse(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, MouseX: 2, MouseY: 4}) {
+		t.Fatal("non-mouse event should not be consumed")
+	}
+}
+
+func TestMultiLineEdit_DeleteSelectionAcrossLines(t *testing.T) {
+	m := NewMultiLineEdit(0, 0, 20, 4, "first\nsecond\nthird")
+	m.SetCursorPos(0, 2)
+	m.ProcessKey(mleKey(vtinput.VK_DOWN, 0, vtinput.ShiftPressed))
+	m.SetCursorPos(2, 1)
+	if got := m.CopySelection(); got != "" {
+		t.Fatalf("selection survived an unshifted cursor move: %q", got)
+	}
+
+	m.SetCursorPos(0, 2)
+	m.ProcessKey(mleKey(vtinput.VK_DOWN, 0, vtinput.ShiftPressed))
+	m.ProcessKey(mleKey(vtinput.VK_DOWN, 0, vtinput.ShiftPressed))
+	if got := m.CopySelection(); got != "rst\nse\nth" {
+		t.Fatalf("CopySelection = %q, want %q", got, "rst\nse\nth")
+	}
+	m.DeleteSelection()
+	if got := m.GetText(); got != "fiird" {
+		t.Fatalf("text after cross-line selection deletion = %q, want %q", got, "fiird")
+	}
+	if row, col := m.CursorPos(); row != 0 || col != 2 {
+		t.Fatalf("cursor after deleting selection = (%d,%d), want (0,2)", row, col)
+	}
+}
