@@ -3248,6 +3248,7 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 
 	// 3. Regular Dispatch (MDI Hit-Testing)
 	handled := false
+	titleHoverChanged := false
 
 	if ev.Type == vtinput.KeyEventType || ev.Type == vtinput.PasteEventType || ev.Type == vtinput.FocusEventType {
 		handled = topFrame.ProcessKey(ev)
@@ -3256,6 +3257,24 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 		}
 	} else if ev.Type == vtinput.MouseEventType {
 		mx, my := int(ev.MouseX), int(ev.MouseY)
+		if ev.MouseEventFlags&vtinput.MouseMoved != 0 {
+			hoveredFrame := -1
+			for i := len(fm.frames) - 1; i >= 0; i-- {
+				if fm.frames[i].HitTest(mx, my) {
+					hoveredFrame = i
+					break
+				}
+			}
+			for i, frame := range fm.frames {
+				if hover, ok := frame.(interface{ updateTitleButtonHover(int, int) bool }); ok {
+					hx, hy := -1, -1
+					if i == hoveredFrame {
+						hx, hy = mx, my
+					}
+					titleHoverChanged = hover.updateTitleButtonHover(hx, hy) || titleHoverChanged
+				}
+			}
+		}
 		if ev.ButtonState != 0 || ev.WheelDirection != 0 {
 			DebugLog("FM: Mouse Event at (%d,%d) State:%X Wheel:%d", mx, my, ev.ButtonState, ev.WheelDirection)
 		}
@@ -3558,6 +3577,9 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 
 	// 4. Cleanup: Remove all frames that are marked as done.
 	fm.cleanupDoneFrames()
+	if titleHoverChanged {
+		fm.Redraw()
+	}
 	return true
 }
 

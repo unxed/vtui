@@ -12,6 +12,7 @@ type BorderedFrame struct {
 	ColorTitleIdx      int
 	ColorBackgroundIdx int
 	ShowClose          bool
+	closeHovered       bool
 }
 
 // NewBorderedFrame creates a new BorderedFrame instance.
@@ -86,6 +87,6 @@ func (f *BorderedFrame) DisplayObject(scr *ScreenBuf) {
 
 	if f.ShowClose {
 		controlAttr := withForeground(Palette[f.ColorBoxIdx], Palette[f.ColorTitleIdx])
-		p.DrawCloseButton(f.X2, f.Y1, f.getControlOffset(), controlAttr)
+		p.DrawTitleButtonWithHover(f.X2-f.getControlOffset(), f.Y1, string(EffectiveCloseSymbol()), controlAttr, f.closeHovered)
 	}
 }

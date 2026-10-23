@@ -25,6 +25,8 @@ const (
 	// roundedButtonHover is the subtle pointer-hover tint, applied after the
 	// ordinary button tint and in the same direction.
 	roundedButtonHover = 0.08
+	// roundedTitleButtonHover is the requested ten-percent title-control tint.
+	roundedTitleButtonHover = 0.10
 	// roundedButtonMinContrast is the WCAG contrast ratio the caption keeps
 	// against the tinted block (AA for normal text); a disabled button, whose
 	// dimmed caption is meant to look faded, keeps roundedButtonDisabledContrast.
@@ -89,6 +91,20 @@ func roundedButtonHoverBack(bg uint32) uint32 {
 		return mixRGB(bg, 0x000000, roundedButtonHover)
 	}
 	return mixRGB(bg, 0xFFFFFF, roundedButtonHover)
+}
+
+// roundedTitleButtonHoverAttr applies the title-control hover tint. Title
+// controls use the same direction and contrast correction as dialog buttons,
+// with the requested ten-percent background change.
+func roundedTitleButtonHoverAttr(attr uint64) uint64 {
+	bg := attrColorRGB(attr, true)
+	if relativeLuminanceRGB(bg) > roundedButtonLightLuminance {
+		bg = mixRGB(bg, 0x000000, roundedTitleButtonHover)
+	} else {
+		bg = mixRGB(bg, 0xFFFFFF, roundedTitleButtonHover)
+	}
+	fg := readableOn(attrColorRGB(attr, false), bg, roundedButtonMinContrast)
+	return SetRGBBoth(attr, fg, bg)
 }
 
 // roundedControlHoverAttr applies the same subtle, contrast-preserving hover
