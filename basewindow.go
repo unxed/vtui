@@ -24,6 +24,8 @@ type BaseWindow struct {
 	ColorTitleIdx      int
 	ColorBackgroundIdx int
 	initialFocusItem   UIElement
+	closeHovered       bool
+	zoomHovered        bool
 }
 
 func (bw *BaseWindow) GetFocusedItem() UIElement {
@@ -173,7 +175,7 @@ func (bw *BaseWindow) Show(scr *ScreenBuf) {
 			offset += 3
 		}
 		controlAttr := withForeground(Palette[bw.frame.ColorBoxIdx], Palette[bw.frame.ColorTitleIdx])
-		painter.DrawZoomButton(bw.X2-offset, bw.Y1, controlAttr)
+		painter.DrawZoomButtonWithHover(bw.X2-offset, bw.Y1, controlAttr, bw.zoomHovered)
 	}
 	if bw.Number > 0 && bw.Number <= 9 {
 		painter.DrawWindowNumber(bw.X1+2, bw.Y1, bw.Number, Palette[bw.frame.ColorBoxIdx])
@@ -328,16 +330,39 @@ func (bw *BaseWindow) ToggleZoom() {
 }
 
 func (bw *BaseWindow) ProcessMouse(e *vtinput.InputEvent) bool {
+	hoverChanged := false
+	if e.Type == vtinput.MouseEventType && e.MouseEventFlags&vtinput.MouseMoved != 0 {
+		hoverChanged = bw.updateTitleButtonHover(int(e.MouseX), int(e.MouseY))
+	}
 	// 1. Во время драга дети не должны перехватывать события
 	if bw.isDragging || bw.isResizing {
-		return bw.handleWindowOperations(e)
+		return bw.handleWindowOperations(e) || hoverChanged
 	}
 	// 2. Сначала пробуем обработать клик элементами внутри окна
 	if bw.rootGroup.ProcessMouse(e) {
 		return true
 	}
 	// 3. Если элементы не обработали, пробуем операции с самим окном
-	return bw.handleWindowOperations(e)
+	return bw.handleWindowOperations(e) || hoverChanged
+}
+
+// updateTitleButtonHover tracks only the interactive close and zoom hit areas.
+// It is also called for frames outside the pointer's current window so leaving
+// a title control reliably clears its tint.
+func (bw *BaseWindow) updateTitleButtonHover(mx, my int) bool {
+	closeX := bw.X2 - bw.frame.getControlOffset()
+	close := bw.ShowClose && my == bw.Y1 && mx >= closeX && mx <= closeX+2
+	zoom := false
+	if bw.ShowClose {
+		closeX -= 3
+	}
+	if bw.ShowZoom {
+		zoom = my == bw.Y1 && mx >= closeX && mx <= closeX+2
+	}
+	changed := close != bw.closeHovered || zoom != bw.zoomHovered
+	bw.closeHovered, bw.zoomHovered = close, zoom
+	bw.frame.closeHovered = close
+	return changed
 }
 
 func (bw *BaseWindow) handleWindowOperations(e *vtinput.InputEvent) bool {

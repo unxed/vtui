@@ -39,9 +39,24 @@ func (p *Painter) DrawTitleButton(x, y int, label string, attr uint64) {
 	p.scr.Write(x, y, StringToCharInfo(TitleButtonText(label), attr))
 }
 
+// DrawTitleButtonWithHover draws a title-bar button and applies the subtle
+// graphical hover tint when hovered. The button remains exactly three cells
+// wide; text terminals and the classic style keep their existing appearance.
+func (p *Painter) DrawTitleButtonWithHover(x, y int, label string, attr uint64, hovered bool) {
+	if hovered && roundedButtonsActive() {
+		attr = roundedTitleButtonHoverAttr(attr)
+	}
+	p.DrawTitleButton(x, y, label, attr)
+}
+
 // DrawZoomButton draws the zoom button of a window at (x, y).
 func (p *Painter) DrawZoomButton(x, y int, attr uint64) {
 	p.DrawTitleButton(x, y, string(UIStrings.ZoomSymbol), attr)
+}
+
+// DrawZoomButtonWithHover draws the zoom control with its hover state.
+func (p *Painter) DrawZoomButtonWithHover(x, y int, attr uint64, hovered bool) {
+	p.DrawTitleButtonWithHover(x, y, string(UIStrings.ZoomSymbol), attr, hovered)
 }
 
 // DrawWindowNumber draws the number of a workspace window (1..9) at (x, y),
