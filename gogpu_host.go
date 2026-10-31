@@ -936,8 +936,9 @@ func loadGogpuFont(fontName string, size float64) (text.Face, *fontFallbackChain
 	// Existence is all the startup probe checks now. The old probe also parsed
 	// every file, which cost ~800 MB of heap on a stock macOS (the fallback
 	// list is ~400 MB of font files and gg holds each twice) in sessions that
-	// never drew a single glyph from them. Whether gg can actually open a file
-	// is still logged — by the chain's warm() sweep, shortly after startup.
+	// never drew a single glyph from them. The chain's warm() sweep reads only
+	// each file's cmap table; whether gg can actually open a file is logged
+	// the first time a rune needs it.
 	//
 	// The chain is built even when none of the listed paths exists: its
 	// discovery step still finds the per-script fonts no curated list can

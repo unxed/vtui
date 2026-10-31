@@ -3,6 +3,7 @@
 package vtui
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -23,6 +24,13 @@ import (
 // much of Unicode they carry rather than by how likely they are to exist: a
 // missing file costs one failed stat, whereas a narrow font that happens to
 // be listed first would answer for glyphs a later, wider font renders better.
+//
+// The exception is a small font that carries the symbols a text UI draws:
+// arrows, triangles, shapes. Nearly every font on the list has those, so the
+// first one listed answers for them and stays in memory for the session.
+// After the CJK collections that is tens of megabytes for one arrow; ahead of
+// them, a couple. Such a font has no ideographs, so CJK text still reaches
+// the wide fonts.
 //
 // The list is deliberately long. Distributions disagree about where Noto CJK
 // lives, and a Windows install outside a CJK locale has none of the Japanese
@@ -72,7 +80,12 @@ var fallbackFontPaths = []string{
 	`C:\Windows\Fonts\seguiemj.ttf`,
 	`C:\Windows\Fonts\seguisym.ttf`,
 	`C:\Windows\Fonts\segoeui.ttf`,
-	// macOS
+	// macOS — the symbols first. Monaco, the default monospace, has almost
+	// none of them (↑ ▸ ■ ♪ ░); Menlo and Apple Symbols carry them in 3 MB,
+	// where every font after them that does weighs 22 MB or more.
+	"/System/Library/Fonts/Menlo.ttc",
+	"/System/Library/Fonts/Apple Symbols.ttf",
+	// macOS — CJK, emoji and the widest coverage
 	"/System/Library/Fonts/PingFang.ttc",
 	"/System/Library/Fonts/Hiragino Sans GB.ttc",
 	"/System/Library/Fonts/AppleSDGothicNeo.ttc",
@@ -142,6 +155,15 @@ func (c *runeCoverage) has(r rune) bool {
 	return c.bits[r>>6]&(1<<(uint(r)&63)) != 0
 }
 
+// set marks r as covered. Surrogates are not runes a cmap can hold and stay
+// unset, as coverageOf leaves them.
+func (c *runeCoverage) set(r rune) {
+	if r < 0 || r >= runeCoverageMax || (r >= 0xD800 && r <= 0xDFFF) {
+		return
+	}
+	c.bits[r>>6] |= 1 << (uint(r) & 63)
+}
+
 func parseFontBytes(data []byte) (*opentype.Font, error) {
 	f, err := opentype.Parse(data)
 	if err == nil {
@@ -174,9 +196,15 @@ func parseFontBytes(data []byte) (*opentype.Font, error) {
 //     rune. covers alone is not enough: a color-bitmap emoji font maps runes
 //     in its cmap that x/image cannot rasterize, and selecting on the cmap
 //     would blank those runes instead of falling through to the next font.
-//   - A font that was parsed and not retained is condensed into a
-//     runeCoverage bitmap and dropped, so from then on it answers "does this
-//     font cover r" without being in memory.
+//   - A font's coverage comes from its cmap table (scan), read without
+//     parsing the font, so a font that does not cover r is passed over
+//     without being opened. Parsing a whole file only to learn its coverage
+//     was the startup cost the eager approach had: warm() did it for every
+//     listed font.
+//   - A font that was parsed and not retained keeps the coverage bitmap — a
+//     file scan cannot read is condensed into one from the parse — and is
+//     dropped, so from then on it answers "does this font cover r" without
+//     being in memory.
 //   - Every answer — including "nobody renders it" — is memoised per rune, so
 //     a rune no font covers pays for the full walk exactly once.
 type fontFallbackChain struct {
@@ -188,15 +216,20 @@ type fontFallbackChain struct {
 	drop    func(face any)                 // release a face that was not retained
 	logTag  string                         // backend prefix for DebugLog lines
 
+	// scan reads a file's coverage without parsing the font (cmapCoverage).
+	// nil leaves coverage to the parse: open, then covers over every rune.
+	scan func(path string) (*runeCoverage, error)
+
 	entries  []fontFallbackEntry
 	resolved map[rune]any // memoised faceFor answers; nil = nobody renders it
 }
 
 type fontFallbackEntry struct {
-	path   string
-	failed bool          // unreadable or unparseable; never try again
-	cov    *runeCoverage // built when the font is probed and dropped, nil until then
-	face   any           // retained only once the font has rendered a glyph
+	path      string
+	failed    bool          // unreadable or unparseable; never try again
+	unscanned bool          // scan could not read the file; coverage comes from the parse
+	cov       *runeCoverage // from scan, or from the parse of a dropped font; nil until then
+	face      any           // retained only once the font has rendered a glyph
 }
 
 // faceFor returns the first fallback face that renders a glyph for r, walking
@@ -226,7 +259,7 @@ func (c *fontFallbackChain) faceFor(r rune) any {
 
 // resolveLocked walks the entries, and when none of them renders r asks
 // discoverFallbackPaths which fonts on this machine carry r's script. The
-// static list cannot hold one font per script — warm() parses every entry on
+// static list cannot hold one font per script — warm() scans every entry on
 // it — so the scripts outside it arrive here, once per script, and only in a
 // session that actually draws one.
 func (c *fontFallbackChain) resolveLocked(r rune) any {
@@ -276,6 +309,9 @@ func (c *fontFallbackChain) walkLocked(r rune, start int) any {
 			}
 			continue
 		}
+		if e.cov == nil {
+			c.scanLocked(e)
+		}
 		if e.cov != nil && !e.cov.has(r) {
 			continue
 		}
@@ -292,9 +328,9 @@ func (c *fontFallbackChain) walkLocked(r rune, start int) any {
 			DebugLog("%s: fallback loaded for U+%04X: %s in %v", c.logTag, r, e.path, time.Since(t0))
 			return face
 		}
-		// Parsed and not needed. Condense into the bitmap — unless a warm()
-		// sweep already has; a retained font never needs one — and drop; the
-		// bitmap answers for this font from now on.
+		// Parsed and not needed. Condense into the bitmap — unless scan
+		// already has; a retained font never needs one — and drop; the bitmap
+		// answers for this font from now on.
 		if e.cov == nil {
 			e.cov = c.coverageOf(face)
 		}
@@ -317,11 +353,39 @@ func (c *fontFallbackChain) coverageOf(face any) *runeCoverage {
 	return cov
 }
 
-// warm parses each not-yet-consulted entry once, in the background, building
-// its coverage bitmap and dropping the parse. Without it the first rune the
-// primary font lacks pays for parsing every fallback font ahead of the
-// covering one — synchronously, mid-frame, at whatever moment the first emoji
-// or CJK character happens to appear. The lock is taken per entry, so a
+// scanLocked fills e.cov from the file's cmap table and reports whether it
+// did. A file scan cannot read is marked and left to the parse path, which
+// condenses its coverage once the font has been opened.
+func (c *fontFallbackChain) scanLocked(e *fontFallbackEntry) bool {
+	if c.scan == nil || e.unscanned {
+		return false
+	}
+	t0 := time.Now()
+	cov, err := c.scan(e.path)
+	if errors.Is(err, errColorBitmapFont) {
+		// Nothing in it can be drawn: covering nothing passes it over for
+		// good, and it is never opened. Parsing it to learn that would cost
+		// the whole file, which for Apple Color Emoji is 183 MB.
+		e.cov = &runeCoverage{}
+		DebugLog("%s: fallback passed over, its glyphs are color bitmaps: %s", c.logTag, e.path)
+		return true
+	}
+	if err != nil {
+		e.unscanned = true
+		DebugLog("%s: fallback coverage unreadable, the font will be parsed for it: %s: %v", c.logTag, e.path, err)
+		return false
+	}
+	e.cov = cov
+	DebugLog("%s: fallback coverage scanned: %s in %v", c.logTag, e.path, time.Since(t0))
+	return true
+}
+
+// warm builds the coverage bitmap of each not-yet-consulted entry once, in
+// the background. Without it the first rune the primary font lacks pays for
+// probing every fallback font ahead of the covering one — synchronously,
+// mid-frame, at whatever moment the first emoji or CJK character happens to
+// appear. A scan reads only the cmap table; a file it cannot read is parsed
+// and dropped, as every file once was. The lock is taken per entry, so a
 // concurrent faceFor interleaves between files instead of waiting out the
 // whole sweep.
 func (c *fontFallbackChain) warm() {
@@ -333,7 +397,7 @@ func (c *fontFallbackChain) warm() {
 				return
 			}
 			e := &c.entries[i]
-			if !e.failed && e.face == nil && e.cov == nil {
+			if !e.failed && e.face == nil && e.cov == nil && !c.scanLocked(e) {
 				t0 := time.Now()
 				if face, err := c.open(e.path); err != nil {
 					e.failed = true
@@ -374,6 +438,7 @@ func newGUIFallbackChain(size, dpi float64) *fontFallbackChain {
 		open: func(path string) (any, error) {
 			return openFace(path, size, dpi)
 		},
+		scan: cmapCoverage,
 		covers: func(face any, r rune) bool {
 			_, ok := face.(font.Face).GlyphAdvance(r)
 			return ok

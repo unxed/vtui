@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -3534,6 +3535,118 @@ func TestAddAnimationWakesHeartbeat(t *testing.T) {
 	case <-fm.animWake:
 	default:
 		t.Error("AddAnimation must signal animWake")
+	}
+}
+
+// fakeBlinkStepper records StepBlink calls and answers with a fixed wait.
+type fakeBlinkStepper struct {
+	mu      sync.Mutex
+	wait    time.Duration
+	focused []bool
+}
+
+func (s *fakeBlinkStepper) StepBlink(_ time.Time, focused bool) time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.focused = append(s.focused, focused)
+	return s.wait
+}
+
+func (s *fakeBlinkStepper) calls() []bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]bool(nil), s.focused...)
+}
+
+func stoppedTimer() *time.Timer {
+	t := time.NewTimer(time.Hour)
+	t.Stop()
+	return t
+}
+
+// A blinkStepper renderer blinks the caret itself: the idle heartbeat wakes
+// when the phase is due, and never asks for a new screen.
+func TestBlinkIdleStep_WakesWhenThePhaseIsDue(t *testing.T) {
+	fm := NewFrameManager()
+	fm.RedrawChan = make(chan struct{}, 1)
+	fm.blinkWake = make(chan struct{}, 1)
+	stepper := &fakeBlinkStepper{wait: 5 * time.Millisecond}
+
+	done := make(chan struct{})
+	for i := 0; i < 3; i++ {
+		if !fm.blinkIdleStep(stepper, stoppedTimer(), done) {
+			t.Fatal("blinkIdleStep stopped before done was closed")
+		}
+	}
+	if got := stepper.calls(); len(got) != 3 || !got[0] {
+		t.Errorf("StepBlink calls (focused) = %v, want three, focused", got)
+	}
+	if fm.needsRender.Load() || len(fm.RedrawChan) != 0 {
+		t.Error("the blink heartbeat asked for a new screen")
+	}
+}
+
+// A caret that holds still (wait 0) puts the heartbeat to sleep until a
+// render or a focus change re-plans; nothing wakes it on a timer.
+func TestBlinkIdleStep_SleepsUntilReplanned(t *testing.T) {
+	fm := NewFrameManager()
+	fm.blinkWake = make(chan struct{}, 1)
+	stepper := &fakeBlinkStepper{}
+
+	returned := make(chan bool, 1)
+	go func() { returned <- fm.blinkIdleStep(stepper, stoppedTimer(), make(chan struct{})) }()
+	select {
+	case <-returned:
+		t.Fatal("a caret that holds still must not wake the heartbeat by itself")
+	case <-time.After(50 * time.Millisecond):
+	}
+	fm.wakeBlink()
+	select {
+	case ok := <-returned:
+		if !ok {
+			t.Error("blinkIdleStep reported stop after a re-plan")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("wakeBlink did not wake the heartbeat")
+	}
+
+	done := make(chan struct{})
+	close(done)
+	if fm.blinkIdleStep(stepper, stoppedTimer(), done) {
+		t.Error("blinkIdleStep must report stop once done is closed")
+	}
+}
+
+// The window's focus comes from the host's FocusEventType; losing it holds
+// the caret (StepBlink gets focused=false) and re-plans at once.
+func TestDispatchEvent_FocusTracksTheWindow(t *testing.T) {
+	oldFM := FrameManager
+	fm := &frameManager{}
+	fm.Init(NewSilentScreenBuf())
+	FrameManager = fm
+	defer func() { FrameManager = oldFM }()
+	fm.Push(newMockFrame(0, 0, 40, 20, false))
+
+	fm.dispatchEvent(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: false}, false)
+	if !fm.windowUnfocused.Load() {
+		t.Error("focus out did not mark the window unfocused")
+	}
+	select {
+	case <-fm.blinkWake:
+	default:
+		t.Error("focus out did not re-plan the blink")
+	}
+
+	stepper := &fakeBlinkStepper{}
+	fm.wakeBlink()
+	fm.blinkIdleStep(stepper, stoppedTimer(), make(chan struct{}))
+	if got := stepper.calls(); len(got) != 1 || got[0] {
+		t.Errorf("StepBlink focused = %v while unfocused, want [false]", got)
+	}
+
+	fm.dispatchEvent(&vtinput.InputEvent{Type: vtinput.FocusEventType, SetFocus: true}, false)
+	if fm.windowUnfocused.Load() {
+		t.Error("focus in did not mark the window focused")
 	}
 }
 

@@ -332,6 +332,8 @@ type frameManager struct {
 	animMu                 sync.Mutex
 	lastAnim               time.Time
 	animWake               chan struct{} // heartbeat wakes on new animations
+	blinkWake              chan struct{} // heartbeat re-plans the blink: a frame was rendered or focus changed
+	windowUnfocused        atomic.Bool   // the host reported the window lost the keyboard (FocusEventType)
 	eventSink              func(UIEvent)
 	eventSinkMu            sync.RWMutex
 	hostMode               bool
@@ -801,6 +803,9 @@ func (fm *frameManager) Init(scr *ScreenBuf) {
 	if fm.animWake == nil {
 		fm.animWake = make(chan struct{}, 1)
 	}
+	if fm.blinkWake == nil {
+		fm.blinkWake = make(chan struct{}, 1)
+	}
 
 	fm.startTaskPump()
 
@@ -1070,6 +1075,49 @@ func (fm *frameManager) HardRefresh() {
 	fm.Redraw()
 }
 
+// blinkIdleStep is one idle round of the heartbeat for a blinkStepper
+// renderer. The renderer blinks the caret on the frame it holds, so nothing
+// asks for a new screen: the heartbeat wakes exactly when the phase flips,
+// and not at all while the caret holds still, until a render or a focus
+// change (blinkWake) or an animation (animWake) re-plans. idleTmr is stopped
+// and drained on entry and on return. It reports false once done is closed.
+func (fm *frameManager) blinkIdleStep(stepper blinkStepper, idleTmr *time.Timer, done <-chan struct{}) bool {
+	wait := stepper.StepBlink(time.Now(), !fm.windowUnfocused.Load())
+	var tick <-chan time.Time
+	if wait > 0 {
+		idleTmr.Reset(wait)
+		tick = idleTmr.C
+	}
+	select {
+	case <-tick:
+		return true
+	case <-fm.animWake:
+	case <-fm.blinkWake:
+	case <-done:
+		return false
+	}
+	if wait > 0 && !idleTmr.Stop() {
+		select {
+		case <-idleTmr.C:
+		default:
+		}
+	}
+	return true
+}
+
+// wakeBlink makes the idle heartbeat re-plan the caret blink now: after a
+// render, which may have moved, shown or hidden the caret, and on a change of
+// window focus.
+func (fm *frameManager) wakeBlink() {
+	if fm.blinkWake == nil {
+		return
+	}
+	select {
+	case fm.blinkWake <- struct{}{}:
+	default:
+	}
+}
+
 // Redraw triggers an asynchronous redraw request.
 func (fm *frameManager) Redraw() {
 	fm.needsRender.Store(true)
@@ -1241,6 +1289,9 @@ func (fm *frameManager) stepWithSize(timeout time.Duration, getSize func() (int,
 		} else {
 			fm.renderPhase()
 			fm.lastRender = time.Now()
+			// The renderer now holds this frame's caret; the blink is
+			// planned from it (blinkStepper).
+			fm.wakeBlink()
 		}
 	}
 
@@ -2453,6 +2504,23 @@ type softwareBlinkRenderer interface {
 	needsIdleBlinkHeartbeat()
 }
 
+// blinkStepper is implemented by software-blink renderers that keep their
+// last frame and can blink the caret on it. For them the idle heartbeat calls
+// StepBlink instead of Redraw. A Redraw re-runs every frame's Show() to
+// rebuild a screen that has not changed, four times a second; in f4 that was
+// most of the idle CPU, with every Show() doing its system calls. Only the
+// caret changes when idle, and the renderer already has everything else.
+type blinkStepper interface {
+	// StepBlink advances the caret's blink phase to now and repaints the
+	// caret if the phase changed. focused says whether the window has the
+	// keyboard: an unfocused window holds its caret steady and drawn, as
+	// terminal emulators do. It returns how long until the next phase
+	// change, or 0 when the caret does not blink: hidden, steady by
+	// setting, or unfocused. The heartbeat then sleeps until the next
+	// render or focus change.
+	StepBlink(now time.Time, focused bool) time.Duration
+}
+
 func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 	// Only hold uiOwnershipMu while publishing the running transition. Never
 	// extend it across the event loop: callOnUI may be waiting for this lock.
@@ -2571,10 +2639,12 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 	// WaylandRenderer entirely). Each renderer file declares its own
 	// marker method under its own build tag instead.
 	needsSoftwareBlinkHeartbeat := false
+	var stepper blinkStepper
 	if fm.scr != nil {
 		if _, ok := fm.scr.Renderer.(softwareBlinkRenderer); ok {
 			needsSoftwareBlinkHeartbeat = true
 		}
+		stepper, _ = fm.scr.Renderer.(blinkStepper)
 	}
 
 	workers.Add(1)
@@ -2614,6 +2684,12 @@ func (fm *frameManager) Run(readers ...*vtinput.Reader) {
 					case <-workersDone:
 						return
 					}
+				}
+				if stepper != nil {
+					if !fm.blinkIdleStep(stepper, idleTmr, workersDone) {
+						return
+					}
+					continue
 				}
 				idleTmr.Reset(250 * time.Millisecond)
 				select {
@@ -2973,6 +3049,12 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 	fm.keyRepeat.observe(ev, is_injected)
 	if ev.Type == vtinput.PasteEventType {
 		fm.pasting = ev.PasteStart
+	}
+	if ev.Type == vtinput.FocusEventType {
+		// Only the host sends focus through here; workspace switches hand
+		// it to frames directly. So this is the window's own focus.
+		fm.windowUnfocused.Store(!ev.SetFocus)
+		fm.wakeBlink()
 	}
 	// The keys of a paste are logged by the marks around them: a paste of a
 	// megabyte is a million events, and formatting three log lines for each of

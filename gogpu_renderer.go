@@ -21,7 +21,9 @@ import (
 
 // newGogpuFallbackChain binds the shared fallback chain (gui_font.go) to gg
 // faces. gg's HasGlyph reflects what DrawString can actually draw, so covers
-// and renders coincide here, unlike on the x/image side.
+// and renders coincide here, unlike on the x/image side. The exception is a
+// color bitmap glyph (sbix, CBDT), which gg maps and draws as nothing; the
+// chain's scan passes such fonts over before they are opened.
 func newGogpuFallbackChain(size float64) *fontFallbackChain {
 	hasGlyph := func(face any, r rune) bool { return face.(text.Face).HasGlyph(r) }
 	return &fontFallbackChain{
@@ -33,10 +35,29 @@ func newGogpuFallbackChain(size float64) *fontFallbackChain {
 			}
 			return src.Face(size), nil
 		},
+		scan:    cmapCoverage,
 		covers:  hasGlyph,
 		renders: hasGlyph,
 		drop:    func(any) {},
 	}
+}
+
+// disableMSAA asks the gg accelerator to render without multi-sampling, and
+// reports whether it could ask. Everything this renderer draws is glyph-mask
+// text and pixel-aligned cells, and a window looks the same byte for byte
+// without MSAA, box drawing, diagonals and shades included. Its 4x color and
+// depth/stencil targets cost about 37 bytes per window pixel, about 120 MB of
+// GPU memory at 2060x1638.
+//
+// It asks through the method of gg.SampleCountAware rather than through
+// gg.SetAcceleratorMaxSampleCount (gogpu/gg#547), so vtui builds with gg
+// releases that predate both and takes effect with any release that has them.
+func disableMSAA(accel any) bool {
+	a, ok := accel.(interface{ SetMaxSampleCount(n int) })
+	if ok {
+		a.SetMaxSampleCount(1)
+	}
+	return ok
 }
 
 type GogpuRenderer struct {
@@ -55,6 +76,7 @@ type GogpuRenderer struct {
 	lastBlinkState   bool
 	blinkState       bool
 	lastBlinkTime    time.Time
+	unfocused        bool // the window lost the keyboard: the caret holds still (StepBlink)
 
 	canvas    *ggcanvas.Canvas
 	renderBuf []CharInfo
@@ -275,7 +297,7 @@ func (r *GogpuRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 		}
 	}
 
-	stepSoftwareBlink(&r.blinkState, &r.lastBlinkTime, time.Now())
+	r.stepBlinkLocked(time.Now())
 
 	if !needsRedraw && r.cursorVis {
 		if r.blinkState != r.lastBlinkState {
@@ -293,6 +315,41 @@ func (r *GogpuRenderer) Render(buf, shadow []CharInfo, w, h int, force bool) {
 	}
 	copy(r.renderBuf, buf)
 	r.dirty = true
+}
+
+// stepBlinkLocked advances the blink phase to now. While the window is
+// unfocused the caret holds still and drawn. The caller holds r.mu.
+func (r *GogpuRenderer) stepBlinkLocked(now time.Time) {
+	if r.unfocused {
+		r.blinkState = true
+		r.lastBlinkTime = now
+		return
+	}
+	stepSoftwareBlink(&r.blinkState, &r.lastBlinkTime, now)
+}
+
+// StepBlink implements blinkStepper: the idle heartbeat blinks the caret here,
+// on the frame already drawn, instead of asking for a new screen. When the
+// phase flips, the canvas is marked dirty and Flush asks gogpu for a frame,
+// exactly as after a render.
+func (r *GogpuRenderer) StepBlink(now time.Time, focused bool) time.Duration {
+	r.mu.Lock()
+	r.unfocused = !focused
+	r.stepBlinkLocked(now)
+	changed := r.cursorVis && r.blinkState != r.lastBlinkState
+	if changed {
+		r.lastBlinkState = r.blinkState
+		r.dirty = true
+	}
+	var wait time.Duration
+	if r.cursorVis && focused && CursorBlinks() {
+		wait = max(softwareBlinkPeriod-now.Sub(r.lastBlinkTime), time.Millisecond)
+	}
+	r.mu.Unlock()
+	if changed {
+		r.Flush()
+	}
+	return wait
 }
 
 func (r *GogpuRenderer) SetCursor(x, y int, visible bool, shape CursorShape) {
@@ -985,6 +1042,9 @@ func (r *GogpuRenderer) DrawToScreen(ctx *gogpu.Context) {
 		if provider == nil {
 			return
 		}
+		// Before ggcanvas.New: it hands gg the device, and gg settles its
+		// sample count then.
+		disableMSAA(gg.Accelerator())
 		r.canvas, _ = ggcanvas.New(provider, w, h)
 	}
 

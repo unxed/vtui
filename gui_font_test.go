@@ -50,6 +50,27 @@ func TestFallbackFontPaths_Sane(t *testing.T) {
 	}
 }
 
+// The first font on the list that has a symbol is the one kept for it, so the
+// small symbol fonts must come before the CJK collections: behind them every
+// arrow Monaco lacks loaded Hiragino Sans GB (22 MB, held twice by gg).
+func TestFallbackFontPaths_MacSymbolFontsLeadCJK(t *testing.T) {
+	index := func(name string) int {
+		for i, path := range fallbackFontPaths {
+			if strings.HasSuffix(path, name) {
+				return i
+			}
+		}
+		t.Fatalf("%s is not on the list", name)
+		return -1
+	}
+	cjk := index("/PingFang.ttc")
+	for _, name := range []string{"/Menlo.ttc", "/Apple Symbols.ttf"} {
+		if i := index(name); i > cjk {
+			t.Errorf("%s comes after the CJK fonts (%d > %d)", name, i, cjk)
+		}
+	}
+}
+
 func TestGetFontCandidates(t *testing.T) {
 	// 1. Тестируем пустой шрифт (должен вернуть встроенные дефолты)
 	defaults := getFontCandidates("")
