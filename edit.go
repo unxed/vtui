@@ -44,6 +44,16 @@ type Edit struct {
 	// suits a shell command but not a file mask or a name: "*.d" has no
 	// business offering "*.xls" (f4 #1155).
 	StrictAutoComplete bool
+	// HistoryMatches, when set, replaces the completion menu's own history
+	// matching: the host returns the rows for the typed text, separators
+	// included, in the order they are to be shown. Far's command line needs
+	// it, matching by prefix and listing the commands run in the current
+	// directory first -- knowledge vtui does not have. Shift+Del still
+	// removes the picked row from History.
+	HistoryMatches func(text string) []AutoCompleteItem
+	// PathHintsLast lists path hints after the history rows, as Far's
+	// command line does, instead of before them.
+	PathHintsLast bool
 	// ClearHistory, when set, replaces the built-in confirmation and wipe that
 	// Del performs in this field's history lists. The host asks the user
 	// itself and keeps whatever entries it must (f4 keeps the pinned ones),
@@ -93,7 +103,13 @@ func (e *Edit) autoCompletes() bool {
 	if e.PasswordMode {
 		return false
 	}
-	return len(e.History) > 0 || (e.PathHintsEnabled && PathHintProvider != nil)
+	return e.hasHistorySource() || (e.PathHintsEnabled && PathHintProvider != nil)
+}
+
+// hasHistorySource reports whether the menu may find history rows: the
+// field's own entries, or a host that matches them itself.
+func (e *Edit) hasHistorySource() bool {
+	return len(e.History) > 0 || e.HistoryMatches != nil
 }
 
 // maybeOpenAutoComplete opens the completion menu after typed was inserted,
@@ -105,7 +121,7 @@ func (e *Edit) maybeOpenAutoComplete(typed rune) {
 	if FrameManager == nil || !e.autoCompletes() {
 		return
 	}
-	if len(e.History) == 0 && typed != '/' && typed != '\\' {
+	if !e.hasHistorySource() && typed != '/' && typed != '\\' {
 		return
 	}
 	if _, isAc := FrameManager.GetTopFrame().(*AutoCompleteMenu); isAc {
