@@ -304,63 +304,24 @@ func (ac *AutoCompleteMenu) UpdateMatches() {
 	ac.items = nil
 	ac.Matches = nil
 
-	// Path suggestions come first when the host provider has any.
-	ac.hasPathItems = false
+	// Path suggestions come first when the host provider has any, unless
+	// the field asks for Far's order (PathHintsLast).
+	var pathItems []AutoCompleteItem
 	if ac.Edit.PathHintsEnabled && PathHintProvider != nil {
 		from, to, word := ac.Edit.WordUnderCursor()
-		ac.items = append(ac.items, PathHintProvider(ac.Edit, word, from, to)...)
-		ac.hasPathItems = len(ac.items) > 0
+		pathItems = PathHintProvider(ac.Edit, word, from, to)
 	}
-	pathCount := len(ac.items)
-
-	// Legacy history: matched by the fuzzy matcher, deduplicated. Ranking
-	// (highest first): exact match (score remapped to -1), prefix, substring
-	// (the further left, the better), everything else by ascending score —
-	// a plain (score, match start) ordering implements all of it.
-	text := ac.Edit.GetText()
-	if text != "" {
-		matcher := NewFuzzyMatcher(text, false)
-		if ac.Edit.StrictAutoComplete {
-			matcher.Strict()
-		}
-		seen := make(map[string]bool)
-		type histMatch struct {
-			text       string
-			score      int
-			start, end int
-		}
-
-		var hist []histMatch
-		for _, h := range ac.Edit.History {
-			if seen[h] {
-				continue
-			}
-			score, start, end, ok := matcher.Match(h)
-			if !ok {
-				continue
-			}
-			seen[h] = true
-			if matcher.IsMatchExact() {
-				score = -1 // exact match always wins sort
-			}
-			hist = append(hist, histMatch{h, score, start, end})
-		}
-
-		sort.SliceStable(hist, func(a, b int) bool {
-			if hist[a].score != hist[b].score {
-				return hist[a].score < hist[b].score
-			}
-
-			return hist[a].start < hist[b].start
-		})
-
-		for i, hm := range hist {
-			if pathCount > 0 && i == 0 {
-				ac.items = append(ac.items, AutoCompleteItem{Separator: true, MatchStart: -1, MatchEnd: -1})
-			}
-			ac.items = append(ac.items, AutoCompleteItem{Text: hm.text, MatchStart: hm.start, MatchEnd: hm.end})
-		}
+	ac.hasPathItems = len(pathItems) > 0
+	histItems := ac.historyItems()
+	first, second := pathItems, histItems
+	if ac.Edit.PathHintsLast {
+		first, second = histItems, pathItems
 	}
+	ac.items = append(ac.items, first...)
+	if len(first) > 0 && len(second) > 0 {
+		ac.items = append(ac.items, AutoCompleteItem{Separator: true, MatchStart: -1, MatchEnd: -1})
+	}
+	ac.items = append(ac.items, second...)
 
 	for _, it := range ac.items {
 		ac.Matches = append(ac.Matches, it.Text)
@@ -402,6 +363,63 @@ func (ac *AutoCompleteMenu) UpdateMatches() {
 	}
 
 	ac.reposition()
+}
+
+// historyItems returns the history rows for the current text: the host's
+// own when the field has a HistoryMatches hook, the fuzzy match otherwise.
+func (ac *AutoCompleteMenu) historyItems() []AutoCompleteItem {
+	text := ac.Edit.GetText()
+	if text == "" {
+		return nil
+	}
+	if ac.Edit.HistoryMatches != nil {
+		return ac.Edit.HistoryMatches(text)
+	}
+
+	// Legacy history: matched by the fuzzy matcher, deduplicated. Ranking
+	// (highest first): exact match (score remapped to -1), prefix, substring
+	// (the further left, the better), everything else by ascending score —
+	// a plain (score, match start) ordering implements all of it.
+	matcher := NewFuzzyMatcher(text, false)
+	if ac.Edit.StrictAutoComplete {
+		matcher.Strict()
+	}
+	seen := make(map[string]bool)
+	type histMatch struct {
+		text       string
+		score      int
+		start, end int
+	}
+
+	var hist []histMatch
+	for _, h := range ac.Edit.History {
+		if seen[h] {
+			continue
+		}
+		score, start, end, ok := matcher.Match(h)
+		if !ok {
+			continue
+		}
+		seen[h] = true
+		if matcher.IsMatchExact() {
+			score = -1 // exact match always wins sort
+		}
+		hist = append(hist, histMatch{h, score, start, end})
+	}
+
+	sort.SliceStable(hist, func(a, b int) bool {
+		if hist[a].score != hist[b].score {
+			return hist[a].score < hist[b].score
+		}
+
+		return hist[a].start < hist[b].start
+	})
+
+	var items []AutoCompleteItem
+	for _, hm := range hist {
+		items = append(items, AutoCompleteItem{Text: hm.text, MatchStart: hm.start, MatchEnd: hm.end})
+	}
+	return items
 }
 
 // reposition places the menu next to the text cursor: below the edit line,
