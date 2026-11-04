@@ -21,3 +21,19 @@ func TestWin32ClipboardRoundTrip(t *testing.T) {
 		t.Errorf("clipboard: got %q, want %q", got, text)
 	}
 }
+
+// Text with LF line breaks goes to the clipboard as CRLF and comes back as
+// LF, so a copy and a paste inside vtui leave the text as it was.
+func TestWin32ClipboardLineBreaksRoundTrip(t *testing.T) {
+	const text = "первая\nвторая\n\nthird"
+	if !setOSClipboard(text) {
+		t.Skip("the Win32 clipboard is not reachable from this session")
+	}
+	got, ok := getOSClipboard()
+	if !ok {
+		t.Fatal("the Win32 clipboard accepted a copy but refused the paste")
+	}
+	if got != text {
+		t.Errorf("clipboard: got %q, want %q", got, text)
+	}
+}

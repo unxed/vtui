@@ -59,7 +59,7 @@ func setOSClipboard(text string) bool {
 
 	procEmptyClipboard.Call()
 
-	u16, err := syscall.UTF16FromString(text)
+	u16, err := syscall.UTF16FromString(toWindowsLineBreaks(text))
 	if err != nil {
 		return false
 	}
@@ -126,5 +126,5 @@ func getOSClipboard() (string, bool) {
 		text = append(text, val)
 	}
 
-	return syscall.UTF16ToString(text), true
+	return fromWindowsLineBreaks(syscall.UTF16ToString(text)), true
 }
