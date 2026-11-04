@@ -1,6 +1,7 @@
 package vtui
 
 import (
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -699,5 +700,135 @@ func TestGetFar2lClipboard(t *testing.T) {
 				t.Fatal("GetFar2lClipboard did not return")
 			}
 		})
+	}
+}
+func TestFar2lClipChunkPlan(t *testing.T) {
+	cases := []struct {
+		total     int
+		wantChunk int
+		wantRest  int
+	}{
+		{total: 0x4001, wantChunk: 1, wantRest: 0x4000},
+		{total: 0x8000, wantChunk: 1, wantRest: 0x4000}, // last full chunk left for SETDATA
+		{total: 0x8001, wantChunk: 2, wantRest: 0x8000},
+		{total: 0x4000, wantChunk: 0, wantRest: 0}, // never called, but must not loop
+	}
+	for _, tc := range cases {
+		chunks, rest := far2lClipChunkPlan(tc.total)
+		if chunks != tc.wantChunk || rest != tc.wantRest {
+			t.Errorf("far2lClipChunkPlan(%d) = (%d, %d), want (%d, %d)",
+				tc.total, chunks, rest, tc.wantChunk, tc.wantRest)
+		}
+		if tc.total > farttyClipChunkThreshold {
+			rem := tc.total - rest
+			if rem < 1 || rem > farttyClipChunkSize {
+				t.Errorf("far2lClipChunkPlan(%d): remainder %d out of 1..%d", tc.total, rem, farttyClipChunkSize)
+			}
+		}
+	}
+}
+
+// TestFar2lClipboard_OpenMinusOneSwitchesToLocal checks that a -1 answer to
+// CLIP_OPEN makes the rest of the process use the own clipboard: the next
+// Set/Get returns false without talking to the host again.
+func TestFar2lClipboard_OpenMinusOneSwitchesToLocal(t *testing.T) {
+	oldEnabled, oldFM := Far2lEnabled, FrameManager
+	oldID := far2lIDCounter.Load()
+	oldLocal := far2lClipboardLocal.Load()
+	t.Cleanup(func() {
+		Far2lEnabled = oldEnabled
+		FrameManager = oldFM
+		far2lIDCounter.Store(oldID)
+		far2lClipboardLocal.Store(oldLocal)
+	})
+	Far2lEnabled = true
+	far2lIDCounter.Store(0)
+	far2lClipboardLocal.Store(false)
+	withTerminalClipboard(t, false)
+
+	fm := &frameManager{EventChan: make(chan *vtinput.InputEvent, 4)}
+	FrameManager = fm
+
+	resultCh := make(chan bool, 1)
+	go func() { resultCh <- SetFar2lClipboard("hello") }()
+
+	openID := waitForFar2lID(t, 0)
+	sendFar2lReply(fm, openID, func(s *vtinput.Far2lStack) {
+		s.PushU64(0)
+		s.PushU8(0xFF) // int8 -1: use own clipboard
+	})
+
+	select {
+	case ok := <-resultCh:
+		if ok {
+			t.Error("SetFar2lClipboard() = true after -1, want false")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("SetFar2lClipboard did not return")
+	}
+
+	if !far2lClipboardLocal.Load() {
+		t.Fatal("-1 did not switch the process to the own clipboard")
+	}
+
+	// No further far2l interaction must happen: both return false at once.
+	if SetFar2lClipboard("again") {
+		t.Error("SetFar2lClipboard() talked to the host after -1")
+	}
+	if _, ok := GetFar2lClipboard(); ok {
+		t.Error("GetFar2lClipboard() talked to the host after -1")
+	}
+}
+
+// TestFar2lClipboard_ChunkedSet checks that text longer than 16 KiB goes as
+// CLIP_SETDATACHUNK pieces followed by a CLIP_SETDATA remainder when the host
+// reports FARTTY_FEATCLIP_CHUNKED_SET.
+func TestFar2lClipboard_ChunkedSet(t *testing.T) {
+	oldEnabled, oldFM := Far2lEnabled, FrameManager
+	oldID := far2lIDCounter.Load()
+	oldLocal := far2lClipboardLocal.Load()
+	t.Cleanup(func() {
+		Far2lEnabled = oldEnabled
+		FrameManager = oldFM
+		far2lIDCounter.Store(oldID)
+		far2lClipboardLocal.Store(oldLocal)
+	})
+	Far2lEnabled = true
+	far2lIDCounter.Store(0)
+	far2lClipboardLocal.Store(false)
+	withTerminalClipboard(t, false)
+
+	fm := &frameManager{EventChan: make(chan *vtinput.InputEvent, 8)}
+	FrameManager = fm
+
+	text := strings.Repeat("a", 0x8001) // two chunks plus a remainder
+	resultCh := make(chan bool, 1)
+	go func() { resultCh <- SetFar2lClipboard(text) }()
+
+	openID := waitForFar2lID(t, 0)
+	sendFar2lReply(fm, openID, func(s *vtinput.Far2lStack) {
+		s.PushU64(farttyFeatClipChunkedSet)
+		s.PushU8(1)
+	})
+
+	// Chunk #0 is waited for (i%16 == 0), so it needs a reply.
+	chunkID := waitForFar2lID(t, uint32(openID))
+	sendFar2lReply(fm, chunkID, func(*vtinput.Far2lStack) {})
+
+	// Chunk #1 is sent with ID 0 and not waited for, so the next waited ID is
+	// the final CLIP_SETDATA.
+	setID := waitForFar2lID(t, uint32(chunkID))
+	sendFar2lReply(fm, setID, func(s *vtinput.Far2lStack) {
+		s.PushU64(7)
+		s.PushU8(1)
+	})
+
+	select {
+	case ok := <-resultCh:
+		if !ok {
+			t.Error("SetFar2lClipboard() = false, want true")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("SetFar2lClipboard did not return")
 	}
 }
