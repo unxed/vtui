@@ -780,6 +780,57 @@ func TestFar2lClipboard_OpenMinusOneSwitchesToLocal(t *testing.T) {
 	}
 }
 
+// TestFar2lClipboard_TimeoutSwitchesOff checks that a terminal which
+// acknowledged the extensions and answers nothing costs one timeout only: the
+// next copy and paste return false at once, until the negotiation is reset.
+func TestFar2lClipboard_TimeoutSwitchesOff(t *testing.T) {
+	oldEnabled, oldFM := Far2lEnabled, FrameManager
+	oldID := far2lIDCounter.Load()
+	oldTimeout := far2lClipboardTimeout
+	oldSilent := far2lClipboardSilent.Load()
+	t.Cleanup(func() {
+		Far2lEnabled = oldEnabled
+		FrameManager = oldFM
+		far2lIDCounter.Store(oldID)
+		far2lClipboardTimeout = oldTimeout
+		far2lClipboardSilent.Store(oldSilent)
+	})
+	Far2lEnabled = true
+	far2lIDCounter.Store(0)
+	far2lClipboardTimeout = 50 * time.Millisecond
+	far2lClipboardSilent.Store(false)
+	withTerminalClipboard(t, false)
+
+	fm := &frameManager{EventChan: make(chan *vtinput.InputEvent, 4)}
+	FrameManager = fm
+
+	if SetFar2lClipboard("first") {
+		t.Fatal("SetFar2lClipboard() = true for a terminal that answers nothing")
+	}
+	if !far2lClipboardSilent.Load() {
+		t.Fatal("a timed-out CLIP_OPEN did not switch the clipboard of the extensions off")
+	}
+
+	// The second copy and a paste must not wait: far longer than the timeout would show.
+	start := time.Now()
+	if SetFar2lClipboard("second") {
+		t.Error("SetFar2lClipboard() = true after a timeout")
+	}
+	if _, ok := GetFar2lClipboard(); ok {
+		t.Error("GetFar2lClipboard() = true after a timeout")
+	}
+	if d := time.Since(start); d >= far2lClipboardTimeout {
+		t.Errorf("the second copy and the paste waited %v, want no wait", d)
+	}
+
+	// A new terminal behind the process is talked to again.
+	fm.far2lNegotiated.Store(true)
+	ResetFar2lNegotiation()
+	if far2lClipboardSilent.Load() {
+		t.Error("ResetFar2lNegotiation did not forget the timeout")
+	}
+}
+
 // TestFar2lClipboard_ChunkedSet checks that text longer than 16 KiB goes as
 // CLIP_SETDATACHUNK pieces followed by a CLIP_SETDATA remainder when the host
 // reports FARTTY_FEATCLIP_CHUNKED_SET.

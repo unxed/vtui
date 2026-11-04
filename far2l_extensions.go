@@ -36,7 +36,31 @@ var (
 	// ("use your own clipboard"). For the rest of the process the far2l
 	// clipboard is not tried again; Set/Get fall through to the own clipboard.
 	far2lClipboardLocal atomic.Bool
+	// far2lClipboardSilent records that a clipboard request of the extensions
+	// timed out: the terminal acknowledged them and then answered nothing.
+	// The clipboard of the extensions is treated as unavailable (as after -1)
+	// until ResetFar2lNegotiation, so the next copy or paste does not wait the
+	// whole timeout again, on the UI thread where the caller is synchronous.
+	far2lClipboardSilent atomic.Bool
+	// far2lClipboardTimeout is how long a clipboard request waits for a reply.
+	far2lClipboardTimeout = 15 * time.Second
 )
+
+// far2lClipboardUnavailable reports that Set/Get must not talk to the terminal.
+func far2lClipboardUnavailable() bool {
+	return far2lClipboardLocal.Load() || far2lClipboardSilent.Load()
+}
+
+// far2lClipboardCall sends a clipboard request and waits for the reply. No
+// reply within far2lClipboardTimeout switches the clipboard of the extensions
+// off. Without a frame manager nothing is waited for, so nothing is learnt.
+func far2lClipboardCall(fm *frameManager, stk *vtinput.Far2lStack) *vtinput.Far2lStack {
+	reply := far2lInteractTimeout(fm, stk, true, far2lClipboardTimeout)
+	if reply == nil && fm != nil {
+		far2lClipboardSilent.Store(true)
+	}
+	return reply
+}
 
 // Far2lInteract sends a request to the terminal emulator and optionally waits for a reply.
 func Far2lInteract(stk *vtinput.Far2lStack, wait bool) *vtinput.Far2lStack {
@@ -96,7 +120,7 @@ func SetFar2lClipboard(text string) bool {
 	if !enabled {
 		return false
 	}
-	if far2lClipboardLocal.Load() {
+	if far2lClipboardUnavailable() {
 		return false
 	}
 	// 1. Open
@@ -105,7 +129,7 @@ func SetFar2lClipboard(text string) bool {
 	stk.PushU8('o') // FARTTY_INTERACT_CLIP_OPEN
 	stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
 	DebugLog("VTUI_FAR2L: Requesting CLIP_OPEN with ID %q...", far2lClientID())
-	reply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
+	reply := far2lClipboardCall(fm, stk)
 
 	if reply != nil {
 		status := reply.PopU8()
@@ -182,7 +206,7 @@ func far2lClipSetData(fm *frameManager, text string, features uint64) bool {
 	stk.PushU8('c')                // FARTTY_INTERACT_CLIPBOARD
 
 	DebugLog("VTUI_FAR2L: Requesting CLIP_SETDATA (len=%d)...", len(text))
-	setReply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
+	setReply := far2lClipboardCall(fm, stk)
 	if setReply == nil {
 		return false
 	}
@@ -205,7 +229,7 @@ func GetFar2lClipboard() (string, bool) {
 	if !enabled {
 		return "", false
 	}
-	if far2lClipboardLocal.Load() {
+	if far2lClipboardUnavailable() {
 		return "", false
 	}
 
@@ -213,7 +237,7 @@ func GetFar2lClipboard() (string, bool) {
 	stk.PushString(far2lClientID())
 	stk.PushU8('o')
 	stk.PushU8('c')
-	reply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
+	reply := far2lClipboardCall(fm, stk)
 
 	if reply != nil {
 		status := reply.PopU8()
@@ -228,7 +252,7 @@ func GetFar2lClipboard() (string, bool) {
 			stk.PushU32(1)  // CF_TEXT
 			stk.PushU8('g') // FARTTY_INTERACT_CLIP_GETDATA
 			stk.PushU8('c') // FARTTY_INTERACT_CLIPBOARD
-			getReply := far2lInteractTimeout(fm, stk, true, 15*time.Second)
+			getReply := far2lClipboardCall(fm, stk)
 
 			res := ""
 			if getReply != nil {
@@ -271,6 +295,7 @@ func ResetFar2lNegotiation() {
 	}
 	fm.far2lNegotiated.Store(false)
 	fm.far2lEnabled.Store(Far2lEnabled)
+	far2lClipboardSilent.Store(false)
 }
 
 // Far2lNegotiated reports whether the terminal behind this process has
