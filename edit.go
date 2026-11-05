@@ -76,6 +76,84 @@ type Edit struct {
 	// placing the cursor there: the drop-down opens only on the arrow at the
 	// right edge or on the mouse wheel over the field (f4 #2124).
 	HistoryButtonOnly bool
+	// FarKeys turns on the Far command-line editing keys for this field:
+	// Ctrl+K deletes from the cursor to the end of the text, Ctrl+Backspace
+	// and Ctrl+Delete delete the word to the left and to the right of the
+	// cursor (the word is the run the double-click selection takes, see
+	// selectWordAtCursor). Off by default: dialog fields keep their plain
+	// Backspace/Delete behaviour (unxed/vtui#245).
+	FarKeys bool
+}
+
+// CursorPos returns the cursor position as an index into the text in runes,
+// 0..len(text). The owner of a field uses it, together with SetCursorPos, for
+// edits Edit does not do itself, such as completing the text from a history.
+func (e *Edit) CursorPos() int {
+	return e.curPos
+}
+
+// SetCursorPos moves the cursor to pos (in runes), clamped to the text, and
+// drops the selection and the "first input replaces the text" flag, as any
+// cursor movement does.
+func (e *Edit) SetCursorPos(pos int) {
+	if pos < 0 {
+		pos = 0
+	}
+	if pos > len(e.text) {
+		pos = len(e.text)
+	}
+	e.curPos = pos
+	e.ClearSelection()
+}
+
+// farDelete handles the FarKeys deletions for ProcessKey: a selection or a
+// pending replace-all is removed first, as Backspace does, otherwise the rune
+// range [start, end) computed by span from the cursor.
+func (e *Edit) farDelete(span func() (int, int)) {
+	before := len(e.text)
+	if e.clearFlag {
+		e.SetText("")
+		e.ClearSelection()
+	} else if e.selStart != -1 {
+		e.DeleteBlock()
+	} else if start, end := span(); start < end {
+		e.text = append(e.text[:start], e.text[end:]...)
+		e.curPos = start
+	}
+	e.clearFlag = false
+	if len(e.text) == before {
+		return
+	}
+	if e.OnTextChange != nil {
+		e.OnTextChange(string(e.text))
+	}
+	e.NotifyChange()
+}
+
+// wordSpanLeft is the run of one character class that ends at the cursor.
+func (e *Edit) wordSpanLeft() (int, int) {
+	end := e.curPos
+	start := end
+	if start > 0 {
+		category := getCharCategory(e.text[start-1])
+		for start > 0 && getCharCategory(e.text[start-1]) == category {
+			start--
+		}
+	}
+	return start, end
+}
+
+// wordSpanRight is the run of one character class that starts at the cursor.
+func (e *Edit) wordSpanRight() (int, int) {
+	start := e.curPos
+	end := start
+	if end < len(e.text) {
+		category := getCharCategory(e.text[end])
+		for end < len(e.text) && getCharCategory(e.text[end]) == category {
+			end++
+		}
+	}
+	return start, end
 }
 
 // HistoryProvider is an interface for external history persistence (e.g. from f4).
@@ -556,6 +634,20 @@ func (e *Edit) ProcessKey(event *vtinput.InputEvent) bool {
 	if ctrl && event.VirtualKeyCode == vtinput.VK_DOWN && len(e.History) > 0 {
 		e.OpenHistory()
 		return true
+	}
+
+	if ctrl && !shift && !alt && e.FarKeys {
+		switch event.VirtualKeyCode {
+		case vtinput.VK_K:
+			e.farDelete(func() (int, int) { return e.curPos, len(e.text) })
+			return true
+		case vtinput.VK_BACK:
+			e.farDelete(e.wordSpanLeft)
+			return true
+		case vtinput.VK_DELETE:
+			e.farDelete(e.wordSpanRight)
+			return true
+		}
 	}
 
 	if ctrl && !shift {

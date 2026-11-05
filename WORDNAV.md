@@ -85,3 +85,15 @@ line moves to the beginning of the next one, and `Ctrl+Left` at the beginning of
 a line moves to the end of the previous one. When word wrap is on, a jump also
 stops at the end of the current visual line rather than continuing on the next
 screen row.
+
+## Word deletion in input fields (`FarKeys`)
+
+A single-line `Edit` with `FarKeys` set (off by default, so dialog fields keep
+plain Backspace/Delete) takes three more keys: `Ctrl+K` deletes from the cursor
+to the end of the text, `Ctrl+Backspace` and `Ctrl+Delete` delete the word to
+the left and to the right of the cursor. A "word" here is the run of one
+character class that the double-click selection takes, so `/usr/bin` is the
+three runs `/`, `usr`, `/`, `bin` and a run of spaces is a word of its own. A
+selection, if any, is deleted instead. The cursor is readable and settable
+through `Edit.CursorPos` and `Edit.SetCursorPos` (runes), so the owner can build
+what `Edit` does not do itself, such as completing the line from a history.
