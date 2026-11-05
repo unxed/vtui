@@ -3506,6 +3506,14 @@ func (fm *frameManager) dispatchEvent(ev *vtinput.InputEvent, is_injected bool) 
 				}
 
 				if f.IsModal() {
+					// A modal dialog owns wheel input even when the pointer is
+					// outside its frame. Dialogs can use it for global actions
+					// such as opening an input-history list; outside clicks keep
+					// their existing cancel/ignore behavior below.
+					if ev.WheelDirection != 0 {
+						f.ProcessMouse(ev)
+						break
+					}
 					// A frame that opts out swallows the click: nothing
 					// behind it is reachable, and nothing is cancelled.
 					if oc, ok := f.(interface{ IsOutsideClickIgnored() bool }); ok && oc.IsOutsideClickIgnored() {

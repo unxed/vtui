@@ -569,6 +569,37 @@ func TestFrameManager_ModalDialogBlocksClicks(t *testing.T) {
 	}
 }
 
+func TestFrameManager_ModalDialogReceivesWheelOutsideFrame(t *testing.T) {
+	fm := &frameManager{}
+	fm.Init(NewSilentScreenBuf())
+
+	bgFrame := newMockFrame(0, 0, 50, 50, false)
+	backgroundWheel := false
+	bgFrame.onProcessMouse = func(*vtinput.InputEvent) bool {
+		backgroundWheel = true
+		return true
+	}
+	fm.Push(bgFrame)
+
+	modalDlg := newMockFrame(10, 10, 20, 10, true)
+	var modalWheel *vtinput.InputEvent
+	modalDlg.onProcessMouse = func(e *vtinput.InputEvent) bool {
+		modalWheel = e
+		return true
+	}
+	fm.Push(modalDlg)
+
+	wheel := &vtinput.InputEvent{Type: vtinput.MouseEventType, MouseX: 5, MouseY: 5, WheelDirection: -1}
+	fm.dispatchEvent(wheel, false)
+
+	if modalWheel != wheel {
+		t.Fatal("modal dialog did not receive the wheel event outside its frame")
+	}
+	if backgroundWheel {
+		t.Fatal("background frame received the wheel event behind a modal dialog")
+	}
+}
+
 // dispatchHelper is a simplified version of the dispatch logic in Run()
 func dispatchHelper(fm *frameManager, ev *vtinput.InputEvent) {
 	if fm.capturedFrame != nil {
