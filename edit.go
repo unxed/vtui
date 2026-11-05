@@ -23,6 +23,7 @@ type Edit struct {
 	PasswordMode       bool // Mask text with '*'
 	HideCursor         bool // If true, suppress blinking cursor even when focused
 	ShowHistoryButton  bool // Show a clickable [v] button
+	mouseHovered       bool // pointer is over the field (graphical rounded style only)
 	History            []string
 	HistoryPos         int
 	HistoryLimit       int
@@ -391,6 +392,12 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 	}
 
 	defaultAttr := e.GetStateAttr(e.ColorTextIdx, e.ColorTextIdx)
+	// Pointer hover tints only a field without input focus (f4 #285): a
+	// focused field already stands out and shows its caret.
+	hovered := e.mouseHovered && !e.IsFocused() && !e.IsDisabled() && roundedButtonsActive()
+	if hovered {
+		defaultAttr = roundedControlHoverAttr(defaultAttr)
+	}
 	scr.FillRect(e.X1, e.Y1, e.X2, e.Y1, ' ', defaultAttr)
 
 	visualClusters := e.displayClusters()
@@ -401,6 +408,9 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 		attr := defaultAttr
 		if e.selStart != -1 && c.runeIdx >= e.selStart && c.runeIdx < e.selEnd {
 			attr = e.GetStateAttr(e.ColorSelectedIdx, e.ColorSelectedIdx)
+			if hovered {
+				attr = roundedControlHoverAttr(attr)
+			}
 		}
 		if e.IsDisabled() {
 			attr = DimColor(attr)
@@ -426,6 +436,13 @@ func (e *Edit) DisplayObject(scr *ScreenBuf) {
 		}
 		scr.Write(e.X2, e.Y1, StringToCharInfo("↓", btnAttr))
 	}
+}
+
+// SetMouseHovered updates the pointer-hover state. In the graphical rounded
+// style an unfocused field is tinted like the other hovered controls; Group
+// calls it as the pointer enters and leaves the field.
+func (e *Edit) SetMouseHovered(hovered bool) {
+	e.mouseHovered = hovered && !e.IsDisabled()
 }
 
 // GetText returns the current content of the edit control as a string.
