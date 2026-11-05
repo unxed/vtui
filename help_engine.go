@@ -27,6 +27,10 @@ type HelpTopic struct {
 	Lines      []string
 	Links      []HelpLink
 	StickyRows int // Number of lines from the top that don't scroll ($ syntax)
+
+	// tables are the Markdown tables among Lines, which wrapHelpTopic lays
+	// out again when the window is narrower than they are (markdown_table.go).
+	tables []helpTable
 }
 
 // HelpEngine manages loading and parsing of help files.

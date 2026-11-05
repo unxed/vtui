@@ -84,11 +84,11 @@ func ParseMarkdownTopicMap(name, markdown string) (*HelpTopic, []int) {
 	source := []byte(markdown)
 	doc := markdownParser.Parse(text.NewReader(source))
 	r := &markdownRenderer{source: source}
-	lines, srcLine := r.blocksMapped(doc)
+	lines, srcLine, tables := r.blocksMapped(doc)
 	if len(lines) == 0 {
 		lines, srcLine = []string{""}, []int{0}
 	}
-	topic := &HelpTopic{Name: name, Lines: lines}
+	topic := &HelpTopic{Name: name, Lines: lines, tables: tables}
 	for idx, line := range lines {
 		parseHelpLinksInto(topic, line, idx)
 	}
@@ -97,7 +97,7 @@ func ParseMarkdownTopicMap(name, markdown string) (*HelpTopic, []int) {
 
 // blocksMapped is blocks for the document's top level, with the source line
 // of every line it lays out (see ParseMarkdownTopicMap).
-func (r *markdownRenderer) blocksMapped(doc gast.Node) ([]string, []int) {
+func (r *markdownRenderer) blocksMapped(doc gast.Node) ([]string, []int, []helpTable) {
 	lineStarts := []int{0}
 	for i, b := range r.source {
 		if b == '\n' {
@@ -135,12 +135,20 @@ func (r *markdownRenderer) blocksMapped(doc gast.Node) ([]string, []int) {
 		start int
 		base  int // source line of the first line when each line is a source line (code), else -1
 		lines []string
+		table *markdownTable // the layout of the table these lines are, if they are one
 	}
 	var pieces []piece
 	prevStart := 0
 	var prevLines []string
 	for c := doc.FirstChild(); c != nil; c = c.NextSibling() {
-		lines := r.block(c)
+		var lines []string
+		var table *markdownTable
+		if tn, ok := c.(*east.Table); ok {
+			table = r.tableLayout(tn)
+			lines, _ = table.natural()
+		} else {
+			lines = r.block(c)
+		}
 		if len(lines) == 0 {
 			continue
 		}
@@ -158,13 +166,17 @@ func (r *markdownRenderer) blocksMapped(doc gast.Node) ([]string, []int) {
 				base = lineOf(seg.At(0).Start)
 			}
 		}
-		pieces = append(pieces, piece{start: start, base: base, lines: lines})
+		pieces = append(pieces, piece{start: start, base: base, lines: lines, table: table})
 		prevStart, prevLines = start, lines
 	}
 
 	var out []string
 	var src []int
+	var tables []helpTable
 	for i, p := range pieces {
+		if p.table != nil {
+			tables = append(tables, helpTable{first: len(out), count: len(p.lines), table: p.table})
+		}
 		end := total
 		for _, q := range pieces[i+1:] {
 			if q.start > p.start {
@@ -185,7 +197,7 @@ func (r *markdownRenderer) blocksMapped(doc gast.Node) ([]string, []int) {
 			src = append(src, line)
 		}
 	}
-	return out, src
+	return out, src, tables
 }
 
 // markdownRun is a piece of a line's text and how it is drawn.
@@ -342,19 +354,19 @@ func markdownRawLine(b []byte) string {
 // table lays out a table with its columns lined up, the header bold and
 // ruled off from the body.
 func (r *markdownRenderer) table(n *east.Table) []string {
-	type cell struct {
-		runs  []markdownRun
-		width int
-	}
-	var rows [][]cell
-	header := -1
-	var widths []int
+	lines, _ := r.tableLayout(n).natural()
+	return lines
+}
+
+// tableLayout reads a table into its cells; natural and fit lay it out.
+func (r *markdownRenderer) tableLayout(n *east.Table) *markdownTable {
+	t := &markdownTable{header: -1}
 	for row := n.FirstChild(); row != nil; row = row.NextSibling() {
 		isHeader := row.Kind() == east.KindTableHeader
 		if isHeader {
-			header = len(rows)
+			t.header = len(t.rows)
 		}
-		var cells []cell
+		var cells []markdownCell
 		for c := row.FirstChild(); c != nil; c = c.NextSibling() {
 			in := &markdownInline{r: r}
 			if isHeader {
@@ -373,47 +385,16 @@ func (r *markdownRenderer) table(n *east.Table) []string {
 				w += runewidth.StringWidth(run.text)
 			}
 			col := len(cells)
-			if col >= len(widths) {
-				widths = append(widths, 0)
+			if col >= len(t.widths) {
+				t.widths = append(t.widths, 0)
 			}
-			widths[col] = max(widths[col], w)
-			cells = append(cells, cell{runs: runs, width: w})
+			t.widths[col] = max(t.widths[col], w)
+			cells = append(cells, markdownCell{runs: runs, width: w})
 		}
-		rows = append(rows, cells)
+		t.rows = append(t.rows, cells)
 	}
-	var out []string
-	for i, cells := range rows {
-		var line []markdownRun
-		for col, c := range cells {
-			if col > 0 {
-				line = append(line, markdownRun{text: " │ "})
-			}
-			pad := widths[col] - c.width
-			left := 0
-			if col < len(n.Alignments) {
-				switch n.Alignments[col] {
-				case east.AlignRight:
-					left = pad
-				case east.AlignCenter:
-					left = pad / 2
-				}
-			}
-			line = append(line, markdownRun{text: strings.Repeat(" ", left)})
-			line = append(line, c.runs...)
-			if col < len(cells)-1 {
-				line = append(line, markdownRun{text: strings.Repeat(" ", pad-left)})
-			}
-		}
-		out = append(out, markdownMarkup(line))
-		if i == header {
-			parts := make([]string, len(widths))
-			for col, w := range widths {
-				parts[col] = strings.Repeat("─", w)
-			}
-			out = append(out, strings.Join(parts, "─┼─"))
-		}
-	}
-	return out
+	t.align = n.Alignments
+	return t
 }
 
 // inlineLines lays out the inline content of a paragraph or a heading.

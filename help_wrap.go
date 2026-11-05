@@ -192,7 +192,28 @@ func wrapHelpTopic(src *HelpTopic, width int) (*HelpTopic, []int) {
 	}
 	lines := make([]string, 0, len(src.Lines))
 	changed := false
+	tableAt := make(map[int]helpTable, len(src.tables))
+	for _, t := range src.tables {
+		if t.table.naturalWidth() > width {
+			tableAt[t.first] = t
+		}
+	}
+	skipUntil := 0
 	for idx, line := range src.Lines {
+		if idx < skipUntil {
+			continue
+		}
+		if t, ok := tableAt[idx]; ok {
+			if fitted, from := t.table.fit(width); fitted != nil {
+				changed = true
+				skipUntil = t.first + t.count
+				lines = append(lines, fitted...)
+				for _, row := range from {
+					rowSrc = append(rowSrc, t.first+natRow(t, row))
+				}
+				continue
+			}
+		}
 		if idx < src.StickyRows || strings.HasPrefix(line, "^") {
 			lines = append(lines, line)
 			rowSrc = append(rowSrc, idx)
@@ -220,4 +241,12 @@ func wrapHelpTopic(src *HelpTopic, width int) (*HelpTopic, []int) {
 		}
 	}
 	return derived, rowSrc
+}
+
+// natRow is the line of the natural layout of a table that its row i is on.
+func natRow(t helpTable, i int) int {
+	if t.table.header >= 0 && i > t.table.header {
+		return i + 1 // the ruler under the header is a line of its own
+	}
+	return i
 }
