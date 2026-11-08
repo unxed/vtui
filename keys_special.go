@@ -29,7 +29,15 @@ func isSpecialOrModifiedKey(vk uint16, mods vtinput.ControlKeyState) bool {
 		vtinput.VK_SHIFT, vtinput.VK_LSHIFT, vtinput.VK_RSHIFT,
 		vtinput.VK_MENU, vtinput.VK_LMENU, vtinput.VK_RMENU,
 		vtinput.VK_LWIN, vtinput.VK_RWIN, vtinput.VK_APPS,
-		vtinput.VK_CAPITAL, vtinput.VK_NUMLOCK, vtinput.VK_SCROLL:
+		vtinput.VK_CAPITAL, vtinput.VK_NUMLOCK, vtinput.VK_SCROLL,
+		// Pause produces no character of its own, so waiting for text that
+		// never comes dropped the key outright: the win32 GUI backend handed
+		// the unpaired key to DefWindowProc, and Windows sends no WM_CHAR for
+		// it. Ctrl+Break (VK_CANCEL) never produced text either, but it used
+		// to reach the application only because the Ctrl check above made it
+		// special; listing it here keeps the key independent of how the
+		// modifier state happens to be reported.
+		vtinput.VK_PAUSE, vtinput.VK_CANCEL:
 		return true
 	}
 	if vk >= vtinput.VK_F1 && vk <= vtinput.VK_F24 {
