@@ -744,6 +744,7 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 		if lParam&(1<<24) != 0 {
 			event.ControlKeyState |= vtinput.EnhancedKey
 		}
+		DebugLog("WIN32GUI_EVENT: keydown vk=0x%X mods=%d special=%v press=%v", vk, mods, isSpecialOrModifiedKey(vk, mods), guiKeyTranslation(vk, event.VirtualScanCode, mods))
 		if !isGUIModifierKeyCode(vk) {
 			if h.textInput.press(event, h.keyTranslation) {
 				return 0
@@ -762,6 +763,7 @@ func (h *Win32GuiHost) handleMessage(hwnd syscall.Handle, msg uint32, wParam, lP
 	case wmKeyUp, wmSysKeyUp:
 		vk := uint16(wParam)
 		mods := h.getModifiers()
+		DebugLog("WIN32GUI_EVENT: keyup vk=0x%X mods=%d", vk, mods)
 		h.sendEvent(&vtinput.InputEvent{
 			Type:            vtinput.KeyEventType,
 			KeyDown:         false,
