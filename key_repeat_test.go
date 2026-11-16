@@ -2,6 +2,7 @@ package vtui
 
 import (
 	"testing"
+	"time"
 
 	"github.com/unxed/vtinput"
 )
@@ -35,5 +36,26 @@ func TestKeyRepeatState_FollowsFar2lRule(t *testing.T) {
 		if s.repeated != st.want {
 			t.Fatalf("%s: repeated = %v, want %v", st.name, s.repeated, st.want)
 		}
+	}
+}
+
+func TestShouldDeferRenderForQueuedHeldKeyInput(t *testing.T) {
+	now := time.Now()
+	fm := &frameManager{
+		EventChan:  make(chan *vtinput.InputEvent, 1),
+		lastRender: now,
+		keyRepeat:  keyRepeatState{lastDownKnown: true},
+	}
+	fm.EventChan <- &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_LEFT}
+
+	if !fm.shouldDeferRender(now.Add(time.Millisecond)) {
+		t.Fatal("queued input during a held-key run should be handled before another render")
+	}
+	if fm.shouldDeferRender(now.Add(pasteRenderGap)) {
+		t.Fatal("a held-key input burst must still render after the maximum redraw gap")
+	}
+	<-fm.EventChan
+	if fm.shouldDeferRender(now.Add(time.Millisecond)) {
+		t.Fatal("must not defer a render after the input queue drains")
 	}
 }

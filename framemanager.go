@@ -3723,11 +3723,13 @@ func (fm *frameManager) isGUI() bool {
 // paste are still coming.
 const pasteRenderGap = 50 * time.Millisecond
 
-// shouldDeferRender reports whether the redraw can wait for the keys that are
-// already queued: during a bracketed paste, with more events waiting, and the
-// last drawing not older than pasteRenderGap. Drawing the whole screen after
-// every character of a paste (docs/FAR2L_COMPAT.md, B-01) made a paste of
-// 100 KiB into the command line of f4 take 16 seconds (unxed/f4#2157).
+// shouldDeferRender reports whether the redraw can wait for input that is
+// already queued, while keeping the last drawing no older than pasteRenderGap.
+// This batches bracketed-paste characters (docs/FAR2L_COMPAT.md, B-01) and
+// drains a held-key backlog without rendering a potentially slow frame for
+// every repeat. Drawing after every character of a paste made a 100 KiB paste
+// into f4's command line take 16 seconds (unxed/f4#2157).
 func (fm *frameManager) shouldDeferRender(now time.Time) bool {
-	return fm.pasting && len(fm.EventChan) > 0 && now.Sub(fm.lastRender) < pasteRenderGap
+	inputBurst := fm.pasting || fm.keyRepeat.lastDownKnown
+	return inputBurst && len(fm.EventChan) > 0 && now.Sub(fm.lastRender) < pasteRenderGap
 }
