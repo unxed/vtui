@@ -37,6 +37,27 @@ func TestAutoComplete_HistoryMatchesHookReplacesFuzzyMatch(t *testing.T) {
 	}
 }
 
+func TestAutoComplete_HistorySearchKeepsTypedTextAsBlankFirstRow(t *testing.T) {
+	SetDefaultPalette()
+	FrameManager.Init(NewSilentScreenBuf())
+
+	edit := NewEdit(0, 0, 40, "git")
+	edit.History = []string{"git status", "git commit"}
+	edit.HistorySearchKeepTypedText = true
+
+	ac := NewAutoCompleteMenu(edit)
+	if len(ac.items) != 3 {
+		t.Fatalf("items = %#v, want typed-text row and two history matches", ac.items)
+	}
+	if got := ac.items[0]; got.Text != "git" || !got.DisplayBlank || (acRow{ac: ac, idx: 0}).GetCellText(0) != "" {
+		t.Fatalf("first item = %#v, want blank display that restores typed input", got)
+	}
+	ac.accept(0, false)
+	if got := edit.GetText(); got != "git" {
+		t.Fatalf("accepting blank row changed input to %q, want original typed text", got)
+	}
+}
+
 // A field whose only history source is the hook still qualifies for the menu.
 func TestAutoComplete_HistoryMatchesHookCountsAsSource(t *testing.T) {
 	edit := NewEdit(0, 0, 20, "")

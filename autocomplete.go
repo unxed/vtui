@@ -29,6 +29,9 @@ type AutoCompleteItem struct {
 	// highlight.
 	MatchStart int
 	MatchEnd   int
+	// DisplayBlank keeps a row selectable while drawing no label. Text can
+	// still hold the value to apply when the row is accepted.
+	DisplayBlank bool
 	// ReplaceFrom/ReplaceTo define the rune span of the Edit text replaced
 	// when the item is accepted. The zero span (both 0) keeps the legacy
 	// behavior: the whole text is replaced.
@@ -267,6 +270,9 @@ type acRow struct {
 
 func (r acRow) GetCellText(col int) string {
 	it := r.ac.items[r.idx]
+	if it.DisplayBlank {
+		return ""
+	}
 	if it.Separator {
 		if col == 0 {
 			return strings.Repeat("─", 64) // truncated to the cell width on draw
@@ -372,8 +378,9 @@ func (ac *AutoCompleteMenu) historyItems() []AutoCompleteItem {
 	if text == "" {
 		return nil
 	}
+	var items []AutoCompleteItem
 	if ac.Edit.HistoryMatches != nil {
-		return ac.Edit.HistoryMatches(text)
+		return ac.keepTypedTextItem(text, ac.Edit.HistoryMatches(text))
 	}
 
 	// Legacy history: matched by the fuzzy matcher, deduplicated. Ranking
@@ -415,9 +422,17 @@ func (ac *AutoCompleteMenu) historyItems() []AutoCompleteItem {
 		return hist[a].start < hist[b].start
 	})
 
-	var items []AutoCompleteItem
 	for _, hm := range hist {
 		items = append(items, AutoCompleteItem{Text: hm.text, MatchStart: hm.start, MatchEnd: hm.end})
+	}
+	return ac.keepTypedTextItem(text, items)
+}
+
+func (ac *AutoCompleteMenu) keepTypedTextItem(text string, items []AutoCompleteItem) []AutoCompleteItem {
+	if ac.Edit.HistorySearchKeepTypedText && len(items) > 0 {
+		// The row is blank while Text retains the value to restore if the user
+		// explicitly accepts this row.
+		items = append([]AutoCompleteItem{{Text: text, DisplayBlank: true, MatchStart: -1, MatchEnd: -1}}, items...)
 	}
 	return items
 }
