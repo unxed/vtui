@@ -446,6 +446,40 @@ func TestInvalidateHostPalette_ForcesResend(t *testing.T) {
 	}
 }
 
+func TestScreenBuf_FrameObserverMeasuresSynchronousDelivery(t *testing.T) {
+	scr := NewScreenBuf()
+	var output bytes.Buffer
+	scr.Writer = &output
+	scr.AllocBuf(8, 2)
+
+	called := false
+	scr.SetFrameObserver(func(elapsed time.Duration) {
+		called = true
+		if elapsed < 0 {
+			t.Errorf("observer received negative duration %v", elapsed)
+		}
+		if output.Len() == 0 {
+			t.Error("observer ran before the frame was delivered")
+		}
+	})
+
+	scr.Flush()
+	if !called {
+		t.Fatal("observer was not called for a composed frame")
+	}
+
+	called = false
+	scr.Lock()
+	scr.Flush()
+	if called {
+		t.Fatal("observer was called for a frame deferred by Lock")
+	}
+	scr.Unlock()
+	if !called {
+		t.Fatal("observer was not called when Unlock delivered the deferred frame")
+	}
+}
+
 // TestAnsiRenderer_RelativeCursorMoves verifies that sparse cells on the
 // same row are reached with short relative moves (CSI n C) instead of
 // absolute "\x1b[Y;XH" positioning, and that the stream stays equivalent.

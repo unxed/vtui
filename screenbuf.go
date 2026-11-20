@@ -103,11 +103,17 @@ type ScreenBuf struct {
 	HostPaletteValid [256]bool
 	quantCache       map[uint32]uint8
 
-	Renderer SurfaceRenderer
-	Writer   io.Writer // Output destination, defaults to os.Stdout
+	Renderer      SurfaceRenderer
+	Writer        io.Writer // Output destination, defaults to os.Stdout
+	frameObserver FrameObserver
 
 	graphics GraphicsLayer
 }
+
+// FrameObserver receives the elapsed time for a composed frame and its
+// synchronous delivery to the renderer. It does not include display or
+// compositor presentation time.
+type FrameObserver func(time.Duration)
 
 // SessionConfig configures I/O streams and initial dimensions for a UI session.
 type SessionConfig struct {
@@ -122,6 +128,14 @@ func (s *ScreenBuf) SetOutput(w io.Writer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Writer = w
+}
+
+// SetFrameObserver sets an optional observer for composed and delivered frames.
+// The observer runs after delivery and outside ScreenBuf's locks.
+func (s *ScreenBuf) SetFrameObserver(observer FrameObserver) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.frameObserver = observer
 }
 
 // WritePassthrough writes bytes straight to the terminal output, bypassing the
@@ -695,12 +709,24 @@ func (s *ScreenBuf) Unlock() {
 // writeMu is taken first and covers both phases, so concurrent Flushes still
 // reach the terminal whole and in order. Lock order is always writeMu -> mu.
 func (s *ScreenBuf) Flush() {
+	observer, elapsed := s.flush()
+	if observer != nil {
+		observer(elapsed)
+	}
+}
+
+func (s *ScreenBuf) flush() (FrameObserver, time.Duration) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if deliver := s.composeFrame(); deliver != nil {
+	deliver, observer, started := s.composeFrame()
+	if deliver != nil {
 		deliver()
 	}
+	if observer == nil {
+		return nil, 0
+	}
+	return observer, time.Since(started)
 }
 
 // composeFrame renders the pending state and returns a closure that delivers
@@ -712,12 +738,17 @@ func (s *ScreenBuf) Flush() {
 // touching the Renderer at all: the pending state keeps accumulating in buf,
 // and the first Flush after the matching Unlock composes and delivers it in
 // one step.
-func (s *ScreenBuf) composeFrame() func() {
+func (s *ScreenBuf) composeFrame() (func(), FrameObserver, time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.lockCount > 0 || s.buf == nil || s.Renderer == nil {
-		return nil
+		return nil, nil, time.Time{}
+	}
+	observer := s.frameObserver
+	var started time.Time
+	if observer != nil {
+		started = time.Now()
 	}
 	if s.graphics.TakeRepaintRequest() {
 		s.dirty = true
@@ -747,7 +778,7 @@ func (s *ScreenBuf) composeFrame() func() {
 	s.cursorDirty = false
 	copy(s.shadow, s.buf)
 
-	return deliver
+	return deliver, observer, started
 }
 
 // framePreparer is implemented by renderers that can separate composing a
