@@ -13,6 +13,8 @@ type ComboBox struct {
 	DropdownOnly      bool // If true, manual text entry is not allowed
 	editMouseCaptured bool
 	editMouseMoved    bool
+	mouseHovered      bool
+	arrowMouseHovered bool
 }
 
 func NewComboBox(x, y, width int, items []string) *ComboBox {
@@ -81,6 +83,7 @@ func (cb *ComboBox) DisplayObject(scr *ScreenBuf) {
 	}
 
 	cb.Edit.focused = cb.focused
+	cb.Edit.SetMouseHovered(cb.mouseHovered)
 
 	bgIdx := cb.Edit.ColorTextIdx
 	fgIdx := ColDialogComboHighlight
@@ -113,6 +116,8 @@ func (cb *ComboBox) DisplayObject(scr *ScreenBuf) {
 	arrowAttr := withBackground(Palette[fgIdx], Palette[bgIdx])
 	if cb.IsDisabled() {
 		arrowAttr = DimColor(arrowAttr)
+	} else if cb.arrowMouseHovered && roundedButtonsActive() {
+		arrowAttr = roundedControlHoverAttr(arrowAttr)
 	}
 	scr.Write(cb.X2, cb.Y1, StringToCharInfo("↓", arrowAttr))
 }
@@ -208,6 +213,14 @@ func findDefaultButton(c Container) *Button {
 }
 
 func (cb *ComboBox) ProcessMouse(e *vtinput.InputEvent) bool {
+	hoverChanged := false
+	if e.Type == vtinput.MouseEventType && e.MouseEventFlags&vtinput.MouseMoved != 0 {
+		arrowHovered := cb.HitTest(int(e.MouseX), int(e.MouseY)) && int(e.MouseX) == cb.X2
+		if arrowHovered != cb.arrowMouseHovered {
+			cb.arrowMouseHovered = arrowHovered
+			hoverChanged = true
+		}
+	}
 	if cb.IsDisabled() {
 		return false
 	}
@@ -243,7 +256,19 @@ func (cb *ComboBox) ProcessMouse(e *vtinput.InputEvent) bool {
 			return true
 		}
 	}
-	return cb.Edit.ProcessMouse(e)
+	return cb.Edit.ProcessMouse(e) || hoverChanged
+}
+
+// SetMouseHovered updates the collapsed control's pointer state. The edit
+// portion follows Edit's unfocused-field rule; the dropdown arrow is tracked
+// separately from pointer coordinates in ProcessMouse and remains hoverable
+// while the combo box has keyboard focus.
+func (cb *ComboBox) SetMouseHovered(hovered bool) {
+	cb.mouseHovered = hovered && !cb.IsDisabled()
+	cb.Edit.SetMouseHovered(cb.mouseHovered)
+	if !cb.mouseHovered {
+		cb.arrowMouseHovered = false
+	}
 }
 
 func (cb *ComboBox) Open() {
@@ -302,6 +327,8 @@ func (cb *ComboBox) SetDisabled(d bool) {
 	if d {
 		cb.editMouseCaptured = false
 		cb.editMouseMoved = false
+		cb.mouseHovered = false
+		cb.arrowMouseHovered = false
 	}
 }
 func (cb *ComboBox) WantsChars() bool {

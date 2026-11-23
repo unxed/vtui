@@ -192,6 +192,65 @@ func TestComboBox_DropdownOnlyFocusedArrowUsesSelectedBackground(t *testing.T) {
 	}
 }
 
+func TestComboBox_RoundedHoverTintsUnfocusedEditAndArrow(t *testing.T) {
+	roundedButtonEnv(t, "gogpu", GlyphStyleRounded)
+	SetDefaultPalette()
+	cb := NewComboBox(1, 1, 20, []string{"One", "Two"})
+	draw := func() *ScreenBuf {
+		scr := NewSilentScreenBuf()
+		scr.AllocBuf(30, 3)
+		cb.Show(scr)
+		return scr
+	}
+
+	base := draw()
+	cb.SetMouseHovered(true)
+	if !cb.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, MouseEventFlags: vtinput.MouseMoved,
+		MouseX: int16(cb.X2), MouseY: int16(cb.Y1),
+	}) {
+		t.Fatal("arrow hover change was not reported for redraw")
+	}
+	hovered := draw()
+	for _, x := range []int{cb.X1, cb.X2} {
+		before := base.GetCell(x, cb.Y1).Attributes
+		after := hovered.GetCell(x, cb.Y1).Attributes
+		if sameBackground(before, after) {
+			t.Errorf("cell %d background did not change on hover", x)
+		}
+		if got := contrastRatioRGB(attrColorRGB(after, false), attrColorRGB(after, true)); got < roundedButtonMinContrast {
+			t.Errorf("cell %d hover contrast = %.2f, want >= %.1f", x, got, roundedButtonMinContrast)
+		}
+	}
+}
+
+func TestComboBox_RoundedFocusedHoverOnlyTintsArrow(t *testing.T) {
+	roundedButtonEnv(t, "gogpu", GlyphStyleRounded)
+	SetDefaultPalette()
+	cb := NewComboBox(1, 1, 20, []string{"One", "Two"})
+	cb.SetFocus(true)
+	draw := func() *ScreenBuf {
+		scr := NewSilentScreenBuf()
+		scr.AllocBuf(30, 3)
+		cb.Show(scr)
+		return scr
+	}
+
+	base := draw()
+	cb.SetMouseHovered(true)
+	cb.ProcessMouse(&vtinput.InputEvent{
+		Type: vtinput.MouseEventType, MouseEventFlags: vtinput.MouseMoved,
+		MouseX: int16(cb.X2), MouseY: int16(cb.Y1),
+	})
+	hovered := draw()
+	if !sameBackground(base.GetCell(cb.X1, cb.Y1).Attributes, hovered.GetCell(cb.X1, cb.Y1).Attributes) {
+		t.Fatal("focused edit portion changed background on hover")
+	}
+	if sameBackground(base.GetCell(cb.X2, cb.Y1).Attributes, hovered.GetCell(cb.X2, cb.Y1).Attributes) {
+		t.Fatal("focused dropdown arrow did not receive its independent hover tint")
+	}
+}
+
 func TestComboBox_EditableClickMovesCursor(t *testing.T) {
 	cb := NewComboBox(5, 2, 20, []string{"One", "Two"})
 	cb.Edit.SetText("abcdef")
