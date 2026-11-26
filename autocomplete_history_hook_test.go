@@ -109,6 +109,63 @@ func TestAutoComplete_ArrowSelectHistoryMatch(t *testing.T) {
 	}
 }
 
+func TestAutoComplete_HistorySearchPreviewsOnlyExplicitSelection(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+
+	edit := NewEdit(0, 0, 40, "git")
+	edit.History = []string{"git status", "git commit"}
+	edit.HistorySearchKeepTypedText = true
+	ac := NewAutoCompleteMenu(edit)
+	fm.Push(ac)
+	if got := edit.GetText(); got != "git" {
+		t.Fatalf("opening history changed typed text to %q", got)
+	}
+
+	down := &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN}
+	ac.ProcessKey(down) // blank first row: preserve the typed query
+	if got := edit.GetText(); got != "git" {
+		t.Fatalf("selecting the blank row changed text to %q", got)
+	}
+	ac.ProcessKey(down) // first history match
+	if got := edit.GetText(); got != "git status" {
+		t.Fatalf("selecting a match previewed %q, want %q", got, "git status")
+	}
+	up := &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_UP}
+	ac.ProcessKey(up)
+	if got := edit.GetText(); got != "git" {
+		t.Fatalf("returning to the blank row restored %q, want typed query", got)
+	}
+}
+
+func TestAutoComplete_HistorySearchPreviewFollowsWheelAndHover(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+
+	edit := NewEdit(0, 0, 40, "git")
+	edit.History = []string{"git status", "git commit", "git log", "git diff", "git show", "git add"}
+	edit.HistorySearchKeepTypedText = true
+	ac := NewAutoCompleteMenu(edit)
+	ac.SetPosition(2, 2, 40, 10)
+	fm.Push(ac)
+	ac.choose(0) // establish the blank typed-text row
+
+	wheel := gestureEvent(ac.lb.X1+1, ac.lb.Y1, true, 0, false)
+	wheel.WheelDirection = -1
+	ac.ProcessMouse(wheel)
+	if got := edit.GetText(); got != "git status" {
+		t.Fatalf("wheel selection previewed %q, want first history match", got)
+	}
+
+	// Hover over the next visible row; it is another explicit choice.
+	ac.ProcessMouse(gestureEvent(ac.lb.X1+1, ac.lb.Y1+2, false, 0, true))
+	if got := edit.GetText(); got != "git commit" {
+		t.Fatalf("hover previewed %q, want next history match", got)
+	}
+}
+
 // A field whose only history source is the hook still qualifies for the menu.
 func TestAutoComplete_HistoryMatchesHookCountsAsSource(t *testing.T) {
 	edit := NewEdit(0, 0, 20, "")

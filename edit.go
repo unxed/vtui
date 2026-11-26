@@ -53,9 +53,9 @@ type Edit struct {
 	// removes the picked row from History.
 	HistoryMatches func(text string) []AutoCompleteItem
 	// HistorySearchKeepTypedText adds the current input as a blank first row
-	// when history matches are shown. Picking it keeps the user's typed text,
-	// providing an explicit way to dismiss a suggested history value without
-	// losing the input (f4 #2124).
+	// when history matches are shown. Explicitly navigating, scrolling or
+	// hovering over a history row previews that value; selecting the blank row
+	// restores the typed input (f4 #2124).
 	HistorySearchKeepTypedText bool
 	// PathHintsLast lists path hints after the history rows, as Far's
 	// command line does, instead of before them.

@@ -92,12 +92,16 @@ type AutoCompleteMenu struct {
 	// text instead of the topmost match. Completing what nobody asked for
 	// is how a freshly typed name turned into an older one from history.
 	chosen bool
+	// searchText is the user's input before a history row is previewed. Keep
+	// it as the matching needle while selection previews replace Edit text.
+	searchText string
 }
 
 func NewAutoCompleteMenu(edit *Edit) *AutoCompleteMenu {
 	ac := &AutoCompleteMenu{
-		Window: *NewWindow(0, 0, 10, 10, ""),
-		Edit:   edit,
+		Window:     *NewWindow(0, 0, 10, 10, ""),
+		Edit:       edit,
+		searchText: edit.GetText(),
 	}
 	ac.ShowClose = false
 	ac.ShowZoom = false
@@ -116,6 +120,7 @@ func NewAutoCompleteMenu(edit *Edit) *AutoCompleteMenu {
 		// (whole-text legacy) also executes, as before.
 		ac.accept(idx, true)
 	}
+	ac.lb.OnSelect = func(idx int) { ac.choose(idx) }
 	ac.showCursor(false)
 	ac.AddItem(ac.lb)
 
@@ -216,12 +221,37 @@ func (ac *AutoCompleteMenu) edgeItem(down bool) int {
 
 // choose moves the cursor to idx and marks the selection as the user's own.
 func (ac *AutoCompleteMenu) choose(idx int) {
-	if idx < 0 {
+	if idx < 0 || !ac.lb.IsSelectable(idx) {
 		return
 	}
 	ac.chosen = true
 	ac.showCursor(true)
 	ac.lb.SetSelectPos(idx)
+	ac.previewHistoryItem(idx)
+}
+
+// previewHistoryItem shows an explicitly selected history value in the edit
+// field. The blank first row restores the text that produced the matches.
+func (ac *AutoCompleteMenu) previewHistoryItem(idx int) {
+	if !ac.Edit.HistorySearchKeepTypedText {
+		return
+	}
+	text := ac.searchText
+	if idx >= 0 && idx < len(ac.items) {
+		it := ac.items[idx]
+		if !it.Separator && it.ReplaceTo <= it.ReplaceFrom && !it.DisplayBlank {
+			text = it.Text
+		}
+	}
+	ac.Edit.SetText(text)
+	ac.Edit.curPos = len(ac.Edit.text)
+}
+
+func (ac *AutoCompleteMenu) restoreSearchText() {
+	if ac.Edit.HistorySearchKeepTypedText && ac.Edit.GetText() != ac.searchText {
+		ac.Edit.SetText(ac.searchText)
+		ac.Edit.curPos = len(ac.Edit.text)
+	}
 }
 
 // dropChoice forgets the current pick. Editing the text invalidates it: the
@@ -375,6 +405,9 @@ func (ac *AutoCompleteMenu) UpdateMatches() {
 // own when the field has a HistoryMatches hook, the fuzzy match otherwise.
 func (ac *AutoCompleteMenu) historyItems() []AutoCompleteItem {
 	text := ac.Edit.GetText()
+	if ac.Edit.HistorySearchKeepTypedText {
+		text = ac.searchText
+	}
 	if text == "" {
 		return nil
 	}
@@ -651,6 +684,7 @@ func (ac *AutoCompleteMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		}
 		return ac.lb.ProcessKey(e)
 	case vtinput.VK_ESCAPE:
+		ac.restoreSearchText()
 		ac.Close()
 		return true
 	case vtinput.VK_TAB:
@@ -736,11 +770,15 @@ func (ac *AutoCompleteMenu) ProcessKey(e *vtinput.InputEvent) bool {
 		}
 	}
 
+	// Typing while a suggestion is previewed edits the user's query, not the
+	// temporary history value. Recompute matches only after that edit.
+	ac.restoreSearchText()
 	oldText := ac.Edit.GetText()
 	handled := ac.Edit.ProcessKey(e)
 	if handled {
 		newText := ac.Edit.GetText()
 		if newText != oldText {
+			ac.searchText = newText
 			if newText == "" {
 				ac.Close()
 			} else {
@@ -760,10 +798,20 @@ func (ac *AutoCompleteMenu) ProcessMouse(e *vtinput.InputEvent) bool {
 	// cursor stays hidden until a row is actually clicked.
 	clicked := e.Type == vtinput.MouseEventType && e.KeyDown && e.ButtonState != 0 &&
 		e.WheelDirection == 0 && ac.lb.GetClickIndex(int(e.MouseY)) >= 0
-	if ac.lb.ProcessMouse(e) {
+	handled := ac.lb.ProcessMouse(e)
+	if handled {
 		if clicked && ac.lb.IsSelectable(ac.lb.SelectPos) {
 			ac.choose(ac.lb.SelectPos)
 		}
+	}
+	// Hovering a history row is an explicit choice in history-search mode.
+	if e.Type == vtinput.MouseEventType && e.WheelDirection == 0 && e.ButtonState == 0 &&
+		int(e.MouseX) >= ac.lb.X1 && int(e.MouseX) <= ac.lb.X2 {
+		if idx := ac.lb.GetClickIndex(int(e.MouseY)); ac.lb.IsSelectable(idx) {
+			ac.choose(idx)
+		}
+	}
+	if handled {
 		return true
 	}
 	// Consume all mouse events within the menu bounds to prevent
