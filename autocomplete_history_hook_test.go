@@ -84,6 +84,31 @@ func TestAutoComplete_ArrowSelectBlankHistoryRowKeepsTypedText(t *testing.T) {
 	}
 }
 
+func TestAutoComplete_ArrowSelectHistoryMatch(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+	fm.injectedEvents = nil
+
+	edit := NewEdit(0, 0, 40, "git")
+	edit.History = []string{"git status", "git commit"}
+	edit.HistorySearchKeepTypedText = true
+
+	ac := NewAutoCompleteMenu(edit)
+	fm.Push(ac)
+	down := &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_DOWN}
+	ac.ProcessKey(down) // select the blank row that preserves the typed text
+	ac.ProcessKey(down) // move to the first filtered history match
+	if got := ac.SelectPos(); got != 1 {
+		t.Fatalf("second Down selected row %d, want first history match at row 1", got)
+	}
+	ac.ProcessKey(&vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_RETURN})
+
+	if got := edit.GetText(); got != "git status" {
+		t.Fatalf("accepting selected history match set text to %q, want %q", got, "git status")
+	}
+}
+
 // A field whose only history source is the hook still qualifies for the menu.
 func TestAutoComplete_HistoryMatchesHookCountsAsSource(t *testing.T) {
 	edit := NewEdit(0, 0, 20, "")
