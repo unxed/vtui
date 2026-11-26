@@ -166,6 +166,44 @@ func TestAutoComplete_HistorySearchPreviewFollowsWheelAndHover(t *testing.T) {
 	}
 }
 
+func TestAutoComplete_HistorySearchArrowDismissesBeforeOpeningFullHistory(t *testing.T) {
+	SetDefaultPalette()
+	fm := FrameManager
+	fm.Init(NewSilentScreenBuf())
+
+	edit := NewEdit(0, 0, 40, "git")
+	edit.History = []string{"git status", "git commit"}
+	edit.ShowHistoryButton = true
+	edit.HistoryButtonOnly = true
+	edit.HistorySearchKeepTypedText = true
+	ac := NewAutoCompleteMenu(edit)
+	fm.Push(ac)
+	ac.choose(1) // preview a match before using the arrow
+	if got := edit.GetText(); got != "git status" {
+		t.Fatalf("preview text = %q, want %q", got, "git status")
+	}
+
+	clickArrow := &vtinput.InputEvent{
+		Type: vtinput.MouseEventType, KeyDown: true,
+		ButtonState: vtinput.FromLeft1stButtonPressed,
+		MouseX:      int16(edit.X2), MouseY: int16(edit.Y1),
+	}
+	ac.ProcessMouse(clickArrow)
+	if !ac.IsDone() {
+		t.Fatal("first arrow click must dismiss filtered matches")
+	}
+	if got := edit.GetText(); got != "git" {
+		t.Fatalf("dismissing filtered matches restored %q, want original query", got)
+	}
+
+	// The next click is delivered to the edit and opens its ordinary, full
+	// history list rather than reopening the filtered autocomplete menu.
+	edit.ProcessMouse(clickArrow)
+	if _, ok := fm.GetTopFrame().(*VMenu); !ok {
+		t.Fatalf("second arrow click opened %T, want the full history menu", fm.GetTopFrame())
+	}
+}
+
 // A field whose only history source is the hook still qualifies for the menu.
 func TestAutoComplete_HistoryMatchesHookCountsAsSource(t *testing.T) {
 	edit := NewEdit(0, 0, 20, "")

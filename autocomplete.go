@@ -794,6 +794,18 @@ func (ac *AutoCompleteMenu) ProcessKey(e *vtinput.InputEvent) bool {
 }
 
 func (ac *AutoCompleteMenu) ProcessMouse(e *vtinput.InputEvent) bool {
+	// In history-search mode, the edit's dropdown arrow has two stages: the
+	// first click dismisses the filtered matches, and the next click reaches
+	// Edit.OpenHistory to show the complete history list.
+	if ac.Edit.HistorySearchKeepTypedText && ac.Edit.ShowHistoryButton &&
+		e.Type == vtinput.MouseEventType && e.KeyDown &&
+		e.ButtonState == vtinput.FromLeft1stButtonPressed && e.WheelDirection == 0 &&
+		int(e.MouseX) == ac.Edit.X2 && int(e.MouseY) == ac.Edit.Y1 {
+		ac.restoreSearchText()
+		ac.Close()
+		return true
+	}
+
 	// A press on a row is a pick by hand; wheel scrolling is not, so the
 	// cursor stays hidden until a row is actually clicked.
 	clicked := e.Type == vtinput.MouseEventType && e.KeyDown && e.ButtonState != 0 &&
