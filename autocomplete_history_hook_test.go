@@ -186,7 +186,8 @@ func TestAutoComplete_HistorySearchArrowDismissesBeforeOpeningFullHistory(t *tes
 	clickArrow := &vtinput.InputEvent{
 		Type: vtinput.MouseEventType, KeyDown: true,
 		ButtonState: vtinput.FromLeft1stButtonPressed,
-		MouseX:      int16(edit.X2), MouseY: int16(edit.Y1),
+		MouseX:      int16(edit.X2), // #nosec G115 -- the test dialog is smaller than the mouse coordinate range
+		MouseY:      int16(edit.Y1), // #nosec G115 -- the test dialog is smaller than the mouse coordinate range
 	}
 	ac.ProcessMouse(clickArrow)
 	if !ac.IsDone() {
