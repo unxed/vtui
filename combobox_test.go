@@ -207,7 +207,7 @@ func TestComboBox_RoundedHoverTintsUnfocusedEditAndArrow(t *testing.T) {
 	cb.SetMouseHovered(true)
 	if !cb.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, MouseEventFlags: vtinput.MouseMoved,
-		MouseX: int16(cb.X2), MouseY: int16(cb.Y1),
+		MouseX: int16(cb.X2), MouseY: int16(cb.Y1), // #nosec G115 -- test fixture is a 20-column ComboBox inside the small screen buffer
 	}) {
 		t.Fatal("arrow hover change was not reported for redraw")
 	}
@@ -240,7 +240,7 @@ func TestComboBox_RoundedFocusedHoverOnlyTintsArrow(t *testing.T) {
 	cb.SetMouseHovered(true)
 	cb.ProcessMouse(&vtinput.InputEvent{
 		Type: vtinput.MouseEventType, MouseEventFlags: vtinput.MouseMoved,
-		MouseX: int16(cb.X2), MouseY: int16(cb.Y1),
+		MouseX: int16(cb.X2), MouseY: int16(cb.Y1), // #nosec G115 -- test fixture is a 20-column ComboBox inside the small screen buffer
 	})
 	hovered := draw()
 	if !sameBackground(base.GetCell(cb.X1, cb.Y1).Attributes, hovered.GetCell(cb.X1, cb.Y1).Attributes) {
