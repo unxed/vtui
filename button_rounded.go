@@ -25,6 +25,8 @@ const (
 	// roundedButtonHover is the subtle pointer-hover tint, applied after the
 	// ordinary button tint and in the same direction.
 	roundedButtonHover = 0.08
+	// roundedListHover keeps hover feedback on large lists deliberately subtle.
+	roundedListHover = 0.04
 	// roundedTitleButtonHover is the requested ten-percent title-control tint.
 	roundedTitleButtonHover = 0.10
 	// roundedButtonMinContrast is the WCAG contrast ratio the caption keeps
@@ -111,6 +113,18 @@ func roundedTitleButtonHoverAttr(attr uint64) uint64 {
 // tint used by rounded buttons to a regular control attribute.
 func roundedControlHoverAttr(attr uint64) uint64 {
 	bg := roundedButtonHoverBack(attrColorRGB(attr, true))
+	fg := readableOn(attrColorRGB(attr, false), bg, roundedButtonMinContrast)
+	return SetRGBBoth(attr, fg, bg)
+}
+
+// roundedListHoverAttr applies the smaller hover tint requested for list rows.
+func roundedListHoverAttr(attr uint64) uint64 {
+	bg := attrColorRGB(attr, true)
+	if relativeLuminanceRGB(bg) > roundedButtonLightLuminance {
+		bg = mixRGB(bg, 0x000000, roundedListHover)
+	} else {
+		bg = mixRGB(bg, 0xFFFFFF, roundedListHover)
+	}
 	fg := readableOn(attrColorRGB(attr, false), bg, roundedButtonMinContrast)
 	return SetRGBBoth(attr, fg, bg)
 }

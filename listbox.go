@@ -12,6 +12,12 @@ type listRow struct {
 
 func (r listRow) GetCellText(col int) string { return r.lb.Items[r.idx] }
 func (r listRow) IsSelected() bool           { return r.lb.SelectedMap[r.idx] }
+func (r listRow) GetCellAttr(_ int, attr uint64) uint64 {
+	if r.lb.hovered && r.lb.hoverIdx == r.idx && !r.lb.IsFocused() && !r.lb.IsDisabled() && roundedButtonsActive() {
+		return roundedListHoverAttr(attr)
+	}
+	return attr
+}
 
 // ListBox is a single-column Table for simple string selection.
 type ListBox struct {
@@ -20,6 +26,8 @@ type ListBox struct {
 	SelectedMap map[int]bool
 	MultiSelect bool
 	OnKeyDown   func(e *vtinput.InputEvent) bool
+	hovered     bool
+	hoverIdx    int
 }
 
 func NewListBox(x, y, w, h int, items []string) *ListBox {
@@ -27,6 +35,7 @@ func NewListBox(x, y, w, h int, items []string) *ListBox {
 		Table:       *NewTable(x, y, w, h, []TableColumn{{Width: w}}),
 		Items:       items,
 		SelectedMap: make(map[int]bool),
+		hoverIdx:    -1,
 	}
 	lb.ShowHeader = false
 	lb.ShowSeparators = false
@@ -80,6 +89,28 @@ func (lb *ListBox) SetPosition(x1, y1, x2, y2 int) {
 	if len(lb.Columns) > 0 {
 		lb.Columns[0].Width = lb.GetContentWidth()
 	}
+}
+
+// SetMouseHovered tracks whether the pointer is over this list. Group calls it
+// on entry and exit so a row tint is cleared even when the exit event lands
+// outside the list bounds.
+func (lb *ListBox) SetMouseHovered(hovered bool) {
+	lb.hovered = hovered && !lb.IsDisabled()
+	if !lb.hovered {
+		lb.hoverIdx = -1
+	}
+}
+
+func (lb *ListBox) ProcessMouse(e *vtinput.InputEvent) bool {
+	oldHoverIdx := lb.hoverIdx
+	lb.hoverIdx = -1
+	if lb.hovered && e.Type == vtinput.MouseEventType && lb.HitTest(int(e.MouseX), int(e.MouseY)) {
+		if displayPos := lb.GetClickIndex(int(e.MouseY)); displayPos >= 0 {
+			lb.hoverIdx = lb.rowAt(displayPos)
+		}
+	}
+	handled := lb.Table.ProcessMouse(e)
+	return handled || oldHoverIdx != lb.hoverIdx
 }
 
 func (lb *ListBox) ProcessKey(e *vtinput.InputEvent) bool {
